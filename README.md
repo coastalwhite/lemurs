@@ -1,8 +1,9 @@
-<div align"center">
-	Lemors 🐒
+<div align="center">
+	
+# Lemors 🐒
+A TUI Display/Login Manager written in Rust
+	
 </div>
-
----
 
 **WIP: Not working yet.**
 
