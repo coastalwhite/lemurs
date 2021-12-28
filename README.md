@@ -1,6 +1,6 @@
 <div align="center">
 	
-# Lemors 🐒
+# Lemurs 🐒
 A TUI Display/Login Manager written in Rust
 	
 </div>
