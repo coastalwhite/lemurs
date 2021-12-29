@@ -6,6 +6,7 @@ use tui::{
     text::{Span, Spans, Text},
     widgets::{Block, Paragraph},
 };
+use std::process::Command;
 
 const NO_WINDOW_MANAGERS_STRING: &str = "No Window Managers Specified";
 const NO_WINDOW_MANAGERS_STRING_COLOR: [Color; 2] = [Color::LightRed, Color::Red];
@@ -25,8 +26,8 @@ const MIN_WIDTH: usize = WINDOW_MANAGER_CUTOFF_WIDTH
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct WindowManager {
-    title: String,
-    cmd: String,
+    pub title: String,
+    pub cmds: Vec<(String, Vec<String>)>,
 }
 
 #[derive(Debug)]
@@ -38,11 +39,10 @@ struct WindowManagerSelector {
 pub struct WindowManagerSelectorWidget(WindowManagerSelector);
 
 impl WindowManager {
-    pub fn new(title: impl ToString, cmd: impl ToString) -> WindowManager {
+    pub fn new(title: impl ToString, cmds: Vec<(String, Vec<String>)>) -> WindowManager {
         let title = title.to_string();
-        let cmd = cmd.to_string();
 
-        Self { title, cmd }
+        Self { title, cmds }
     }
 }
 
@@ -256,6 +256,11 @@ impl WindowManagerSelectorWidget {
             }
             _ => {}
         }
+    }
+
+    pub fn selected(&self) -> Option<&WindowManager> {
+        let WindowManagerSelectorWidget(ref selector) = self;
+        selector.current()
     }
 }
 

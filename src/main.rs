@@ -48,9 +48,22 @@ impl Default for App {
     fn default() -> App {
         App {
             window_manager_widget: WindowManagerSelectorWidget::new(vec![
-                WindowManager::new("bspwm", "sxhkd & ; exec bspwm"),
-                WindowManager::new("i3", "/usr/bin/i3"),
-                WindowManager::new("awesome", "/usr/bin/awesome"),
+                WindowManager::new(
+                    "bspwm",
+                    vec![("exec".to_string(), vec!["bspwm".to_string()])],
+                ),
+                WindowManager::new("i3", vec![("exec".to_string(), vec!["i3".to_string()])]),
+                WindowManager::new(
+                    "awesome",
+                    vec![("exec".to_string(), vec!["awesome".to_string()])],
+                ),
+                WindowManager::new(
+                    "create file",
+                    vec![(
+                        "/usr/bin/touch".to_string(),
+                        vec!["/home/gburghoorn/Projects/lemurs/test".to_string()],
+                    )],
+                ),
             ]),
             username_widget: InputFieldWidget::new("Username", InputFieldDisplayType::Echo),
             password_widget: InputFieldWidget::new("Password", InputFieldDisplayType::Replace('*')),
@@ -138,7 +151,43 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                             app.password_widget.get_content(),
                         ) {
                             Err(err) => app.error_msg = Some(err),
-                            _ => return Ok(()),
+                            Ok((mut context, uid)) => {
+                                // Open session and initialize credentials
+                                let session = match context.open_session(Flag::NONE) {
+                                    Err(_) => {
+                                        app.error_msg = Some(AuthError::SessionOpen);
+                                        continue;
+                                    }
+                                    Ok(session) => session,
+                                };
+
+                                // Run a process in the PAM environment
+                                match app.window_manager_widget.selected() {
+                                    Some(wm) => {
+                                        for (cmd, args) in wm.cmds.iter() {
+                                            match Command::new(cmd)
+                                                .args(args)
+                                                .env_clear()
+                                                .envs(session.envlist().iter_tuples())
+                                                .uid(uid)
+                                                // .gid(...)
+                                                .spawn()
+                                            {
+                                                Ok(mut child) => match child.wait() {
+                                                    Err(_) => {
+                                                        app.error_msg = Some(AuthError::Child)
+                                                    }
+                                                    _ => {}
+                                                },
+                                                Err(_) => {
+                                                    app.error_msg = Some(AuthError::CommandFail)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    None => app.error_msg = Some(AuthError::Weird), // TODO: THink of something here
+                                }
+                            }
                         }
                     }
                     KeyCode::Tab => {
@@ -204,6 +253,8 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
             UIDNotFound => "UID not found",
             SessionOpen => "Failed to open session",
             CommandFail => "Failed to run command",
+            Weird => "Weird error",
+            Child => "Child failed",
         })
         .style(Style::default().fg(Color::Red));
 
@@ -213,7 +264,6 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
 
 use pam_client::conv_mock::Conversation;
 use pam_client::{Context, Flag};
-use std::ffi::OsStr;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 
@@ -225,11 +275,22 @@ enum AuthError {
     UIDNotFound,
     SessionOpen,
     CommandFail,
+    Weird,
+    Child,
 }
 
-fn authenticate(username: String, password: String) -> Result<(), AuthError> {
+fn authenticate(
+    username: String,
+    password: String,
+) -> Result<
+    (
+        pam_client::Context<pam_client::conv_mock::Conversation>,
+        u32,
+    ),
+    AuthError,
+> {
     let mut context = Context::new(
-        "my-service", // Service name
+        "lemurs", // Service name
         None,
         Conversation::with_credentials(username, password),
     )
@@ -252,20 +313,5 @@ fn authenticate(username: String, password: String) -> Result<(), AuthError> {
         None => return Err(AuthError::UIDNotFound),
     };
 
-    // Open session and initialize credentials
-    let session = context
-        .open_session(Flag::NONE)
-        .map_err(|_| AuthError::SessionOpen)?;
-
-    // Run a process in the PAM environment
-    Command::new("/usr/bin/notify-send")
-        .arg("Hi from Lemurs!")
-        .env_clear()
-        .envs(session.envlist().iter_tuples())
-        .uid(uid)
-        // .gid(...)
-        .status()
-        .map_err(|_| AuthError::CommandFail)?;
-
-    Ok(())
+    Ok((context, uid))
 }
