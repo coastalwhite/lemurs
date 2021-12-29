@@ -13,3 +13,5 @@ crossterm = { version = "0.22" }
 serde = { version = "1", features = ["derive"]}
 rand = "0.8"
 argh = "0.1"
+pam-client = "0.3.1"
+users = "0.11.0"

@@ -130,6 +130,10 @@ impl InputFieldWidget {
             _ => {}
         }
     }
+
+    pub fn get_content(&self) -> String {
+        self.content.clone()
+    }
 }
 
 #[cfg(test)]

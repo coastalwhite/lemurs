@@ -3,11 +3,12 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{error::Error, io};
+use std::{error::Error, io, os::unix::prelude::MetadataExt};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
+    text::Span,
     widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
 };
@@ -38,6 +39,9 @@ struct App {
 
     /// Current input mode
     input_mode: InputMode,
+
+    /// Error Message
+    error_msg: Option<AuthError>,
 }
 
 impl Default for App {
@@ -51,6 +55,7 @@ impl Default for App {
             username_widget: InputFieldWidget::new("Username", InputFieldDisplayType::Echo),
             password_widget: InputFieldWidget::new("Password", InputFieldDisplayType::Replace('*')),
             input_mode: InputMode::Normal,
+            error_msg: None,
         }
     }
 }
@@ -128,7 +133,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 },
                 InputMode::Password => match key.code {
                     KeyCode::Enter => {
-                        todo!()
+                        match authenticate(
+                            app.username_widget.get_content(),
+                            app.password_widget.get_content(),
+                        ) {
+                            Err(err) => app.error_msg = Some(err),
+                            _ => return Ok(()),
+                        }
                     }
                     KeyCode::Tab => {
                         if key.modifiers == KeyModifiers::SHIFT {
@@ -142,7 +153,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         app.input_mode = InputMode::Normal;
                     }
                     key_code => app.password_widget.key_press(key_code),
-                    _ => {}
                 },
             }
         }
@@ -163,6 +173,8 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
                 Constraint::Length(3),
                 Constraint::Length(2),
                 Constraint::Length(3),
+                Constraint::Length(2),
+                Constraint::Length(1),
                 Constraint::Min(0),
             ]
             .as_ref(),
@@ -180,4 +192,80 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
 
     app.password_widget
         .render(f, chunks[6], matches!(app.input_mode, InputMode::Password));
+
+    if let Some(error_msg) = &app.error_msg {
+        use AuthError::*;
+
+        let error_widget = Paragraph::new(match error_msg {
+            PamContext => "Failed to initialize PAM context",
+            Authentication => "Authentication Failed",
+            AccountValidation => "Account validation failed",
+            UsernameNotFound => "Username not found",
+            UIDNotFound => "UID not found",
+            SessionOpen => "Failed to open session",
+            CommandFail => "Failed to run command",
+        })
+        .style(Style::default().fg(Color::Red));
+
+        f.render_widget(error_widget, chunks[8]);
+    }
+}
+
+use pam_client::conv_mock::Conversation;
+use pam_client::{Context, Flag};
+use std::ffi::OsStr;
+use std::os::unix::process::CommandExt;
+use std::process::Command;
+
+enum AuthError {
+    PamContext,
+    Authentication,
+    AccountValidation,
+    UsernameNotFound,
+    UIDNotFound,
+    SessionOpen,
+    CommandFail,
+}
+
+fn authenticate(username: String, password: String) -> Result<(), AuthError> {
+    let mut context = Context::new(
+        "my-service", // Service name
+        None,
+        Conversation::with_credentials(username, password),
+    )
+    .map_err(|_| AuthError::PamContext)?;
+
+    // Authenticate the user
+    context
+        .authenticate(Flag::NONE)
+        .map_err(|_| AuthError::Authentication)?;
+
+    // Validate the account
+    context
+        .acct_mgmt(Flag::NONE)
+        .map_err(|_| AuthError::AccountValidation)?;
+
+    // Get resulting user name and map to a user id
+    let username = context.user().map_err(|_| AuthError::UsernameNotFound)?;
+    let uid = match users::get_user_by_name(&username) {
+        Some(user) => user.uid(), // Left as an exercise to the reader
+        None => return Err(AuthError::UIDNotFound),
+    };
+
+    // Open session and initialize credentials
+    let session = context
+        .open_session(Flag::NONE)
+        .map_err(|_| AuthError::SessionOpen)?;
+
+    // Run a process in the PAM environment
+    Command::new("/usr/bin/notify-send")
+        .arg("Hi from Lemurs!")
+        .env_clear()
+        .envs(session.envlist().iter_tuples())
+        .uid(uid)
+        // .gid(...)
+        .status()
+        .map_err(|_| AuthError::CommandFail)?;
+
+    Ok(())
 }
