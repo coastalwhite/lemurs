@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -13,7 +13,9 @@ use tui::{
 };
 use unicode_width::UnicodeWidthStr;
 
+mod input_field;
 mod window_manager_selector;
+use input_field::{InputFieldDisplayType, InputFieldWidget};
 use window_manager_selector::{WindowManager, WindowManagerSelectorWidget};
 
 enum InputMode {
@@ -29,10 +31,10 @@ struct App {
     window_manager_widget: WindowManagerSelectorWidget,
 
     /// Current value of the Username
-    username: String,
+    username_widget: InputFieldWidget,
 
     /// Current value of the Password
-    password: String,
+    password_widget: InputFieldWidget,
 
     /// Current input mode
     input_mode: InputMode,
@@ -46,8 +48,8 @@ impl Default for App {
                 WindowManager::new("i3", "/usr/bin/i3"),
                 WindowManager::new("awesome", "/usr/bin/awesome"),
             ]),
-            username: String::new(),
-            password: String::new(),
+            username_widget: InputFieldWidget::new("Username", InputFieldDisplayType::Echo),
+            password_widget: InputFieldWidget::new("Password", InputFieldDisplayType::Replace('*')),
             input_mode: InputMode::Normal,
         }
     }
@@ -97,42 +99,55 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     _ => {}
                 },
                 InputMode::WindowManager => match key.code {
-                    KeyCode::Enter | KeyCode::Tab => {
+                    KeyCode::Enter | KeyCode::Tab | KeyCode::Down => {
                         app.input_mode = InputMode::Username;
                     }
                     KeyCode::Esc => {
                         app.input_mode = InputMode::Normal;
                     }
-                    KeyCode::Left => {
+                    KeyCode::Left | KeyCode::Char('h') => {
                         app.window_manager_widget.left();
                     }
-                    KeyCode::Right => {
+                    KeyCode::Right | KeyCode::Char('l') => {
                         app.window_manager_widget.right();
                     }
                     _ => {}
                 },
                 InputMode::Username => match key.code {
-                    KeyCode::Enter | KeyCode::Tab => {
+                    KeyCode::Enter | KeyCode::Down => {
                         app.input_mode = InputMode::Password;
                     }
+                    KeyCode::Tab => {
+                        if key.modifiers == KeyModifiers::SHIFT {
+                            app.input_mode = InputMode::WindowManager;
+                        } else {
+                            app.input_mode = InputMode::Password;
+                        }
+                    }
+                    KeyCode::Up => {
+                        app.input_mode = InputMode::WindowManager;
+                    }
                     KeyCode::Esc => {
                         app.input_mode = InputMode::Normal;
                     }
-                    KeyCode::Char(c) => {
-                        app.username.push(c);
-                    }
-                    _ => {}
+                    key_code => app.username_widget.key_press(key_code),
                 },
                 InputMode::Password => match key.code {
-                    KeyCode::Enter | KeyCode::Tab => {
+                    KeyCode::Enter => {
                         todo!()
+                    }
+                    KeyCode::Tab => {
+                        if key.modifiers == KeyModifiers::SHIFT {
+                            app.input_mode = InputMode::Username;
+                        }
+                    }
+                    KeyCode::Up => {
+                        app.input_mode = InputMode::Username;
                     }
                     KeyCode::Esc => {
                         app.input_mode = InputMode::Normal;
                     }
-                    KeyCode::Char(c) => {
-                        app.password.push(c);
-                    }
+                    key_code => app.password_widget.key_press(key_code),
                     _ => {}
                 },
             }
@@ -166,35 +181,9 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
         matches!(app.input_mode, InputMode::WindowManager),
     );
 
-    let username = Paragraph::new(app.username.as_ref())
-        .style(match app.input_mode {
-            InputMode::Normal => Style::default(),
-            InputMode::WindowManager => Style::default(),
-            InputMode::Username => Style::default().fg(Color::Yellow),
-            InputMode::Password => Style::default(),
-        })
-        .block(Block::default().borders(Borders::ALL).title("Input"));
-    f.render_widget(username, chunks[4]);
+    app.username_widget
+        .render(f, chunks[4], matches!(app.input_mode, InputMode::Username));
 
-    let password = Paragraph::new(app.password.as_ref())
-        .style(match app.input_mode {
-            InputMode::Normal => Style::default(),
-            InputMode::WindowManager => Style::default(),
-            InputMode::Username => Style::default(),
-            InputMode::Password => Style::default().fg(Color::Yellow),
-        })
-        .block(Block::default().borders(Borders::ALL).title("Password"));
-    f.render_widget(password, chunks[6]);
-
-    match app.input_mode {
-        InputMode::Normal | InputMode::WindowManager => {}
-        InputMode::Username => f.set_cursor(
-            chunks[4].x + app.username.width() as u16 + 1,
-            chunks[4].y + 1,
-        ),
-        InputMode::Password => f.set_cursor(
-            chunks[6].x + app.password.width() as u16 + 1,
-            chunks[6].y + 1,
-        ),
-    }
+    app.password_widget
+        .render(f, chunks[6], matches!(app.input_mode, InputMode::Password));
 }
