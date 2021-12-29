@@ -1,3 +1,4 @@
+use crossterm::event::KeyCode;
 use tui::{
     layout::{Alignment, Rect},
     style::{Color, Style},
@@ -153,6 +154,16 @@ impl WindowManagerSelectorWidget {
         Self::find_width(left_width.unwrap_or(0), middle_width, right_width) <= area_width
     }
 
+    fn left(&mut self) {
+        let Self(ref mut selector) = self;
+        selector.go_prev();
+    }
+
+    fn right(&mut self) {
+        let Self(ref mut selector) = self;
+        selector.go_next();
+    }
+
     pub fn render(
         &self,
         frame: &mut Frame<impl tui::backend::Backend>,
@@ -217,7 +228,10 @@ impl WindowManagerSelectorWidget {
                 }
             }
             msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // RightPad
-            msg.push(Span::styled(PREV_NEXT_ARROWS[1], Style::default().fg(ARROWS_COLOR[is_focused]))); // Right Arrow
+            msg.push(Span::styled(
+                PREV_NEXT_ARROWS[1],
+                Style::default().fg(ARROWS_COLOR[is_focused]),
+            )); // Right Arrow
         } else {
             msg.push(Span::styled(
                 NO_WINDOW_MANAGERS_STRING,
@@ -232,14 +246,16 @@ impl WindowManagerSelectorWidget {
         frame.render_widget(widget, area);
     }
 
-    pub fn left(&mut self) {
-        let Self(ref mut selector) = self;
-        selector.go_prev();
-    }
-
-    pub fn right(&mut self) {
-        let Self(ref mut selector) = self;
-        selector.go_next();
+    pub fn key_press(&mut self, key_code: KeyCode) {
+        match key_code {
+            KeyCode::Left | KeyCode::Char('h') => {
+                self.left();
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                self.right();
+            }
+            _ => {}
+        }
     }
 }
 

@@ -105,13 +105,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     KeyCode::Esc => {
                         app.input_mode = InputMode::Normal;
                     }
-                    KeyCode::Left | KeyCode::Char('h') => {
-                        app.window_manager_widget.left();
-                    }
-                    KeyCode::Right | KeyCode::Char('l') => {
-                        app.window_manager_widget.right();
-                    }
-                    _ => {}
+                    key_code => app.window_manager_widget.key_press(key_code),
                 },
                 InputMode::Username => match key.code {
                     KeyCode::Enter | KeyCode::Down => {
