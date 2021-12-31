@@ -22,4 +22,11 @@ or BSD environment. Lemurs uses Linux PAM as its method of authentication.
 
 ## Installation
 
-*The project is not yet ready to be installed*
+The `install.sh` script can be used to compile and setup the display manager on
+your Unix machine. This will perform multiple steps:
+
+1. Build the project in release mode (requires Rust's *cargo*)
+2. Setup the `/etc/lemurs` folder which contains some of the configuration and
+   necessary files such as your selection of window managers.
+3. Disables the previous Display Manager
+4. Copy over the *systemd* service and enables it.
