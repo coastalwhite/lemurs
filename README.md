@@ -5,7 +5,10 @@ A TUI Display/Login Manager written in Rust
 	
 </div>
 
-**WIP: Not working yet.**
+![Cover image](./cover.png)
+
+**WIP: Whilst the project is working and installable, there are still a lot of
+bugs and limitations.**
 
 A minimal lightweight TUI [Display Manager/Login
 Manager](https://wiki.archlinux.org/title/Display_manager) written in Rust
