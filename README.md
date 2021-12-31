@@ -16,7 +16,7 @@ similar to [Ly](https://github.com/nullgemm/ly).
 
 ## Goal
 
-The goal of this project is to create a small, robust and yet customizable 
+The goal of this project is to create a small, robust and yet customizable
 Login Manager which can serve as the front-end to your graphical GNU/Linux
 or BSD environment. Lemurs uses Linux PAM as its method of authentication.
 
@@ -30,3 +30,8 @@ your Unix machine. This will perform multiple steps:
    necessary files such as your selection of window managers.
 3. Disables the previous Display Manager
 4. Copy over the *systemd* service and enables it.
+
+## License
+
+The project is made available under the MIT and APACHE license. See the
+`LICENSE-MIT` and `LICENSE-APACHE` files, respectively, for more information.
