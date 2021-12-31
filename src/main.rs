@@ -3,21 +3,22 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{error::Error, io, os::unix::prelude::MetadataExt};
+use log::{error, info};
+use std::{error::Error, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    text::Span,
-    widgets::{Block, Borders, Paragraph},
+    widgets::Paragraph,
     Frame, Terminal,
 };
-use unicode_width::UnicodeWidthStr;
 
-mod input_field;
-mod window_manager_selector;
-use input_field::{InputFieldDisplayType, InputFieldWidget};
-use window_manager_selector::{WindowManager, WindowManagerSelectorWidget};
+mod graphical_environments;
+mod ui;
+mod pam;
+mod initrcs;
+use graphical_environments::{GraphicalEnvironment, X};
+use ui::{InputFieldDisplayType, InputFieldWidget, WindowManagerSelectorWidget};
 
 enum InputMode {
     WindowManager,
@@ -42,38 +43,51 @@ struct App {
 
     /// Error Message
     error_msg: Option<AuthError>,
+
+    graphical_environment: X,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
-            window_manager_widget: WindowManagerSelectorWidget::new(vec![
-                WindowManager::new(
-                    "bspwm",
-                    vec![("exec".to_string(), vec!["bspwm".to_string()])],
-                ),
-                WindowManager::new("i3", vec![("exec".to_string(), vec!["i3".to_string()])]),
-                WindowManager::new(
-                    "awesome",
-                    vec![("exec".to_string(), vec!["awesome".to_string()])],
-                ),
-                WindowManager::new(
-                    "create file",
-                    vec![(
-                        "/usr/bin/touch".to_string(),
-                        vec!["/home/gburghoorn/Projects/lemurs/test".to_string()],
-                    )],
-                ),
-            ]),
+            window_manager_widget: WindowManagerSelectorWidget::new(initrcs::get_window_managers()),
             username_widget: InputFieldWidget::new("Username", InputFieldDisplayType::Echo),
             password_widget: InputFieldWidget::new("Password", InputFieldDisplayType::Replace('*')),
             input_mode: InputMode::Normal,
             error_msg: None,
+            graphical_environment: X::new(),
         }
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    fern::Dispatch::new()
+        // Perform allocation-free log formatting
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        // Add blanket level filter -
+        .level(log::LevelFilter::Debug)
+        // - and per-module overrides
+        .level_for("hyper", log::LevelFilter::Info)
+        // Output to stdout, files, and other Dispatch configurations
+        .chain(fern::log_file("/tmp/lemurs.log")?)
+        // Apply globally
+        .apply()?;
+
+    info!("Lemurs booting up");
+
+    // de-hardcode 2
+    if chvt::chvt(2).is_err() {
+        error!("Couldn't change tty");
+    };
+
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -81,9 +95,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    info!("UI booted up");
+
     // create app and run it
     let app = App::default();
     let res = run_app(&mut terminal, app);
+
+    info!("Finished running UI");
 
     // restore terminal
     disable_raw_mode()?;
@@ -94,9 +112,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     terminal.show_cursor()?;
 
+    info!("Reset terminal environment");
+
     if let Err(err) = res {
         println!("{:?}", err)
     }
+
+    // TODO: Listen to signals
 
     Ok(())
 }
@@ -145,51 +167,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     key_code => app.username_widget.key_press(key_code),
                 },
                 InputMode::Password => match key.code {
-                    KeyCode::Enter => {
-                        match authenticate(
-                            app.username_widget.get_content(),
-                            app.password_widget.get_content(),
-                        ) {
-                            Err(err) => app.error_msg = Some(err),
-                            Ok((mut context, uid)) => {
-                                // Open session and initialize credentials
-                                let session = match context.open_session(Flag::NONE) {
-                                    Err(_) => {
-                                        app.error_msg = Some(AuthError::SessionOpen);
-                                        continue;
-                                    }
-                                    Ok(session) => session,
-                                };
-
-                                // Run a process in the PAM environment
-                                match app.window_manager_widget.selected() {
-                                    Some(wm) => {
-                                        for (cmd, args) in wm.cmds.iter() {
-                                            match Command::new(cmd)
-                                                .args(args)
-                                                .env_clear()
-                                                .envs(session.envlist().iter_tuples())
-                                                .uid(uid)
-                                                // .gid(...)
-                                                .spawn()
-                                            {
-                                                Ok(mut child) => match child.wait() {
-                                                    Err(_) => {
-                                                        app.error_msg = Some(AuthError::Child)
-                                                    }
-                                                    _ => {}
-                                                },
-                                                Err(_) => {
-                                                    app.error_msg = Some(AuthError::CommandFail)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    None => app.error_msg = Some(AuthError::Weird), // TODO: THink of something here
-                                }
-                            }
-                        }
-                    }
+                    KeyCode::Enter => match login(&mut app) {
+                        Err(err) => app.error_msg = Some(err),
+                        _ => {}
+                    },
                     KeyCode::Tab => {
                         if key.modifiers == KeyModifiers::SHIFT {
                             app.input_mode = InputMode::Username;
@@ -204,7 +185,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     key_code => app.password_widget.key_press(key_code),
                 },
             }
-        }
+       }
     }
 }
 
@@ -246,15 +227,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
         use AuthError::*;
 
         let error_widget = Paragraph::new(match error_msg {
-            PamContext => "Failed to initialize PAM context",
-            Authentication => "Authentication Failed",
-            AccountValidation => "Account validation failed",
-            UsernameNotFound => "Username not found",
-            UIDNotFound => "UID not found",
-            SessionOpen => "Failed to open session",
-            CommandFail => "Failed to run command",
-            Weird => "Weird error",
-            Child => "Child failed",
+            PamError(_) => "Authentication failed",
         })
         .style(Style::default().fg(Color::Red));
 
@@ -262,56 +235,56 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
     }
 }
 
-use pam_client::conv_mock::Conversation;
-use pam_client::{Context, Flag};
-use std::os::unix::process::CommandExt;
-use std::process::Command;
+use crate::pam::{open_session, PamError};
 
 enum AuthError {
-    PamContext,
-    Authentication,
-    AccountValidation,
-    UsernameNotFound,
-    UIDNotFound,
-    SessionOpen,
-    CommandFail,
-    Weird,
-    Child,
+    PamError(PamError),
 }
 
-fn authenticate(
-    username: String,
-    password: String,
-) -> Result<
-    (
-        pam_client::Context<pam_client::conv_mock::Conversation>,
-        u32,
-    ),
-    AuthError,
-> {
-    let mut context = Context::new(
-        "lemurs", // Service name
-        None,
-        Conversation::with_credentials(username, password),
-    )
-    .map_err(|_| AuthError::PamContext)?;
+fn login(app: &mut App) -> Result<(), AuthError> {
+    // if (!testing) {
+    // signal(SIGSEGV, sig_handler);
+    // signal(SIGTRAP, sig_handler);
+    // }
 
-    // Authenticate the user
-    context
-        .authenticate(Flag::NONE)
-        .map_err(|_| AuthError::Authentication)?;
+    info!("Login attempt");
 
-    // Validate the account
-    context
-        .acct_mgmt(Flag::NONE)
-        .map_err(|_| AuthError::AccountValidation)?;
+    let username = app.username_widget.get_content();
+    let password = app.password_widget.get_content();
+    let initrc_path = app
+        .window_manager_widget
+        .selected()
+        .map(|selected| selected.initrc_path.clone())
+        .unwrap();
 
-    // Get resulting user name and map to a user id
-    let username = context.user().map_err(|_| AuthError::UsernameNotFound)?;
-    let uid = match users::get_user_by_name(&username) {
-        Some(user) => user.uid(), // Left as an exercise to the reader
-        None => return Err(AuthError::UIDNotFound),
-    };
+    info!(
+        "Gotten information. Username: '{}', Initrc_path: '{}'",
+        username,
+        initrc_path.to_str().unwrap_or("Not Found")
+    );
 
-    Ok((context, uid))
+    let (authenticator, passwd_entry, groups) =
+        open_session(username, password).map_err(|e| AuthError::PamError(e))?;
+   
+    info!("Opened session");
+    info!("Booting X Server");
+
+    app.graphical_environment.start(&passwd_entry).unwrap(); // TODO: Remove unwrap
+
+    info!("X Server started");
+    info!("Booting Desktop");
+
+    app.graphical_environment
+        .desktop(initrc_path, &passwd_entry, &groups);
+
+    info!("Desktop shutdown");
+
+    app.graphical_environment.stop();
+
+    info!("X server shut down");
+
+    // Logout
+    drop(authenticator);
+
+    Ok(())
 }
