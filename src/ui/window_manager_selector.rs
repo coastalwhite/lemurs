@@ -6,7 +6,7 @@ use tui::{
     text::{Span, Spans, Text},
     widgets::{Block, Paragraph},
 };
-use std::process::Command;
+use std::path::PathBuf;
 
 const NO_WINDOW_MANAGERS_STRING: &str = "No Window Managers Specified";
 const NO_WINDOW_MANAGERS_STRING_COLOR: [Color; 2] = [Color::LightRed, Color::Red];
@@ -27,7 +27,7 @@ const MIN_WIDTH: usize = WINDOW_MANAGER_CUTOFF_WIDTH
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct WindowManager {
     pub title: String,
-    pub cmds: Vec<(String, Vec<String>)>,
+    pub initrc_path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -39,10 +39,10 @@ struct WindowManagerSelector {
 pub struct WindowManagerSelectorWidget(WindowManagerSelector);
 
 impl WindowManager {
-    pub fn new(title: impl ToString, cmds: Vec<(String, Vec<String>)>) -> WindowManager {
+    pub fn new(title: impl ToString, initrc_path: PathBuf) -> WindowManager {
         let title = title.to_string();
 
-        Self { title, cmds }
+        Self { title, initrc_path }
     }
 }
 
