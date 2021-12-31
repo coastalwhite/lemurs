@@ -31,6 +31,30 @@ your Unix machine. This will perform multiple steps:
 3. Disables the previous Display Manager
 4. Copy over the *systemd* service and enables it.
 
+Although you might first want to set up some window managers (see
+[Usage](#Usage)), upon rebooting you should now see Lemurs.
+
+## Usage
+
+After running the installation script you can add your window managers by
+creating runnable scripts also known as
+[xinitrc](https://wiki.archlinux.org/title/Xinit)s under the `/etc/lemurs/wms`
+folders. The name of the script is used as the name within lemurs. For example,
+for the [bspwm](https://github.com/baskerville/bspwm) window manager, you might
+add the script `/etc/lemurs/wms/bspwm`.
+
+```bash
+#! /bin/sh
+
+sxhkd &
+exec bspwm
+```
+
+Remember to make this script runnable. This is done with the `chmod +x
+/etc/lemurs/wms/bspwm` command.
+
+Upon rebooting your new *xinitrc* should show up within Lemurs.
+
 ## License
 
 The project is made available under the MIT and APACHE license. See the
