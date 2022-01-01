@@ -1,7 +1,19 @@
 [package]
 name = "lemurs"
+authors = ["Gijs Burghoorn <me@gburghoorn.com>"]
+description = "A TUI Display/Login Manager"
 version = "0.1.0"
+
 edition = "2021"
+
+categories = ["gui", "authentication"]
+keywords = ["display", "login", "desktop"]
+
+repository = "https://github.com/coastalwhite/lemurs"
+homepage = "https://github.com/coastalwhite/lemurs"
+
+readme = "README.md"
+license = "MIT or APACHE"
 
 [dependencies]
 tui = { version = "0.16.0", features = [ "crossterm" ] }
