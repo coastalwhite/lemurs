@@ -2,7 +2,7 @@ use nix::unistd::{initgroups, setgid, setuid, Gid, Uid};
 use rand::Rng;
 use std::env;
 use std::error::Error;
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::{thread, time};
 
 use std::fs::File;
@@ -58,6 +58,7 @@ impl GraphicalEnvironment for X {
         Command::new(SYSTEM_SHELL)
             .arg("-c")
             .arg(format!("/usr/bin/xauth add {} . {}", DISPLAY, mcookie()))
+            .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
             .status()
             .unwrap(); // TODO: Remove unwrap
 
@@ -69,6 +70,7 @@ impl GraphicalEnvironment for X {
             Command::new(SYSTEM_SHELL)
                 .arg("-c")
                 .arg(format!("/usr/bin/X {} {}", DISPLAY, VIRTUAL_TERMINAL))
+                .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
                 .spawn()?,
         );
 
@@ -102,6 +104,7 @@ impl GraphicalEnvironment for X {
                 "/etc/lemurs/xsetup.sh",
                 script.to_str().unwrap()
             ))
+            .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
             .env("PWD", &passwd_entry.dir)
             .spawn()?;
 
