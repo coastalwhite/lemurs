@@ -1,25 +1,20 @@
-use log::{error, info};
-use std::path::PathBuf;
+use log::info;
 
 use pam::{Authenticator, Converse};
 use std::env;
 
-use pgs_files::group::get_all_entries;
 use pgs_files::passwd::{get_entry_by_name, PasswdEntry};
 
-const SYSTEM_SHELL: &str = "/bin/sh";
-
 pub enum PamError {
-    FailedToSpawn, // TODO: Add io::Result
     Authentication,
     AccountValidation,
     UsernameNotFound,
     SessionOpen,
-    EnvironmentError,
-    Child,
 }
 
 pub fn init_environment(passwd: &PasswdEntry) {
+    info!("Setting environment");
+
     env::set_var("HOME", &passwd.dir);
     env::set_var("PWD", &passwd.dir);
     env::set_var("SHELL", &passwd.shell);
@@ -57,14 +52,13 @@ pub fn open_session<'a>(
         .authenticate()
         .map_err(|_| PamError::AccountValidation)?;
 
-    info!("Validated");
+    info!("Validated account");
 
     // NOTE: Maybe we should also load all groups here
     let passwd_entry = get_entry_by_name(&username).ok_or(PamError::UsernameNotFound)?;
+
     // Init environment for current TTY
     init_environment(&passwd_entry);
-
-    info!("Initiated environment");
 
     authenticator
         .open_session()
