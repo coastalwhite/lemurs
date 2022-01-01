@@ -2,13 +2,11 @@ use nix::unistd::{initgroups, setgid, setuid, Gid, Uid};
 use rand::Rng;
 use std::env;
 use std::error::Error;
-use std::io;
-use std::os::unix::process::CommandExt;
 use std::process::{Child, Command};
 use std::{thread, time};
 
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use log::{error, info};
 
@@ -84,9 +82,6 @@ impl GraphicalEnvironment for X {
     }
 
     fn desktop(&self, script: PathBuf, passwd_entry: &PasswdEntry) -> Result<(), Box<dyn Error>> {
-        // Init environment for current TTY
-        crate::pam::init_environment(&passwd_entry);
-
         let uid = Uid::from_raw(passwd_entry.uid);
         let gid = Gid::from_raw(passwd_entry.gid);
 
@@ -97,6 +92,9 @@ impl GraphicalEnvironment for X {
         setgid(gid)?;
         setuid(uid)?;
 
+        // Init environment for current TTY
+        crate::pam::init_environment(&passwd_entry);
+
         let mut child = Command::new(SYSTEM_SHELL)
             .arg("-c")
             .arg(format!(
@@ -104,9 +102,7 @@ impl GraphicalEnvironment for X {
                 "/etc/lemurs/xsetup.sh",
                 script.to_str().unwrap()
             ))
-            .uid(passwd_entry.uid)
-            .gid(passwd_entry.gid)
-            // .groups(groups)
+            .env("PWD", &passwd_entry.dir)
             .spawn()?;
 
         child.wait()?;

@@ -283,7 +283,7 @@ fn login(app: &mut App) {
         .desktop(initrc_path, &passwd_entry) {
         Err(err) => {
             error!("Failed to boot desktop environment. Reason: '{}'", err);
-            app.status(StatusMessage::FailedGraphicalEnvironment);
+            app.status(StatusMessage::FailedDesktop);
             return;
         }
         _ => {},

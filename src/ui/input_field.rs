@@ -1,9 +1,8 @@
 use crossterm::event::KeyCode;
 use tui::{
-    layout::{Alignment, Rect},
+    layout::Rect,
     style::{Color, Style},
     terminal::Frame,
-    text::{Span, Spans, Text},
     widgets::{Block, Borders, Paragraph},
 };
 use unicode_width::UnicodeWidthStr;
@@ -114,7 +113,10 @@ impl InputFieldWidget {
         frame.render_widget(widget, area);
 
         if is_focused {
-            frame.set_cursor(area.x + self.content[..usize::from(self.cursor)].width() as u16 + 1, area.y + 1);
+            frame.set_cursor(
+                area.x + self.content[..usize::from(self.cursor)].width() as u16 + 1,
+                area.y + 1,
+            );
         }
     }
 
