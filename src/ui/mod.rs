@@ -100,20 +100,38 @@ pub struct App {
     status_message: Option<StatusMessage>,
 
     /// Authentication Receiver
-    auth_receiver: Option<Receiver<Option<StatusMessage>>>,
+    auth_channel: (Sender<(String, String, PathBuf)>, Receiver<Option<StatusMessage>>),
 
     graphical_environment: X,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl App {
+    pub fn new() -> App {
+        let (sender, auth_receiver) = channel();
+        let (auth_sender, receiver) = channel();
+
+        std::thread::spawn(move || {
+            loop {
+                let (username, password, initrc_path) = auth_receiver.recv().unwrap();
+
+                let graphical_environment = X::new();
+                login(
+                    username,
+                    password,
+                    initrc_path,
+                    &auth_sender,
+                    graphical_environment,
+                );
+            }
+        });
+        
         App {
             window_manager_widget: WindowManagerSelectorWidget::new(initrcs::get_window_managers()),
-            username_widget: InputFieldWidget::new("Username", InputFieldDisplayType::Echo),
+            username_widget: InputFieldWidget::new("Login", InputFieldDisplayType::Echo),
             password_widget: InputFieldWidget::new("Password", InputFieldDisplayType::Replace('*')),
             input_mode: InputMode::Normal,
             status_message: None,
-            auth_receiver: None,
+            auth_channel: (sender, receiver),
             graphical_environment: X::new(),
         }
     }
@@ -147,14 +165,9 @@ pub fn stop(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
 
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
     loop {
-        if let Some(rcv) = &app.auth_receiver {
-            if let Ok(new_status_message) = rcv.try_recv() {
-                if new_status_message.is_none() {
-                    app.auth_receiver = None;
-                }
-
-                app.status_message = new_status_message;
-            }
+        let (snd, rcv) = &app.auth_channel;
+        if let Ok(new_status_message) = rcv.try_recv() {
+            app.status_message = new_status_message;
         }
 
         terminal.draw(|f| ui(f, &app))?;
@@ -170,19 +183,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                         .map(|selected| selected.initrc_path.clone())
                         .unwrap(); // TODO: Remove unwrap
                     
-                    let (snd, rcv) = channel();
-                    app.auth_receiver = Some(rcv);
-
-                    std::thread::spawn(|| {
-                        let graphical_environment = X::new();
-                        login(
-                            username,
-                            password,
-                            initrc_path,
-                            snd,
-                            graphical_environment,
-                        );
-                    });
+                    snd.send((username, password, initrc_path)).unwrap();
                 }
                 (KeyCode::Enter | KeyCode::Down, _) => {
                     app.input_mode.next();
@@ -272,7 +273,7 @@ fn login(
     username: String,
     password: String,
     initrc_path: PathBuf,
-    status_send: Sender<Option<StatusMessage>>,
+    status_send: &Sender<Option<StatusMessage>>,
     mut graphical_environment: X,
 ) {
     status_send.send(Some(StatusMessage::Authenticating)).expect("MSPC failed!");
