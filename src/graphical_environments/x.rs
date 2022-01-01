@@ -1,6 +1,7 @@
-use nix::unistd::{initgroups, Uid, Gid, setuid, setgid};
+use nix::unistd::{initgroups, setgid, setuid, Gid, Uid};
 use rand::Rng;
 use std::env;
+use std::error::Error;
 use std::io;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command};
@@ -38,9 +39,9 @@ impl X {
 }
 
 impl GraphicalEnvironment for X {
-    fn start(&mut self, passwd_entry: &PasswdEntry) -> io::Result<()> {
+    fn start(&mut self, passwd_entry: &PasswdEntry) -> Result<(), Box<dyn Error>> {
         if self.child.is_some() {
-            // TODO: Replace this with an error
+            // TODO: Properly handle this situation
             error!("Server already started");
             panic!("Server already started");
         }
@@ -82,21 +83,19 @@ impl GraphicalEnvironment for X {
         Ok(())
     }
 
-    fn desktop(&self, script: PathBuf, passwd_entry: &PasswdEntry, _groups: &[u32]) {
+    fn desktop(&self, script: PathBuf, passwd_entry: &PasswdEntry) -> Result<(), Box<dyn Error>> {
         // Init environment for current TTY
         crate::pam::init_environment(&passwd_entry);
 
         let uid = Uid::from_raw(passwd_entry.uid);
         let gid = Gid::from_raw(passwd_entry.gid);
+
         initgroups(
-            std::ffi::CString::new(passwd_entry.name.clone())
-                .unwrap()
-                .as_c_str(),
+            std::ffi::CString::new(passwd_entry.name.clone())?.as_c_str(),
             gid,
-        )
-        .unwrap();
-        setgid(gid).unwrap();
-        setuid(uid).unwrap();
+        )?;
+        setgid(gid)?;
+        setuid(uid)?;
 
         let mut child = Command::new(SYSTEM_SHELL)
             .arg("-c")
@@ -108,10 +107,11 @@ impl GraphicalEnvironment for X {
             .uid(passwd_entry.uid)
             .gid(passwd_entry.gid)
             // .groups(groups)
-            .spawn()
-            .unwrap(); // TODO: Remove unwrap
+            .spawn()?;
 
-        child.wait().unwrap(); // TODO: Remove unwrap
+        child.wait()?;
+
+        Ok(())
     }
 
     fn stop(&mut self) {

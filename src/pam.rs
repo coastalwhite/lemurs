@@ -32,7 +32,7 @@ pub fn init_environment(passwd: &PasswdEntry) {
 pub fn open_session<'a>(
     username: impl ToString,
     password: impl ToString,
-) -> Result<(Authenticator<'a, impl Converse>, PasswdEntry, Vec<u32>), PamError> {
+) -> Result<(Authenticator<'a, impl Converse>, PasswdEntry), PamError> {
     let username = username.to_string();
     let password = password.to_string();
 
@@ -61,11 +61,6 @@ pub fn open_session<'a>(
 
     // NOTE: Maybe we should also load all groups here
     let passwd_entry = get_entry_by_name(&username).ok_or(PamError::UsernameNotFound)?;
-    let groups = get_all_entries()
-        .into_iter()
-        .filter(|entry| entry.members.contains(&username))
-        .map(|entry| entry.gid)
-        .collect();
     // Init environment for current TTY
     init_environment(&passwd_entry);
 
@@ -78,5 +73,5 @@ pub fn open_session<'a>(
     info!("Opened session");
 
     // NOTE: Logout happens automatically here with `drop` of session and context
-    Ok((authenticator, passwd_entry, groups))
+    Ok((authenticator, passwd_entry))
 }

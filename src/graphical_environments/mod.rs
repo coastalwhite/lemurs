@@ -1,11 +1,11 @@
-use std::io;
+use std::error::Error;
 use std::path::PathBuf;
 
 use pgs_files::passwd::PasswdEntry;
 
 pub trait GraphicalEnvironment {
-    fn start(&mut self, passwd_entry: &PasswdEntry) -> io::Result<()>;
-    fn desktop(&self, script: PathBuf, passwd_entry: &PasswdEntry, groups: &[u32]);
+    fn start(&mut self, passwd_entry: &PasswdEntry) -> Result<(), Box<dyn Error>>;
+    fn desktop(&self, script: PathBuf, passwd_entry: &PasswdEntry) -> Result<(), Box<dyn Error>>;
     fn stop(&mut self);
 }
 
