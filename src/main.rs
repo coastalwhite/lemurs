@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         error!("Couldn't change tty");
     };
 
+    // Start UI on a seperate thread
     let mut terminal = ui::start()?;
 
     run_app(&mut terminal, App::default())?;

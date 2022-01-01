@@ -1,6 +1,9 @@
-use log::{info, error};
+use log::{error, info};
 
 use std::io;
+use std::path::PathBuf;
+use std::sync::RwLock;
+use std::sync::mpsc::{Sender, Receiver, channel};
 
 use crate::graphical_environments::GraphicalEnvironment;
 use crate::pam::{open_session, PamError};
@@ -97,17 +100,10 @@ pub struct App {
     /// Error Message
     status_message: Option<StatusMessage>,
 
+    /// Authentication Receiver
+    auth_receiver: Option<Receiver<Option<StatusMessage>>>,
+
     graphical_environment: X,
-}
-
-impl App {
-    fn clear_status(&mut self) {
-        self.status_message = None;
-    }
-
-    fn status(&mut self, status: StatusMessage) {
-        self.status_message = Some(status);
-    }
 }
 
 impl Default for App {
@@ -118,6 +114,7 @@ impl Default for App {
             password_widget: InputFieldWidget::new("Password", InputFieldDisplayType::Replace('*')),
             input_mode: InputMode::Normal,
             status_message: None,
+            auth_receiver: None,
             graphical_environment: X::new(),
         }
     }
@@ -151,11 +148,43 @@ pub fn stop(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
 
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
     loop {
+        if let Some(rcv) = &app.auth_receiver {
+            if let Ok(new_status_message) = rcv.try_recv() {
+                if new_status_message.is_none() {
+                    app.auth_receiver = None;
+                }
+
+                app.status_message = new_status_message;
+            }
+        }
+
         terminal.draw(|f| ui(f, &app))?;
 
         if let Event::Key(key) = event::read()? {
             match (key.code, &app.input_mode) {
-                (KeyCode::Enter, &InputMode::Password) => login(&mut app),
+                (KeyCode::Enter, &InputMode::Password) => {
+                    let username = app.username_widget.get_content();
+                    let password = app.password_widget.get_content();
+                    let initrc_path = app
+                        .window_manager_widget
+                        .selected()
+                        .map(|selected| selected.initrc_path.clone())
+                        .unwrap(); // TODO: Remove unwrap
+                    
+                    let (snd, rcv) = channel();
+                    app.auth_receiver = Some(rcv);
+
+                    std::thread::spawn(|| {
+                        let graphical_environment = X::new();
+                        login(
+                            username,
+                            password,
+                            initrc_path,
+                            snd,
+                            graphical_environment,
+                        );
+                    });
+                }
                 (KeyCode::Enter | KeyCode::Down, _) => {
                     app.input_mode.next();
                 }
@@ -240,16 +269,15 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
     }
 }
 
-fn login(app: &mut App) {
-    app.status(StatusMessage::Authenticating);
+fn login(
+    username: String,
+    password: String,
+    initrc_path: PathBuf,
+    status_send: Sender<Option<StatusMessage>>,
+    mut graphical_environment: X,
+) {
+    status_send.send(Some(StatusMessage::Authenticating)).expect("MSPC failed!");
 
-    let username = app.username_widget.get_content();
-    let password = app.password_widget.get_content();
-    let initrc_path = app
-        .window_manager_widget
-        .selected()
-        .map(|selected| selected.initrc_path.clone())
-        .unwrap(); // TODO: Remove unwrap
     info!(
         "Login attempt for '{}' with '{}'",
         username,
@@ -259,40 +287,39 @@ fn login(app: &mut App) {
     let (authenticator, passwd_entry) = match open_session(username, password) {
         Err(pam_error) => {
             error!("Authentication failed"); // TODO: Improve this log
-            app.status(StatusMessage::PamError(pam_error));
+            status_send.send(Some(StatusMessage::PamError(pam_error))).expect("MSPC failed!");
             return;
         }
         Ok(res) => res,
     };
 
-    app.status(StatusMessage::LoggingIn);
+    status_send.send(Some(StatusMessage::LoggingIn)).expect("MSPC failed!");
     info!("Authentication successful. Booting up graphical environment");
 
-    match app.graphical_environment.start(&passwd_entry) {
+    match graphical_environment.start(&passwd_entry) {
         Err(err) => {
             error!("Failed to boot graphical enviroment. Reason: '{}'", err);
-            app.status(StatusMessage::FailedGraphicalEnvironment);
+            status_send.send(Some(StatusMessage::FailedGraphicalEnvironment)).expect("MSPC failed!");
             return;
         }
-        _ => {},
+        _ => {}
     }
 
     info!("Graphical environment booted up successfully. Booting up desktop environment");
 
-    match app.graphical_environment
-        .desktop(initrc_path, &passwd_entry) {
+    match graphical_environment.desktop(initrc_path, &passwd_entry) {
         Err(err) => {
             error!("Failed to boot desktop environment. Reason: '{}'", err);
-            app.status(StatusMessage::FailedDesktop);
+            status_send.send(Some(StatusMessage::FailedDesktop)).expect("MSPC failed!");
             return;
         }
-        _ => {},
+        _ => {}
     }
 
-    app.clear_status();
+    status_send.send(None).expect("MSPC failed!");
     info!("Desktop environment shutdown. Shutting down graphical enviroment");
 
-    app.graphical_environment.stop();
+    graphical_environment.stop();
 
     info!("Graphical environment shutdown. Logging out");
 
