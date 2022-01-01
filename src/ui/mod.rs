@@ -2,7 +2,6 @@ use log::{error, info};
 
 use std::io;
 use std::path::PathBuf;
-use std::sync::RwLock;
 use std::sync::mpsc::{Sender, Receiver, channel};
 
 use crate::graphical_environments::GraphicalEnvironment;
