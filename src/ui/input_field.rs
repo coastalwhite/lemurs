@@ -7,19 +7,24 @@ use tui::{
 };
 use unicode_width::UnicodeWidthStr;
 
+/// The type of the input field display. How are the characters which are typed displayed?
 pub enum InputFieldDisplayType {
+    /// Show the characters that were typed
     Echo,
+    /// Always statically show a selected character
     Replace(char),
 }
 
 pub struct InputFieldWidget {
     title: String,
     content: String,
+    /// Horizontal position of the cursor
     cursor: u16,
     display_type: InputFieldDisplayType,
 }
 
 impl InputFieldWidget {
+    /// Creates a new input field widget
     pub fn new(title: impl ToString, display_type: InputFieldDisplayType) -> Self {
         let title = title.to_string();
 
@@ -36,6 +41,7 @@ impl InputFieldWidget {
         self.content.len()
     }
 
+    /// Returns what the displayed string should be
     fn show_string(&self) -> String {
         use InputFieldDisplayType::{Echo, Replace};
 
@@ -133,6 +139,7 @@ impl InputFieldWidget {
         }
     }
 
+    /// Get the real content of the input field
     pub fn get_content(&self) -> String {
         self.content.clone()
     }

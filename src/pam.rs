@@ -5,6 +5,7 @@ use std::env;
 
 use pgs_files::passwd::{get_entry_by_name, PasswdEntry};
 
+/// All the different errors that can occur during PAM opening an authenticated session
 pub enum PamError {
     Authentication,
     AccountValidation,
@@ -12,6 +13,7 @@ pub enum PamError {
     SessionOpen,
 }
 
+/// Set all the environment variables
 pub fn init_environment(passwd: &PasswdEntry) {
     info!("Setting environment");
 
@@ -24,6 +26,7 @@ pub fn init_environment(passwd: &PasswdEntry) {
     // env::set_var("MAIL", "..."); TODO: Add
 }
 
+/// Open a PAM authenticated session
 pub fn open_session<'a>(
     username: impl ToString,
     password: impl ToString,

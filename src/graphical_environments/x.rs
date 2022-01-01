@@ -19,14 +19,17 @@ const VIRTUAL_TERMINAL: &str = "vt01";
 
 const SYSTEM_SHELL: &str = "/bin/sh";
 
-pub fn mcookie() -> String {
+fn mcookie() -> String {
+    // TODO: Verify that this is actually safe. Maybe just use the mcookie binary?? Is that always
+    // available?
     let mut rng = rand::thread_rng();
-
     let cookie: u128 = rng.gen();
     format!("{:032x}", cookie)
 }
 
+/// The X graphical environment
 pub struct X {
+    /// This is the instance of X that is running. We need to save that in order to kill it
     child: Option<Child>,
 }
 

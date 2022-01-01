@@ -27,7 +27,7 @@ mod window_manager_selector;
 pub use input_field::{InputFieldDisplayType, InputFieldWidget};
 pub use window_manager_selector::{WindowManager, WindowManagerSelectorWidget};
 
-enum StatusLevel {
+enum StatusMessageType {
     Error,
     Info,
 }
@@ -41,24 +41,34 @@ enum StatusMessage {
 }
 
 impl StatusMessage {
-    const fn level(status_message: &Self) -> StatusLevel {
+    /// Get the type of a [`StatusMessage`]
+    fn message_type(status_message: &Self) -> StatusMessageType {
         match status_message {
             Self::PamError(_) | Self::FailedGraphicalEnvironment | Self::FailedDesktop => {
-                StatusLevel::Error
+                StatusMessageType::Error
             }
-            Self::Authenticating | Self::LoggingIn => StatusLevel::Info,
+            Self::Authenticating | Self::LoggingIn => StatusMessageType::Info,
         }
     }
 }
 
+/// All the different modes for input
 enum InputMode {
+    /// Using the WM selector widget
     WMSelect,
+    
+    /// Typing within the Username input field
     Username,
+
+    /// Typing within the Password input field
     Password,
+
+    /// Nothing selected
     Normal,
 }
 
 impl InputMode {
+    /// Move to the next mode
     fn next(&mut self) {
         use InputMode::*;
 
@@ -70,6 +80,7 @@ impl InputMode {
         }
     }
 
+    /// Move to the previous mode
     fn prev(&mut self) {
         use InputMode::*;
 
@@ -101,8 +112,6 @@ pub struct App {
 
     /// Authentication Receiver
     auth_channel: (Sender<(String, String, PathBuf)>, Receiver<Option<StatusMessage>>),
-
-    graphical_environment: X,
 }
 
 impl App {
@@ -110,10 +119,13 @@ impl App {
         let (sender, auth_receiver) = channel();
         let (auth_sender, receiver) = channel();
 
+        // Start the thread that will be handling the authentication
         std::thread::spawn(move || {
             loop {
                 let (username, password, initrc_path) = auth_receiver.recv().unwrap();
 
+                // TODO: Move this into the WindowManager struct to make it adjustable depending on
+                // the window manager you are using
                 let graphical_environment = X::new();
                 login(
                     username,
@@ -132,7 +144,6 @@ impl App {
             input_mode: InputMode::Normal,
             status_message: None,
             auth_channel: (sender, receiver),
-            graphical_environment: X::new(),
         }
     }
 }
@@ -183,6 +194,8 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                         .map(|selected| selected.initrc_path.clone())
                         .unwrap(); // TODO: Remove unwrap
                     
+                    // TODO: If the Login was successful, the rendering of the UI should probably
+                    // pause.
                     snd.send((username, password, initrc_path)).unwrap();
                 }
                 (KeyCode::Enter | KeyCode::Down, _) => {
@@ -198,9 +211,14 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                         app.input_mode.next();
                     }
                 }
+
+                // Esc is the overal key to get out of your input mode
                 (KeyCode::Esc, _) => {
                     app.input_mode = InputMode::Normal;
                 }
+
+                // For the different input modes the key should be passed to the corresponding
+                // widget.
                 (k, &InputMode::WMSelect) => {
                     app.window_manager_widget.key_press(k);
                 }
@@ -259,9 +277,9 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
             FailedDesktop => "Failed booting into desktop environment",
         })
         .style(
-            Style::default().fg(match StatusMessage::level(status_message) {
-                StatusLevel::Info => Color::Yellow,
-                StatusLevel::Error => Color::Red,
+            Style::default().fg(match StatusMessage::message_type(status_message) {
+                StatusMessageType::Info => Color::Yellow,
+                StatusMessageType::Error => Color::Red,
             }),
         );
 
@@ -295,6 +313,8 @@ fn login(
 
     status_send.send(Some(StatusMessage::LoggingIn)).expect("MSPC failed!");
     info!("Authentication successful. Booting up graphical environment");
+
+    // TODO: This should probably be moved to the graphical_environment module somewhere.
 
     match graphical_environment.start(&passwd_entry) {
         Err(err) => {

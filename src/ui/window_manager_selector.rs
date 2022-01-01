@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 const NO_WINDOW_MANAGERS_STRING: &str = "No Window Managers Specified";
 const NO_WINDOW_MANAGERS_STRING_COLOR: [Color; 2] = [Color::LightRed, Color::Red];
-const WINDOW_MANAGER_CUTOFF_WIDTH: usize = 16;
+// const WINDOW_MANAGER_CUTOFF_WIDTH: usize = 16;
 const PREV_NEXT_ARROWS: [&str; 2] = ["<", ">"];
 const ARROWS_COLOR: [Color; 2] = [Color::DarkGray, Color::Yellow];
 const PREV_NEXT_PADDING: usize = 1;
@@ -18,11 +18,11 @@ const PREV_NEXT_COLOR: [Color; 2] = [Color::DarkGray, Color::DarkGray];
 const WM_PADDING: usize = 2;
 const CURRENT_COLOR: [Color; 2] = [Color::Gray, Color::White];
 
-const MIN_WIDTH: usize = WINDOW_MANAGER_CUTOFF_WIDTH
-    + PREV_NEXT_ARROWS[0].len()
-    + PREV_NEXT_ARROWS[1].len()
-    + PREV_NEXT_PADDING * 2
-    + WM_PADDING * 2;
+// const MIN_WIDTH: usize = WINDOW_MANAGER_CUTOFF_WIDTH
+//     + PREV_NEXT_ARROWS[0].len()
+//     + PREV_NEXT_ARROWS[1].len()
+//     + PREV_NEXT_PADDING * 2
+//     + WM_PADDING * 2;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct WindowManager {
@@ -36,9 +36,11 @@ struct WindowManagerSelector {
     window_managers: Vec<WindowManager>,
 }
 
+/// A widget used to select a specific window manager
 pub struct WindowManagerSelectorWidget(WindowManagerSelector);
 
 impl WindowManager {
+    /// Create a new [`WindowManager`]
     pub fn new(title: impl ToString, initrc_path: PathBuf) -> WindowManager {
         let title = title.to_string();
 
@@ -47,7 +49,8 @@ impl WindowManager {
 }
 
 impl WindowManagerSelector {
-    pub fn new(window_managers: Vec<WindowManager>) -> Self {
+    /// Create a new [`WindowManagerSelector`]
+    fn new(window_managers: Vec<WindowManager>) -> Self {
         Self {
             selected: if window_managers.len() == 0 {
                 None
@@ -63,10 +66,10 @@ impl WindowManagerSelector {
         self.window_managers.len()
     }
 
-    #[inline]
-    fn can_move(&self) -> bool {
-        self.selected.map_or(false, |s| s == 0)
-    }
+    // #[inline]
+    // fn can_move(&self) -> bool {
+    //     self.selected.map_or(false, |s| s == 0)
+    // }
 
     #[inline]
     fn next_index(&self, index: usize) -> usize {
@@ -122,6 +125,7 @@ impl WindowManagerSelectorWidget {
         window_manager.title.len()
     }
 
+    /// Get the character-width of the configuration with three window managers available
     fn find_width(prev_width: usize, current_width: usize, next_width: usize) -> usize {
         prev_width
             + current_width
@@ -170,6 +174,9 @@ impl WindowManagerSelectorWidget {
         area: Rect,
         is_focused: bool,
     ) {
+        // TLDR: This code is a complete mess. Issue #1 should almost completely rewrite this code
+        // so refactoring here doesn't make a lot of sense.
+
         let Self(selector) = self;
 
         // TODO: Optimize these calls
@@ -289,7 +296,7 @@ mod tests {
 
         #[test]
         fn single_creation() {
-            let wm = WindowManager::new("abc", "/abc");
+            let wm = WindowManager::new("abc", "/abc".into());
 
             let mut selector = WindowManagerSelector::new(vec![wm.clone()]);
             assert_eq!(selector.current(), Some(&wm));
@@ -322,8 +329,8 @@ mod tests {
 
         #[test]
         fn multiple_creation() {
-            let wm1 = WindowManager::new("abc", "/abc");
-            let wm2 = WindowManager::new("def", "/def");
+            let wm1 = WindowManager::new("abc", "/abc".into());
+            let wm2 = WindowManager::new("def", "/def".into());
 
             let mut selector = WindowManagerSelector::new(vec![wm1.clone(), wm2.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
@@ -353,8 +360,8 @@ mod tests {
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm1));
 
-            let wm3 = WindowManager::new("ghi", "/ghi");
-            let wm4 = WindowManager::new("jkl", "/jkl");
+            let wm3 = WindowManager::new("ghi", "/ghi".into());
+            let wm4 = WindowManager::new("jkl", "/jkl".into());
 
             let mut selector = WindowManagerSelector::new(vec![
                 wm1.clone(),

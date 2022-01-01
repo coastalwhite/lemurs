@@ -10,8 +10,9 @@ use graphical_environments::X;
 use ui::{run_app, App};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    info!("Started");
+
     fern::Dispatch::new()
-        // Perform allocation-free log formatting
         .format(|out, message, record| {
             out.finish(format_args!(
                 "{}[{}][{}] {}",
@@ -21,31 +22,26 @@ fn main() -> Result<(), Box<dyn Error>> {
                 message
             ))
         })
-        // Add blanket level filter -
         .level(log::LevelFilter::Debug)
-        // - and per-module overrides
         .level_for("hyper", log::LevelFilter::Info)
-        // Output to stdout, files, and other Dispatch configurations
+        // As of now just log to the /tmp/lemurs.log
         .chain(fern::log_file("/tmp/lemurs.log")?)
-        // Apply globally
         .apply()?;
 
-    info!("Lemurs booting up");
+    info!("Initiated logger");
 
-    // de-hardcode 2
+    // Switch to the proper tty
     if chvt::chvt(2).is_err() {
-        error!("Couldn't change tty");
+        error!("Failed to switch TTY");
     };
+    info!("Successfully switched TTY");
 
-    // Start UI on a seperate thread
+    // Start application
     let mut terminal = ui::start()?;
-
     run_app(&mut terminal, App::new())?;
-
     ui::stop(terminal)?;
 
-    info!("Finished running UI");
-
+    info!("Booting down");
 
     // TODO: Listen to signals
 
