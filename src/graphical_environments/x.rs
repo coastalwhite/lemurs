@@ -59,6 +59,7 @@ impl GraphicalEnvironment for X {
             .arg("-c")
             .arg(format!("/usr/bin/xauth add {} . {}", DISPLAY, mcookie()))
             .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
+            .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
             .status()
             .unwrap(); // TODO: Remove unwrap
 
@@ -71,6 +72,7 @@ impl GraphicalEnvironment for X {
                 .arg("-c")
                 .arg(format!("/usr/bin/X {} {}", DISPLAY, VIRTUAL_TERMINAL))
                 .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
+                .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
                 .spawn()?,
         );
 
@@ -105,6 +107,7 @@ impl GraphicalEnvironment for X {
                 script.to_str().unwrap()
             ))
             .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
+            .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
             .env("PWD", &passwd_entry.dir)
             .spawn()?;
 
