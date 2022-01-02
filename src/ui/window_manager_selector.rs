@@ -146,13 +146,63 @@ impl WindowManagerSelectorWidget {
         selector.go_next();
     }
 
-    fn show_wm_title(title: &str) -> String {
+    fn cutoff_wm_title_with_padding(title: &str) -> (String, &str, String) {
         if title.len() >= WM_CUTOFF_WIDTH {
-            return title[..WM_CUTOFF_WIDTH].to_string();
+            return (String::new(), &title[..WM_CUTOFF_WIDTH], String::new());
         };
 
-        // TODO: Replace with custom implementation
-        format!("{:^16}", title)
+        let length_difference = WM_CUTOFF_WIDTH - title.len();
+        let padding = " ".repeat(length_difference / 2);
+        if length_difference % 2 == 0 {
+            (padding.clone(), title, padding)
+        } else {
+            let right_padding = " ".repeat(1 + length_difference / 2);
+            (padding, title, right_padding)
+        }
+    }
+
+    #[inline]
+    fn empty_style(is_focused: bool) -> Style {
+        Style::default().fg(NO_WINDOW_MANAGERS_STRING_COLOR[if is_focused { 1 } else { 0 }])
+    }
+
+    #[inline]
+    fn arrow_style(is_focused: bool) -> Style {
+        Style::default().fg(ARROWS_COLOR[if is_focused { 1 } else { 0 }])
+    }
+
+    #[inline]
+    fn neighbour_wm_style(is_focused: bool) -> Style {
+        Style::default().fg(PREV_NEXT_COLOR[if is_focused { 1 } else { 0 }])
+    }
+
+    #[inline]
+    fn current_wm_style(is_focused: bool) -> Style {
+        Style::default()
+            .fg(CURRENT_COLOR[if is_focused { 1 } else { 0 }])
+            .add_modifier(Modifier::UNDERLINED)
+    }
+
+    #[inline]
+    fn add_wm_title(
+        items: &mut Vec<Span>,
+        window_manager: &WindowManager,
+        is_focused: bool,
+        is_current: bool,
+    ) {
+        // TODO: Maybe if the strings empty, there should be no span generated
+        let (left_padding, title, right_padding) =
+            Self::cutoff_wm_title_with_padding(&window_manager.title);
+
+        let style = if is_current {
+            Self::current_wm_style(is_focused)
+        } else {
+            Self::neighbour_wm_style(is_focused)
+        };
+
+        items.push(Span::raw(left_padding));
+        items.push(Span::styled(title.to_string(), style));
+        items.push(Span::raw(right_padding));
     }
 
     pub fn render(
@@ -171,15 +221,13 @@ impl WindowManagerSelectorWidget {
         let prev = selector.prev();
         let next = selector.next();
 
-        let is_focused = if is_focused { 1 } else { 0 };
-
         let mut msg = Vec::with_capacity(
             // Left + Right +
             // LeftPad + RightPad +
-            // LeftWM + RightWM +
+            // LeftWM(3) + RightWM(3) +
             // LeftWMPad + RightWMPad +
-            // MiddleWM = 9
-            9,
+            // MiddleWM(3) = 15
+            15,
         );
         if let Some(current) = current {
             let do_show_neighbours = Self::do_show_neighbours(area.width.into());
@@ -187,15 +235,12 @@ impl WindowManagerSelectorWidget {
             if let Some(prev) = prev {
                 msg.push(Span::styled(
                     PREV_NEXT_ARROWS[0],
-                    Style::default().fg(ARROWS_COLOR[is_focused]),
+                    Self::arrow_style(is_focused),
                 )); // Left Arrow
                 msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // LeftPad
 
                 if do_show_neighbours {
-                    msg.push(Span::styled(
-                        Self::show_wm_title(&prev.title),
-                        Style::default().fg(PREV_NEXT_COLOR[is_focused]),
-                    )); // LeftWM
+                    Self::add_wm_title(&mut msg, prev, is_focused, false); // LeftWM
                     msg.push(Span::raw(" ".repeat(WM_PADDING))); // LeftWMPad
                 }
             } else {
@@ -204,26 +249,18 @@ impl WindowManagerSelectorWidget {
                 )));
             }
 
-            msg.push(Span::styled(
-                Self::show_wm_title(&current.title),
-                Style::default()
-                    .fg(CURRENT_COLOR[is_focused])
-                    .add_modifier(Modifier::UNDERLINED),
-            )); // CurrentWM
+            Self::add_wm_title(&mut msg, current, is_focused, true); // CurrentWM
 
             if let Some(next) = next {
                 if do_show_neighbours {
                     msg.push(Span::raw(" ".repeat(WM_PADDING))); // RightWMPad
-                    msg.push(Span::styled(
-                        Self::show_wm_title(&next.title),
-                        Style::default().fg(PREV_NEXT_COLOR[is_focused]),
-                    )); // RightWM
+                    Self::add_wm_title(&mut msg, next, is_focused, false); // RightWM
                 }
 
                 msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // RightPad
                 msg.push(Span::styled(
                     PREV_NEXT_ARROWS[1],
-                    Style::default().fg(ARROWS_COLOR[is_focused]),
+                    Self::arrow_style(is_focused),
                 )); // Right Arrow
             } else {
                 msg.push(Span::raw(" ".repeat(
@@ -233,7 +270,7 @@ impl WindowManagerSelectorWidget {
         } else {
             msg.push(Span::styled(
                 NO_WINDOW_MANAGERS_STRING,
-                Style::default().fg(NO_WINDOW_MANAGERS_STRING_COLOR[is_focused]),
+                Self::empty_style(is_focused),
             ));
         }
         let text = Text::from(Spans::from(msg));
