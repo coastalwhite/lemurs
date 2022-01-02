@@ -37,7 +37,7 @@ impl InputFieldWidget {
             content: String::new(),
             cursor: 0,
             scroll: 0,
-            width: 0,
+            width: 16, // Give it some initial width
             display_type,
         }
     }
