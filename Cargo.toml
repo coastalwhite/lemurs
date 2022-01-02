@@ -27,5 +27,4 @@ chvt = "0.2.0"
 rand = "0.8.4"
 chrono = "0.4"
 nix = "0.23.1"
-logind-dbus = "0.1.1"
 clap = { version = "3.0.0", features = ["derive"] }
