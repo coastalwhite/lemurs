@@ -163,44 +163,40 @@ impl App {
 
         // Start the thread that will be handling the authentication
         std::thread::spawn(move || {
-            loop {
-                match auth_receiver.recv().unwrap() {
-                    LoginMessage::NewLogin {
-                        username,
-                        password,
-                        initrc_path,
-                    } => {
-                        if preview {
-                            let two_seconds = std::time::Duration::from_secs(2);
+            while let LoginMessage::NewLogin {
+                username,
+                password,
+                initrc_path,
+            } = auth_receiver.recv().unwrap()
+            {
+                if preview {
+                    let two_seconds = std::time::Duration::from_secs(2);
 
-                            auth_sender
-                                .send(UIMessage::SetStatusMessage(StatusMessage::Authenticating))
-                                .unwrap();
-                            std::thread::sleep(two_seconds);
-                            auth_sender
-                                .send(UIMessage::SetStatusMessage(StatusMessage::LoggingIn))
-                                .unwrap();
-                            auth_sender.send(UIMessage::StopRefreshing).unwrap();
-                            std::thread::sleep(two_seconds);
-                            auth_sender.send(UIMessage::StartRefreshing).unwrap();
-                            auth_sender.send(UIMessage::ClearStatusMessage).unwrap();
+                    auth_sender
+                        .send(UIMessage::SetStatusMessage(StatusMessage::Authenticating))
+                        .unwrap();
+                    std::thread::sleep(two_seconds);
+                    auth_sender
+                        .send(UIMessage::SetStatusMessage(StatusMessage::LoggingIn))
+                        .unwrap();
+                    auth_sender.send(UIMessage::StopRefreshing).unwrap();
+                    std::thread::sleep(two_seconds);
+                    auth_sender.send(UIMessage::StartRefreshing).unwrap();
+                    auth_sender.send(UIMessage::ClearStatusMessage).unwrap();
 
-                            continue;
-                        }
-
-                        // TODO: Move this into the WindowManager struct to make it adjustable depending on
-                        // the window manager you are using
-                        let graphical_environment = X::new();
-                        login(
-                            username,
-                            password,
-                            initrc_path,
-                            &auth_sender,
-                            graphical_environment,
-                        );
-                    }
-                    LoginMessage::Terminate => break,
+                    continue;
                 }
+
+                // TODO: Move this into the WindowManager struct to make it adjustable depending on
+                // the window manager you are using
+                let graphical_environment = X::new();
+                login(
+                    username,
+                    password,
+                    initrc_path,
+                    &auth_sender,
+                    graphical_environment,
+                );
             }
         });
 
@@ -406,30 +402,24 @@ fn login(
 
     // TODO: This should probably be moved to the graphical_environment module somewhere.
 
-    match graphical_environment.start(&passwd_entry) {
-        Err(err) => {
-            error!("Failed to boot graphical enviroment. Reason: '{}'", err);
-            status_send
-                .send(UIMessage::SetStatusMessage(
-                    StatusMessage::FailedGraphicalEnvironment,
-                ))
-                .expect("MSPC failed!");
-            return;
-        }
-        _ => {}
+    if let Err(err) = graphical_environment.start(&passwd_entry) {
+        error!("Failed to boot graphical enviroment. Reason: '{}'", err);
+        status_send
+            .send(UIMessage::SetStatusMessage(
+                StatusMessage::FailedGraphicalEnvironment,
+            ))
+            .expect("MSPC failed!");
+        return;
     }
 
     info!("Graphical environment booted up successfully. Booting up desktop environment");
 
-    match graphical_environment.desktop(initrc_path, &passwd_entry) {
-        Err(err) => {
-            error!("Failed to boot desktop environment. Reason: '{}'", err);
-            status_send
-                .send(UIMessage::SetStatusMessage(StatusMessage::FailedDesktop))
-                .expect("MSPC failed!");
-            return;
-        }
-        _ => {}
+    if let Err(err) = graphical_environment.desktop(initrc_path, &passwd_entry) {
+        error!("Failed to boot desktop environment. Reason: '{}'", err);
+        status_send
+            .send(UIMessage::SetStatusMessage(StatusMessage::FailedDesktop))
+            .expect("MSPC failed!");
+        return;
     }
 
     status_send

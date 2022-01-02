@@ -100,7 +100,7 @@ impl GraphicalEnvironment for X {
         setuid(uid)?;
 
         // Init environment for current TTY
-        crate::pam::init_environment(&passwd_entry);
+        crate::pam::init_environment(passwd_entry);
 
         let mut child = Command::new(SYSTEM_SHELL)
             .arg("-c")

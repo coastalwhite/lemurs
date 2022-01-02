@@ -52,7 +52,7 @@ impl WindowManagerSelector {
     /// Create a new [`WindowManagerSelector`]
     fn new(window_managers: Vec<WindowManager>) -> Self {
         Self {
-            selected: if window_managers.len() == 0 {
+            selected: if window_managers.is_empty() {
                 None
             } else {
                 Some(0)
@@ -94,21 +94,21 @@ impl WindowManagerSelector {
     }
 
     fn next(&self) -> Option<&WindowManager> {
-        self.selected.map_or(None, |index| {
+        self.selected.and_then(|index| {
             debug_assert!(self.len() > 0);
             self.window_managers.get(self.next_index(index))
         })
     }
 
     fn prev(&self) -> Option<&WindowManager> {
-        self.selected.map_or(None, |index| {
+        self.selected.and_then(|index| {
             debug_assert!(self.len() > 0);
             self.window_managers.get(self.prev_index(index))
         })
     }
 
     pub fn current(&self) -> Option<&WindowManager> {
-        self.selected.map_or(None, |index| {
+        self.selected.and_then(|index| {
             debug_assert!(self.len() > 0);
             self.window_managers.get(index)
         })
