@@ -1,0 +1,57 @@
+preview = true 
+
+[window_manager_selector]
+show_movers = "true"
+mover_color = "dark gray"
+mover_color_focused = "orange"
+
+left_mover = "<"
+right_mover = ">"
+
+mover_margin = 1
+
+selected_color = "gray"
+selected_color_focused = "white"
+
+selected_modifiers = "underlined"
+selected_modifiers_focused = "bold"
+
+display_neighbours = true
+neighbour_color = "dark gray"
+neighbour_color_focused = "gray"
+
+neighbour_modifiers = ""
+neighbour_modifiers_focused = ""
+
+neighbour_margin = 1
+
+max_display_length = 8
+
+[username_field]
+show_title = true
+title = "Login"
+
+title_color = "white"
+title_color_focused = "orange"
+
+content_color = "white"
+content_color_focused = "orange"
+
+show_border = true
+border_color = "white"
+border_color_focused = "orange"
+
+[password_field]
+show_title = true
+title = "Login"
+
+title_color = "white"
+title_color_focused = "orange"
+
+content_color = "white"
+content_color_focused = "orange"
+content_replacement_character = "*"
+
+show_border = true
+border_color = "white"
+border_color_focused = "orange"
