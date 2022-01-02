@@ -1,28 +1,22 @@
 use crossterm::event::KeyCode;
+use std::path::PathBuf;
 use tui::{
     layout::{Alignment, Rect},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     terminal::Frame,
     text::{Span, Spans, Text},
     widgets::{Block, Paragraph},
 };
-use std::path::PathBuf;
 
 const NO_WINDOW_MANAGERS_STRING: &str = "No Window Managers Specified";
 const NO_WINDOW_MANAGERS_STRING_COLOR: [Color; 2] = [Color::LightRed, Color::Red];
-// const WINDOW_MANAGER_CUTOFF_WIDTH: usize = 16;
+const WM_CUTOFF_WIDTH: usize = 16;
 const PREV_NEXT_ARROWS: [&str; 2] = ["<", ">"];
 const ARROWS_COLOR: [Color; 2] = [Color::DarkGray, Color::Yellow];
 const PREV_NEXT_PADDING: usize = 1;
 const PREV_NEXT_COLOR: [Color; 2] = [Color::DarkGray, Color::DarkGray];
 const WM_PADDING: usize = 2;
 const CURRENT_COLOR: [Color; 2] = [Color::Gray, Color::White];
-
-// const MIN_WIDTH: usize = WINDOW_MANAGER_CUTOFF_WIDTH
-//     + PREV_NEXT_ARROWS[0].len()
-//     + PREV_NEXT_ARROWS[1].len()
-//     + PREV_NEXT_PADDING * 2
-//     + WM_PADDING * 2;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct WindowManager {
@@ -66,44 +60,57 @@ impl WindowManagerSelector {
         self.window_managers.len()
     }
 
-    // #[inline]
-    // fn can_move(&self) -> bool {
-    //     self.selected.map_or(false, |s| s == 0)
-    // }
-
     #[inline]
-    fn next_index(&self, index: usize) -> usize {
-        (index + 1) % self.len()
-    }
+    fn next_index(&self, index: usize) -> Option<usize> {
+        let next_index = index + 1;
 
-    #[inline]
-    fn prev_index(&self, index: usize) -> usize {
-        if index == 0 {
-            self.len() - 1
+        if next_index == self.len() {
+            None
         } else {
-            index - 1
+            Some(next_index)
         }
     }
 
+    #[inline]
+    fn prev_index(&self, index: usize) -> Option<usize> {
+        if index == 0 {
+            return None;
+        }
+
+        Some(index - 1)
+    }
+
     fn go_next(&mut self) {
-        self.selected = self.selected.map(|index| self.next_index(index));
+        match self.selected.map(|index| self.next_index(index)) {
+            None | Some(None) => {}
+            Some(val) => self.selected = val,
+        }
     }
 
     fn go_prev(&mut self) {
-        self.selected = self.selected.map(|index| self.prev_index(index));
+        match self.selected.map(|index| self.prev_index(index)) {
+            None | Some(None) => {}
+            Some(val) => self.selected = val,
+        }
     }
 
     fn next(&self) -> Option<&WindowManager> {
         self.selected.map_or(None, |index| {
             debug_assert!(self.len() > 0);
-            self.window_managers.get(self.next_index(index))
+            match self.next_index(index) {
+                Some(next_index) => self.window_managers.get(next_index),
+                None => None,
+            }
         })
     }
 
     fn prev(&self) -> Option<&WindowManager> {
         self.selected.map_or(None, |index| {
             debug_assert!(self.len() > 0);
-            self.window_managers.get(self.prev_index(index))
+            match self.prev_index(index) {
+                Some(prev_index) => self.window_managers.get(prev_index),
+                None => None,
+            }
         })
     }
 
@@ -120,42 +127,13 @@ impl WindowManagerSelectorWidget {
         Self(WindowManagerSelector::new(window_managers))
     }
 
-    fn wm_width(window_manager: &WindowManager) -> usize {
-        // TODO: Take into account not Monospace fonts
-        window_manager.title.len()
-    }
-
-    /// Get the character-width of the configuration with three window managers available
-    fn find_width(prev_width: usize, current_width: usize, next_width: usize) -> usize {
-        prev_width
-            + current_width
-            + next_width
+    fn do_show_neighbours(area_width: usize) -> bool {
+        WM_CUTOFF_WIDTH * 3
             + PREV_NEXT_ARROWS[0].len()
             + PREV_NEXT_ARROWS[1].len()
             + PREV_NEXT_PADDING * 2
             + WM_PADDING * 2
-    }
-
-    fn do_show_prev(
-        area_width: usize,
-        prev_width: usize,
-        current_width: usize,
-        next_width: Option<usize>,
-    ) -> bool {
-        debug_assert!(area_width >= Self::find_width(0, current_width, 0));
-
-        Self::find_width(prev_width, current_width, next_width.unwrap_or(0)) <= area_width
-    }
-
-    fn do_show_next(
-        area_width: usize,
-        left_width: Option<usize>,
-        middle_width: usize,
-        right_width: usize,
-    ) -> bool {
-        debug_assert!(area_width >= Self::find_width(0, middle_width, 0));
-
-        Self::find_width(left_width.unwrap_or(0), middle_width, right_width) <= area_width
+            <= area_width
     }
 
     fn left(&mut self) {
@@ -166,6 +144,15 @@ impl WindowManagerSelectorWidget {
     fn right(&mut self) {
         let Self(ref mut selector) = self;
         selector.go_next();
+    }
+
+    fn show_wm_title(title: &str) -> String {
+        if title.len() >= WM_CUTOFF_WIDTH {
+            return title[..WM_CUTOFF_WIDTH].to_string();
+        };
+
+        // TODO: Replace with custom implementation
+        format!("{:^16}", title)
     }
 
     pub fn render(
@@ -195,50 +182,54 @@ impl WindowManagerSelectorWidget {
             9,
         );
         if let Some(current) = current {
-            msg.push(Span::styled(
-                PREV_NEXT_ARROWS[0],
-                Style::default().fg(ARROWS_COLOR[is_focused]),
-            )); // Left Arrow
-            msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // LeftPad
+            let do_show_neighbours = Self::do_show_neighbours(area.width.into());
+
             if let Some(prev) = prev {
-                if Self::do_show_prev(
-                    area.width.into(),
-                    Self::wm_width(prev),
-                    Self::wm_width(current),
-                    next.map(|next| Self::wm_width(next)),
-                ) {
+                msg.push(Span::styled(
+                    PREV_NEXT_ARROWS[0],
+                    Style::default().fg(ARROWS_COLOR[is_focused]),
+                )); // Left Arrow
+                msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // LeftPad
+
+                if do_show_neighbours {
                     msg.push(Span::styled(
-                        &prev.title,
+                        Self::show_wm_title(&prev.title),
                         Style::default().fg(PREV_NEXT_COLOR[is_focused]),
                     )); // LeftWM
                     msg.push(Span::raw(" ".repeat(WM_PADDING))); // LeftWMPad
                 }
+            } else {
+                msg.push(Span::raw(" ".repeat(
+                    PREV_NEXT_ARROWS[0].len() + PREV_NEXT_PADDING + WM_CUTOFF_WIDTH + WM_PADDING,
+                )));
             }
 
             msg.push(Span::styled(
-                &current.title,
-                Style::default().fg(CURRENT_COLOR[is_focused]),
+                Self::show_wm_title(&current.title),
+                Style::default()
+                    .fg(CURRENT_COLOR[is_focused])
+                    .add_modifier(Modifier::UNDERLINED),
             )); // CurrentWM
 
             if let Some(next) = next {
-                if Self::do_show_next(
-                    area.width.into(),
-                    prev.map(|prev| Self::wm_width(prev)),
-                    Self::wm_width(current),
-                    Self::wm_width(next),
-                ) {
+                if do_show_neighbours {
                     msg.push(Span::raw(" ".repeat(WM_PADDING))); // RightWMPad
                     msg.push(Span::styled(
-                        &next.title,
+                        Self::show_wm_title(&next.title),
                         Style::default().fg(PREV_NEXT_COLOR[is_focused]),
                     )); // RightWM
                 }
+
+                msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // RightPad
+                msg.push(Span::styled(
+                    PREV_NEXT_ARROWS[1],
+                    Style::default().fg(ARROWS_COLOR[is_focused]),
+                )); // Right Arrow
+            } else {
+                msg.push(Span::raw(" ".repeat(
+                    PREV_NEXT_ARROWS[0].len() + PREV_NEXT_PADDING + WM_CUTOFF_WIDTH + WM_PADDING,
+                )));
             }
-            msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // RightPad
-            msg.push(Span::styled(
-                PREV_NEXT_ARROWS[1],
-                Style::default().fg(ARROWS_COLOR[is_focused]),
-            )); // Right Arrow
         } else {
             msg.push(Span::styled(
                 NO_WINDOW_MANAGERS_STRING,
