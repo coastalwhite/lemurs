@@ -10,7 +10,7 @@ use tui::{
 
 const NO_WINDOW_MANAGERS_STRING: &str = "No Window Managers Specified";
 const NO_WINDOW_MANAGERS_STRING_COLOR: [Color; 2] = [Color::LightRed, Color::Red];
-const WM_CUTOFF_WIDTH: usize = 16;
+const WM_CUTOFF_WIDTH: usize = 8;
 const PREV_NEXT_ARROWS: [&str; 2] = ["<", ">"];
 const ARROWS_COLOR: [Color; 2] = [Color::DarkGray, Color::Yellow];
 const PREV_NEXT_PADDING: usize = 1;
@@ -211,17 +211,9 @@ impl WindowManagerSelectorWidget {
         area: Rect,
         is_focused: bool,
     ) {
-        // TLDR: This code is a complete mess. Issue #1 should almost completely rewrite this code
-        // so refactoring here doesn't make a lot of sense.
-
         let Self(selector) = self;
 
-        // TODO: Optimize these calls
-        let current = selector.current();
-        let prev = selector.prev();
-        let next = selector.next();
-
-        let mut msg = Vec::with_capacity(
+        let mut spans = Vec::with_capacity(
             // Left + Right +
             // LeftPad + RightPad +
             // LeftWM(3) + RightWM(3) +
@@ -229,51 +221,54 @@ impl WindowManagerSelectorWidget {
             // MiddleWM(3) = 15
             15,
         );
-        if let Some(current) = current {
+        if let Some(current) = selector.current() {
             let do_show_neighbours = Self::do_show_neighbours(area.width.into());
 
-            if let Some(prev) = prev {
-                msg.push(Span::styled(
+            // Showing left item
+            if let Some(prev) = selector.prev() {
+                spans.push(Span::styled(
                     PREV_NEXT_ARROWS[0],
                     Self::arrow_style(is_focused),
                 )); // Left Arrow
-                msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // LeftPad
+                spans.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // LeftPad
 
                 if do_show_neighbours {
-                    Self::add_wm_title(&mut msg, prev, is_focused, false); // LeftWM
-                    msg.push(Span::raw(" ".repeat(WM_PADDING))); // LeftWMPad
+                    Self::add_wm_title(&mut spans, prev, is_focused, false); // LeftWM
+                    spans.push(Span::raw(" ".repeat(WM_PADDING))); // LeftWMPad
                 }
             } else {
-                msg.push(Span::raw(" ".repeat(
+                spans.push(Span::raw(" ".repeat(
                     PREV_NEXT_ARROWS[0].len() + PREV_NEXT_PADDING + WM_CUTOFF_WIDTH + WM_PADDING,
                 )));
             }
 
-            Self::add_wm_title(&mut msg, current, is_focused, true); // CurrentWM
+            Self::add_wm_title(&mut spans, current, is_focused, true); // CurrentWM
 
-            if let Some(next) = next {
+            // Showing next item
+            if let Some(next) = selector.next() {
                 if do_show_neighbours {
-                    msg.push(Span::raw(" ".repeat(WM_PADDING))); // RightWMPad
-                    Self::add_wm_title(&mut msg, next, is_focused, false); // RightWM
+                    spans.push(Span::raw(" ".repeat(WM_PADDING))); // RightWMPad
+                    Self::add_wm_title(&mut spans, next, is_focused, false); // RightWM
                 }
 
-                msg.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // RightPad
-                msg.push(Span::styled(
+                spans.push(Span::raw(" ".repeat(PREV_NEXT_PADDING))); // RightPad
+                spans.push(Span::styled(
                     PREV_NEXT_ARROWS[1],
                     Self::arrow_style(is_focused),
                 )); // Right Arrow
             } else {
-                msg.push(Span::raw(" ".repeat(
+                spans.push(Span::raw(" ".repeat(
                     PREV_NEXT_ARROWS[0].len() + PREV_NEXT_PADDING + WM_CUTOFF_WIDTH + WM_PADDING,
                 )));
             }
         } else {
-            msg.push(Span::styled(
+            spans.push(Span::styled(
                 NO_WINDOW_MANAGERS_STRING,
                 Self::empty_style(is_focused),
             ));
         }
-        let text = Text::from(Spans::from(msg));
+
+        let text = Text::from(Spans::from(spans));
         let widget = Paragraph::new(text)
             .block(Block::default())
             .alignment(Alignment::Center);
