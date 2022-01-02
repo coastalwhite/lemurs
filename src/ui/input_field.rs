@@ -1,4 +1,5 @@
 use crossterm::event::KeyCode;
+use std::cmp::min;
 use tui::{
     layout::Rect,
     style::{Color, Style},
@@ -12,7 +13,7 @@ pub enum InputFieldDisplayType {
     /// Show the characters that were typed
     Echo,
     /// Always statically show a selected character
-    Replace(char),
+    Replace(String),
 }
 
 pub struct InputFieldWidget {
@@ -20,6 +21,9 @@ pub struct InputFieldWidget {
     content: String,
     /// Horizontal position of the cursor
     cursor: u16,
+    /// Horizontal scroll
+    scroll: u16,
+    width: u16,
     display_type: InputFieldDisplayType,
 }
 
@@ -32,6 +36,8 @@ impl InputFieldWidget {
             title,
             content: String::new(),
             cursor: 0,
+            scroll: 0,
+            width: 16, // Give it some initial width
             display_type,
         }
     }
@@ -45,29 +51,37 @@ impl InputFieldWidget {
     fn show_string(&self) -> String {
         use InputFieldDisplayType::{Echo, Replace};
 
-        match self.display_type {
-            Echo => self.content.clone(),
-            Replace(character) => character.to_string().repeat(self.len()),
+        let substr = &self.content
+            [usize::from(self.scroll)..min(usize::from(self.scroll + self.width), self.len())];
+
+        match &self.display_type {
+            Echo => substr.to_string(),
+            Replace(character) => character.clone().repeat(substr.len()),
         }
     }
 
     fn backspace(&mut self) {
-        if self.cursor == 0 {
+        if self.cursor == 0 && self.scroll == 0 {
             return;
         }
 
-        debug_assert!(usize::from(self.cursor) <= self.len());
-        self.cursor -= 1;
-        self.content.remove(self.cursor.into());
+        let index = usize::from(self.cursor + self.scroll - 1);
+
+        if self.cursor > 0 {
+            self.cursor -= 1;
+        } else if self.scroll > 0 {
+            self.scroll -= 1;
+        }
+        self.content.remove(index);
     }
 
     fn delete(&mut self) {
-        if usize::from(self.cursor) == self.len() {
+        let index = usize::from(self.cursor + self.scroll);
+        if index >= self.len() {
             return;
         }
 
-        debug_assert!(usize::from(self.cursor) <= self.len());
-        self.content.remove(self.cursor.into());
+        self.content.remove(index);
     }
 
     fn insert(&mut self, character: char) {
@@ -77,20 +91,33 @@ impl InputFieldWidget {
         }
 
         debug_assert!(usize::from(self.cursor) <= self.len());
-        self.content.insert(self.cursor.into(), character);
-        self.cursor += 1;
+        self.content
+            .insert(usize::from(self.cursor + self.scroll), character);
+        if self.cursor == self.width - 1 {
+            self.scroll += 1;
+        } else {
+            self.cursor += 1;
+        }
     }
 
     fn right(&mut self) {
-        if usize::from(self.cursor) == self.len() {
+        if usize::from(self.cursor + self.scroll) >= self.len() {
             return;
         }
 
-        self.cursor += 1;
+        if self.cursor == self.width - 1 {
+            self.scroll += 1;
+        } else {
+            self.cursor += 1;
+        }
     }
 
     fn left(&mut self) {
         if self.cursor == 0 {
+            if self.scroll > 0 {
+                self.scroll -= 1;
+            }
+
             return;
         }
 
@@ -99,15 +126,19 @@ impl InputFieldWidget {
 
     pub fn clear(&mut self) {
         self.cursor = 0;
+        self.scroll = 0;
         self.content = String::new();
     }
 
     pub fn render(
-        &self,
+        &mut self,
         frame: &mut Frame<impl tui::backend::Backend>,
         area: Rect,
         is_focused: bool,
     ) {
+        // Get width of text field minus borders (2)
+        self.width = area.width - 2;
+
         let show_string = self.show_string();
         let widget = Paragraph::new(show_string.as_ref())
             .style(if is_focused {
@@ -125,7 +156,10 @@ impl InputFieldWidget {
 
         if is_focused {
             frame.set_cursor(
-                area.x + self.content[..usize::from(self.cursor)].width() as u16 + 1,
+                area.x
+                    + self.content[usize::from(self.scroll)..usize::from(self.cursor + self.scroll)]
+                        .width() as u16
+                    + 1,
                 area.y + 1,
             );
         }
