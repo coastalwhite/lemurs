@@ -1,11 +1,9 @@
 pub struct Config {
-    pub preview: bool
+    pub preview: bool,
 }
 
 impl Default for Config {
     fn default() -> Config {
-        Config {
-            preview: false
-        }
+        Config { preview: false }
     }
 }

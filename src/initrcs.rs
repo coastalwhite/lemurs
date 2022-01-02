@@ -21,10 +21,7 @@ pub fn get_window_managers() -> Vec<WindowManager> {
             let file_name = path.file_name().into_string();
 
             if let Ok(file_name) = file_name {
-                wms.push(WindowManager::new(
-                    file_name,
-                    path.path(),
-                ));
+                wms.push(WindowManager::new(file_name, path.path()));
             } else {
                 warn!("Unable to convert OSString to String");
             }

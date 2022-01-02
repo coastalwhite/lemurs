@@ -1,13 +1,13 @@
 use std::error::Error;
 
-use log::{error, info};
 use clap::{arg, App as ClapApp};
+use log::{error, info};
 
+mod config;
 mod graphical_environments;
 mod initrcs;
 mod pam;
 mod ui;
-mod config;
 
 use graphical_environments::X;
 use ui::{run_app, App};

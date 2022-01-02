@@ -1,4 +1,5 @@
 use crossterm::event::KeyCode;
+use std::path::PathBuf;
 use tui::{
     layout::{Alignment, Rect},
     style::{Color, Style},
@@ -6,7 +7,6 @@ use tui::{
     text::{Span, Spans, Text},
     widgets::{Block, Paragraph},
 };
-use std::path::PathBuf;
 
 const NO_WINDOW_MANAGERS_STRING: &str = "No Window Managers Specified";
 const NO_WINDOW_MANAGERS_STRING_COLOR: [Color; 2] = [Color::LightRed, Color::Red];
