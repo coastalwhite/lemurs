@@ -203,7 +203,10 @@ impl App {
         App {
             window_manager_widget: WindowManagerSelectorWidget::new(initrcs::get_window_managers()),
             username_widget: InputFieldWidget::new("Login", InputFieldDisplayType::Echo),
-            password_widget: InputFieldWidget::new("Password", InputFieldDisplayType::Replace('*')),
+            password_widget: InputFieldWidget::new(
+                "Password",
+                InputFieldDisplayType::Replace("*".to_string()),
+            ),
             input_mode: InputMode::Normal,
             status_message: None,
             auth_channel: (sender, receiver),
@@ -244,9 +247,9 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
             ui_message.resolve(&mut app);
         }
 
-        let (snd, _) = &app.auth_channel;
+        terminal.draw(|f| ui(f, &mut app))?;
 
-        terminal.draw(|f| ui(f, &app))?;
+        let (snd, _) = &app.auth_channel;
 
         if let Event::Key(key) = event::read()? {
             match (key.code, &app.input_mode) {
@@ -309,7 +312,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
     }
 }
 
-pub fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
+pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     use Constraint::{Length, Min};
 
     let constraints = [
