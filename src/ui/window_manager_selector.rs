@@ -270,6 +270,8 @@ mod tests {
         use super::*;
         #[test]
         fn empty_creation() {
+            // On an empty selector the go_next and go_prev should do nothing.
+
             let mut selector = WindowManagerSelector::new(vec![]);
             assert_eq!(selector.current(), None);
             selector.go_next();
@@ -333,21 +335,19 @@ mod tests {
             let mut selector = WindowManagerSelector::new(vec![wm1.clone(), wm2.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_prev();
-            assert_eq!(selector.current(), Some(&wm2));
-            selector.go_next();
             assert_eq!(selector.current(), Some(&wm1));
+            selector.go_next();
+            assert_eq!(selector.current(), Some(&wm2));
 
             let mut selector = WindowManagerSelector::new(vec![wm1.clone(), wm2.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm2));
             selector.go_next();
-            assert_eq!(selector.current(), Some(&wm1));
+            assert_eq!(selector.current(), Some(&wm2));
 
             let mut selector = WindowManagerSelector::new(vec![wm1.clone(), wm2.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
-            selector.go_prev();
-            assert_eq!(selector.current(), Some(&wm2));
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm1));
 
@@ -362,7 +362,7 @@ mod tests {
             ]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_prev();
-            assert_eq!(selector.current(), Some(&wm4));
+            assert_eq!(selector.current(), Some(&wm1));
 
             let mut selector = WindowManagerSelector::new(vec![
                 wm1.clone(),
@@ -378,7 +378,7 @@ mod tests {
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm4));
             selector.go_next();
-            assert_eq!(selector.current(), Some(&wm1));
+            assert_eq!(selector.current(), Some(&wm4));
         }
     }
 }
