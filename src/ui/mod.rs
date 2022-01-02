@@ -2,11 +2,13 @@ use log::{error, info};
 
 use std::io;
 use std::path::PathBuf;
-use std::sync::mpsc::{Sender, Receiver, channel};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
+use crate::config::Config;
 use crate::graphical_environments::GraphicalEnvironment;
 use crate::pam::{open_session, PamError};
 use crate::{initrcs, X};
+
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -56,7 +58,7 @@ impl StatusMessage {
 enum InputMode {
     /// Using the WM selector widget
     WMSelect,
-    
+
     /// Typing within the Username input field
     Username,
 
@@ -65,6 +67,41 @@ enum InputMode {
 
     /// Nothing selected
     Normal,
+}
+
+enum LoginMessage {
+    NewLogin {
+        username: String,
+        password: String,
+        initrc_path: PathBuf,
+    },
+    Terminate,
+}
+
+enum UIMessage {
+    StopRefreshing,
+    StartRefreshing,
+    SetStatusMessage(StatusMessage),
+    ClearStatusMessage,
+    ClearPassword,
+}
+
+impl UIMessage {
+    fn resolve(self, app: &mut App) {
+        use UIMessage::*;
+        match self {
+            SetStatusMessage(status_msg) => app.status_message = Some(status_msg),
+            ClearStatusMessage => app.status_message = None,
+            StopRefreshing => loop {
+                match app.auth_channel.1.recv().unwrap() {
+                    StartRefreshing => break,
+                    msg => msg.resolve(app),
+                }
+            },
+            ClearPassword => app.password_widget.clear(),
+            StartRefreshing => {}
+        }
+    }
 }
 
 impl InputMode {
@@ -111,32 +148,62 @@ pub struct App {
     status_message: Option<StatusMessage>,
 
     /// Authentication Receiver
-    auth_channel: (Sender<(String, String, PathBuf)>, Receiver<Option<StatusMessage>>),
+    auth_channel: (Sender<LoginMessage>, Receiver<UIMessage>),
+
+    /// The configuration for the app
+    config: Config,
 }
 
 impl App {
-    pub fn new() -> App {
+    pub fn new(config: Config) -> App {
         let (sender, auth_receiver) = channel();
         let (auth_sender, receiver) = channel();
+
+        let preview = config.preview;
 
         // Start the thread that will be handling the authentication
         std::thread::spawn(move || {
             loop {
-                let (username, password, initrc_path) = auth_receiver.recv().unwrap();
+                match auth_receiver.recv().unwrap() {
+                    LoginMessage::NewLogin {
+                        username,
+                        password,
+                        initrc_path,
+                    } => {
+                        if preview {
+                            let two_seconds = std::time::Duration::from_secs(2);
 
-                // TODO: Move this into the WindowManager struct to make it adjustable depending on
-                // the window manager you are using
-                let graphical_environment = X::new();
-                login(
-                    username,
-                    password,
-                    initrc_path,
-                    &auth_sender,
-                    graphical_environment,
-                );
+                            auth_sender
+                                .send(UIMessage::SetStatusMessage(StatusMessage::Authenticating))
+                                .unwrap();
+                            std::thread::sleep(two_seconds);
+                            auth_sender
+                                .send(UIMessage::SetStatusMessage(StatusMessage::LoggingIn))
+                                .unwrap();
+                            auth_sender.send(UIMessage::StopRefreshing).unwrap();
+                            std::thread::sleep(two_seconds);
+                            auth_sender.send(UIMessage::StartRefreshing).unwrap();
+                            auth_sender.send(UIMessage::ClearStatusMessage).unwrap();
+
+                            continue;
+                        }
+
+                        // TODO: Move this into the WindowManager struct to make it adjustable depending on
+                        // the window manager you are using
+                        let graphical_environment = X::new();
+                        login(
+                            username,
+                            password,
+                            initrc_path,
+                            &auth_sender,
+                            graphical_environment,
+                        );
+                    }
+                    LoginMessage::Terminate => break,
+                }
             }
         });
-        
+
         App {
             window_manager_widget: WindowManagerSelectorWidget::new(initrcs::get_window_managers()),
             username_widget: InputFieldWidget::new("Login", InputFieldDisplayType::Echo),
@@ -144,6 +211,7 @@ impl App {
             input_mode: InputMode::Normal,
             status_message: None,
             auth_channel: (sender, receiver),
+            config,
         }
     }
 }
@@ -176,10 +244,11 @@ pub fn stop(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
 
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
     loop {
-        let (snd, rcv) = &app.auth_channel;
-        if let Ok(new_status_message) = rcv.try_recv() {
-            app.status_message = new_status_message;
+        if let Ok(ui_message) = app.auth_channel.1.try_recv() {
+            ui_message.resolve(&mut app);
         }
+
+        let (snd, _) = &app.auth_channel;
 
         terminal.draw(|f| ui(f, &app))?;
 
@@ -193,10 +262,15 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                         .selected()
                         .map(|selected| selected.initrc_path.clone())
                         .unwrap(); // TODO: Remove unwrap
-                    
+
                     // TODO: If the Login was successful, the rendering of the UI should probably
                     // pause.
-                    snd.send((username, password, initrc_path)).unwrap();
+                    snd.send(LoginMessage::NewLogin {
+                        username,
+                        password,
+                        initrc_path,
+                    })
+                    .unwrap();
                 }
                 (KeyCode::Enter | KeyCode::Down, _) => {
                     app.input_mode.next();
@@ -214,6 +288,11 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
 
                 // Esc is the overal key to get out of your input mode
                 (KeyCode::Esc, _) => {
+                    if app.config.preview && matches!(app.input_mode, InputMode::Normal) {
+                        snd.send(LoginMessage::Terminate).unwrap();
+                        return Ok(());
+                    }
+
                     app.input_mode = InputMode::Normal;
                 }
 
@@ -291,10 +370,12 @@ fn login(
     username: String,
     password: String,
     initrc_path: PathBuf,
-    status_send: &Sender<Option<StatusMessage>>,
+    status_send: &Sender<UIMessage>,
     mut graphical_environment: X,
 ) {
-    status_send.send(Some(StatusMessage::Authenticating)).expect("MSPC failed!");
+    status_send
+        .send(UIMessage::SetStatusMessage(StatusMessage::Authenticating))
+        .expect("MSPC failed!");
 
     info!(
         "Login attempt for '{}' with '{}'",
@@ -305,13 +386,22 @@ fn login(
     let (authenticator, passwd_entry) = match open_session(username, password) {
         Err(pam_error) => {
             error!("Authentication failed"); // TODO: Improve this log
-            status_send.send(Some(StatusMessage::PamError(pam_error))).expect("MSPC failed!");
+            status_send
+                .send(UIMessage::SetStatusMessage(StatusMessage::PamError(
+                    pam_error,
+                )))
+                .expect("MSPC failed!");
+            status_send
+                .send(UIMessage::ClearPassword)
+                .expect("MSPC failed!");
             return;
         }
         Ok(res) => res,
     };
 
-    status_send.send(Some(StatusMessage::LoggingIn)).expect("MSPC failed!");
+    status_send
+        .send(UIMessage::SetStatusMessage(StatusMessage::LoggingIn))
+        .expect("MSPC failed!");
     info!("Authentication successful. Booting up graphical environment");
 
     // TODO: This should probably be moved to the graphical_environment module somewhere.
@@ -319,7 +409,11 @@ fn login(
     match graphical_environment.start(&passwd_entry) {
         Err(err) => {
             error!("Failed to boot graphical enviroment. Reason: '{}'", err);
-            status_send.send(Some(StatusMessage::FailedGraphicalEnvironment)).expect("MSPC failed!");
+            status_send
+                .send(UIMessage::SetStatusMessage(
+                    StatusMessage::FailedGraphicalEnvironment,
+                ))
+                .expect("MSPC failed!");
             return;
         }
         _ => {}
@@ -330,13 +424,17 @@ fn login(
     match graphical_environment.desktop(initrc_path, &passwd_entry) {
         Err(err) => {
             error!("Failed to boot desktop environment. Reason: '{}'", err);
-            status_send.send(Some(StatusMessage::FailedDesktop)).expect("MSPC failed!");
+            status_send
+                .send(UIMessage::SetStatusMessage(StatusMessage::FailedDesktop))
+                .expect("MSPC failed!");
             return;
         }
         _ => {}
     }
 
-    status_send.send(None).expect("MSPC failed!");
+    status_send
+        .send(UIMessage::ClearStatusMessage)
+        .expect("MSPC failed!");
     info!("Desktop environment shutdown. Shutting down graphical enviroment");
 
     graphical_environment.stop();

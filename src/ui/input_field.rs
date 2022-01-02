@@ -97,6 +97,11 @@ impl InputFieldWidget {
         self.cursor -= 1;
     }
 
+    pub fn clear(&mut self) {
+        self.cursor = 0;
+        self.content = String::new();
+    }
+
     pub fn render(
         &self,
         frame: &mut Frame<impl tui::backend::Backend>,
