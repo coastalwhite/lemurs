@@ -1,3 +1,6 @@
+use std::io::{self, BufReader, Read};
+use std::fs::File;
+
 use log::error;
 use serde::Deserialize;
 
@@ -201,5 +204,15 @@ impl Into<UsernameFieldConfig> for PassswordFieldConfig {
 impl Default for Config {
     fn default() -> Config {
         toml::from_str(include_str!("../extra/config.toml")).expect("Default config incorrect!")
+    }
+}
+
+impl Config {
+    pub fn from_file(path: &str) -> io::Result<Config> {
+        let file = File::open(path)?;
+        let mut buf_reader = BufReader::new(file);
+        let mut contents = String::new();
+        buf_reader.read_to_string(&mut contents)?;
+        Ok(toml::from_str(&contents).expect("Given configuration file contains errors."))
     }
 }

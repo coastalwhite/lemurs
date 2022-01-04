@@ -202,7 +202,11 @@ impl App {
 
         App {
             window_manager_widget: WindowManagerSelectorWidget::new(
-                initrcs::get_window_managers(),
+                if config.preview {
+                    Vec::new()
+                } else {
+                    initrcs::get_window_managers()
+                },
                 config.window_manager_selector.clone(),
             ),
             username_widget: InputFieldWidget::new(
