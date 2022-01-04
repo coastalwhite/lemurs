@@ -2,11 +2,14 @@ use crossterm::event::KeyCode;
 use std::cmp::min;
 use tui::{
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     terminal::Frame,
+    text::Span,
     widgets::{Block, Borders, Paragraph},
 };
 use unicode_width::UnicodeWidthStr;
+
+use crate::config::{get_color, UsernameFieldConfig};
 
 /// The type of the input field display. How are the characters which are typed displayed?
 pub enum InputFieldDisplayType {
@@ -17,7 +20,6 @@ pub enum InputFieldDisplayType {
 }
 
 pub struct InputFieldWidget {
-    title: String,
     content: String,
     /// Horizontal position of the cursor
     cursor: u16,
@@ -25,20 +27,19 @@ pub struct InputFieldWidget {
     scroll: u16,
     width: u16,
     display_type: InputFieldDisplayType,
+    config: UsernameFieldConfig,
 }
 
 impl InputFieldWidget {
     /// Creates a new input field widget
-    pub fn new(title: impl ToString, display_type: InputFieldDisplayType) -> Self {
-        let title = title.to_string();
-
+    pub fn new(display_type: InputFieldDisplayType, config: UsernameFieldConfig) -> Self {
         Self {
-            title,
             content: String::new(),
             cursor: 0,
             scroll: 0,
             width: 16, // Give it some initial width
             display_type,
+            config,
         }
     }
 
@@ -130,37 +131,69 @@ impl InputFieldWidget {
         self.content = String::new();
     }
 
+    fn get_text_style(&self, is_focused: bool) -> Style {
+        if is_focused {
+            Style::default().fg(get_color(&self.config.content_color_focused))
+        } else {
+            Style::default().fg(get_color(&self.config.content_color))
+        }
+    }
+
+    fn get_block(&self, is_focused: bool) -> Block {
+        let (title_style, border_style) = if is_focused {
+            (
+                Style::default().fg(get_color(&self.config.title_color_focused)),
+                Style::default().fg(get_color(&self.config.border_color_focused)),
+            )
+        } else {
+            (
+                Style::default().fg(get_color(&self.config.title_color)),
+                Style::default().fg(get_color(&self.config.border_color)),
+            )
+        };
+
+        let block = Block::default();
+
+        let block = if self.config.show_title {
+            block.title(Span::styled(self.config.title.clone(), title_style))
+        } else {
+            block
+        };
+
+        let block = if self.config.show_border {
+            block.borders(Borders::ALL).style(border_style)
+        } else {
+            block
+        };
+
+        block
+    }
+
     pub fn render(
         &mut self,
         frame: &mut Frame<impl tui::backend::Backend>,
         area: Rect,
         is_focused: bool,
     ) {
+        let block = self.get_block(is_focused);
+        let inner = block.inner(area);
+
         // Get width of text field minus borders (2)
-        self.width = area.width - 2;
+        self.width = inner.width;
 
         let show_string = self.show_string();
         let widget = Paragraph::new(show_string.as_ref())
-            .style(if is_focused {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default()
-            })
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(self.title.clone()),
-            );
+            .style(self.get_text_style(is_focused))
+            .block(self.get_block(is_focused));
 
         frame.render_widget(widget, area);
 
         if is_focused {
+            let Rect { x, y, .. } = inner;
             frame.set_cursor(
-                area.x
-                    + self.content[usize::from(self.scroll)..usize::from(self.cursor + self.scroll)]
-                        .width() as u16
-                    + 1,
-                area.y + 1,
+                x + self.content[usize::from(self.scroll)..usize::from(self.cursor + self.scroll)]
+                    .width() as u16,
+                y,
             );
         }
     }

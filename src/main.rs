@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(arg!(--preview))
+        .arg(arg!(-c --config [FILE] "a file to replace the default configuration"))
         .get_matches();
 
     let mut config = config::Config::default();

@@ -1,9 +1,12 @@
 preview = true 
 
 [window_manager_selector]
-show_movers = "true"
+show_movers = true
 mover_color = "dark gray"
 mover_color_focused = "orange"
+
+mover_modifiers = ""
+mover_modifiers_focused = "bold"
 
 left_mover = "<"
 right_mover = ">"
@@ -16,7 +19,7 @@ selected_color_focused = "white"
 selected_modifiers = "underlined"
 selected_modifiers_focused = "bold"
 
-display_neighbours = true
+show_neighbours = true
 neighbour_color = "dark gray"
 neighbour_color_focused = "gray"
 
@@ -26,6 +29,14 @@ neighbour_modifiers_focused = ""
 neighbour_margin = 1
 
 max_display_length = 8
+
+no_envs_text = "No environments..."
+
+no_envs_color = "orange"
+no_envs_color_focused = "red"
+
+no_envs_modifiers = ""
+no_envs_modifiers_focused = ""
 
 [username_field]
 show_title = true
@@ -43,7 +54,7 @@ border_color_focused = "orange"
 
 [password_field]
 show_title = true
-title = "Login"
+title = "Password"
 
 title_color = "white"
 title_color_focused = "orange"
