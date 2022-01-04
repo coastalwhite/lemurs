@@ -32,7 +32,7 @@ max_display_length = 8
 
 no_envs_text = "No environments..."
 
-no_envs_color = "orange"
+no_envs_color = "white"
 no_envs_color_focused = "red"
 
 no_envs_modifiers = ""
