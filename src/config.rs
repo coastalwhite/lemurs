@@ -1,5 +1,5 @@
-use std::io::{self, BufReader, Read};
 use std::fs::File;
+use std::io::{self, BufReader, Read};
 
 use log::error;
 use serde::Deserialize;
@@ -40,7 +40,7 @@ fn str_to_color(color: &str) -> Option<Color> {
 
         // Custom colors
         "orange" => Rgb(255, 127, 0),
-        
+
         // Hex and unknown
         c => {
             if !c.starts_with("#") || c.len() != 7 {
@@ -94,7 +94,7 @@ pub struct Config {
     pub preview: bool,
     pub window_manager_selector: WMSelectorConfig,
     pub username_field: UsernameFieldConfig,
-    pub password_field: PassswordFieldConfig,
+    pub password_field: PasswordFieldConfig,
 }
 
 #[derive(Clone, Deserialize)]
@@ -155,7 +155,7 @@ pub struct UsernameFieldConfig {
 }
 
 #[derive(Clone, Deserialize)]
-pub struct PassswordFieldConfig {
+pub struct PasswordFieldConfig {
     pub show_title: bool,
     pub title: String,
 
@@ -172,9 +172,9 @@ pub struct PassswordFieldConfig {
     pub border_color_focused: String,
 }
 
-impl Into<UsernameFieldConfig> for PassswordFieldConfig {
-    fn into(self) -> UsernameFieldConfig {
-        let PassswordFieldConfig {
+impl From<PasswordFieldConfig> for UsernameFieldConfig {
+    fn from(item: PasswordFieldConfig) -> Self {
+        let PasswordFieldConfig {
             show_title,
             title,
             show_border,
@@ -185,7 +185,7 @@ impl Into<UsernameFieldConfig> for PassswordFieldConfig {
             border_color,
             border_color_focused,
             ..
-        } = self;
+        } = item;
 
         UsernameFieldConfig {
             show_title,
