@@ -92,12 +92,19 @@ pub fn get_modifiers(modifiers: &str) -> Vec<Modifier> {
 }
 
 pub fn get_key(key: &str) -> KeyCode {
-    match key {
+    match key.trim() {
         "F1" => KeyCode::F(1),
         "F2" => KeyCode::F(2),
         "F3" => KeyCode::F(3),
         "F4" => KeyCode::F(4),
         "F5" => KeyCode::F(5),
+        "F6" => KeyCode::F(6),
+        "F7" => KeyCode::F(7),
+        "F8" => KeyCode::F(8),
+        "F9" => KeyCode::F(9),
+        "F10" => KeyCode::F(10),
+        "F11" => KeyCode::F(11),
+        "F12" => KeyCode::F(12),
         // TODO: Add others
         _ => KeyCode::F(255),
     }
