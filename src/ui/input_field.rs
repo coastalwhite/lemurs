@@ -220,8 +220,8 @@ impl InputFieldWidget {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use InputFieldDisplayType::*;
     use crate::config::Config;
+    use InputFieldDisplayType::*;
 
     #[test]
     fn cursor_movement() {
