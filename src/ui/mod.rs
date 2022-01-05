@@ -24,10 +24,13 @@ use tui::{
 };
 
 mod input_field;
+mod power_menu;
 mod window_manager_selector;
 
 pub use input_field::{InputFieldDisplayType, InputFieldWidget};
 pub use window_manager_selector::{WindowManager, WindowManagerSelectorWidget};
+
+use self::power_menu::PowerMenuWidget;
 
 enum StatusMessageType {
     Error,
@@ -132,6 +135,9 @@ impl InputMode {
 
 /// App holds the state of the application
 pub struct App {
+    /// The power menu
+    power_menu_widget: PowerMenuWidget,
+
     /// The widget used for selection of the window manager
     window_manager_widget: WindowManagerSelectorWidget,
 
@@ -201,6 +207,7 @@ impl App {
         });
 
         App {
+            power_menu_widget: PowerMenuWidget::new(config.power_options.clone()),
             window_manager_widget: WindowManagerSelectorWidget::new(
                 if config.preview {
                     Vec::new()
@@ -321,7 +328,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                 (k, &InputMode::Password) => {
                     app.password_widget.key_press(k);
                 }
-                _ => {}
+                (k, _) => app.power_menu_widget.key_press(k),
             }
         }
     }
@@ -331,6 +338,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     use Constraint::{Length, Min};
 
     let constraints = [
+        Length(1),
         Length(1),
         Length(2),
         Length(1),
@@ -349,14 +357,16 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .constraints(constraints.as_ref())
         .split(f.size());
 
+    app.power_menu_widget.render(f, chunks[0]);
+
     app.window_manager_widget
-        .render(f, chunks[2], matches!(app.input_mode, InputMode::WMSelect));
+        .render(f, chunks[3], matches!(app.input_mode, InputMode::WMSelect));
 
     app.username_widget
-        .render(f, chunks[4], matches!(app.input_mode, InputMode::Username));
+        .render(f, chunks[5], matches!(app.input_mode, InputMode::Username));
 
     app.password_widget
-        .render(f, chunks[6], matches!(app.input_mode, InputMode::Password));
+        .render(f, chunks[7], matches!(app.input_mode, InputMode::Password));
 
     // Display Status Message
     if let Some(status_message) = &app.status_message {
@@ -376,7 +386,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             }),
         );
 
-        f.render_widget(error_widget, chunks[8]);
+        f.render_widget(error_widget, chunks[9]);
     }
 }
 
