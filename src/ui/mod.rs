@@ -201,11 +201,26 @@ impl App {
         });
 
         App {
-            window_manager_widget: WindowManagerSelectorWidget::new(initrcs::get_window_managers()),
-            username_widget: InputFieldWidget::new("Login", InputFieldDisplayType::Echo),
+            window_manager_widget: WindowManagerSelectorWidget::new(
+                if config.preview {
+                    Vec::new()
+                } else {
+                    initrcs::get_window_managers()
+                },
+                config.window_manager_selector.clone(),
+            ),
+            username_widget: InputFieldWidget::new(
+                InputFieldDisplayType::Echo,
+                config.username_field.clone(),
+            ),
             password_widget: InputFieldWidget::new(
-                "Password",
-                InputFieldDisplayType::Replace("*".to_string()),
+                InputFieldDisplayType::Replace(
+                    config
+                        .password_field
+                        .content_replacement_character
+                        .to_string(),
+                ),
+                config.password_field.clone().into(),
             ),
             input_mode: InputMode::Normal,
             status_message: None,

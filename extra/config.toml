@@ -1,0 +1,172 @@
+# Lemurs configuration file.
+# Contains all the customization options of lemurs.
+#
+# Note: that as of now you need to have all options in the selected
+# configuration file. Otherwise Lemurs will not work.
+#
+# Colors:
+# ---------
+# There is a list of predefined colors. These include:
+# - black
+# - white
+# - (dark) gray
+# - (light) red
+# - (light) blue
+# - (light) green
+# - (light) magenta
+# - (light) cyan
+# - (light) yellow
+# - orange
+#
+# You can also utilize custom colors with hex color codes.
+# "#87CEEB" will create a Sky Blue color.
+#
+# Note: If the color wasn't recognized, it will default to white.
+# ---------
+# 
+# Modifiers:
+# ---------
+# There is a number of modifiers you can use. These can be combined by
+# delimiting them with a comma (e.g. "bold,italic"). The modifiers are:
+# - bold
+# - dim
+# - italic
+# - underlined
+# - reverse
+# - crossed out
+# - hidden
+# ---------
+#
+# Enables preview mode.
+# This will disable login in and remove the need for root priviledges to run
+# lemurs. This can be overwritten as `true` the `--preview` flag.
+preview = false
+
+# Setting for the selector of the desktop environment you are using.
+[window_manager_selector]
+# Terms:
+# ---------
+# Movers: indicators which show which direction one can move whilst selecting
+# the desktop environment
+# Selected: The currently selected desktop environment.
+# Neighbours: The adjacent desktop environment to the one current selected
+#
+# Visualisation:
+#
+#    <     i3       bspwm     awesome   >
+#
+#    ^      ^         ^          ^      ^
+#    |      |         |          |      |
+#  mover    |      selected      |    mover
+#           |                    |      
+#       neighbour            neighbour
+# ---------
+#
+
+# Enables showing the movers
+show_movers = true
+
+# Mover's color and modifiers whilst the selector is unfocused
+mover_color = "dark gray" 
+mover_modifiers = ""
+
+# Mover's color and modifiers whilst the selector is focused
+mover_color_focused = "orange"
+mover_modifiers_focused = "bold" 
+
+# The characters used to display the movers. Suggestions are:
+# -  "<"  ">"
+# - "<-"  "->"
+# - "<<"  ">>"
+# -  "["  "]"
+left_mover = "<"
+right_mover = ">"
+
+# The margin between the movers and the neighbours or selected (depending on
+# `show_neighbours`)
+mover_margin = 1
+
+# Enables showing the neighbours
+show_neighbours = true
+
+# Neighbours' color and modifiers whilst the selector is unfocused
+neighbour_color = "dark gray"
+neighbour_modifiers = ""
+
+# Neighbours' color and modifiers whilst the selector is focused
+neighbour_color_focused = "gray"
+neighbour_modifiers_focused = ""
+
+# Margin between neighbours and selected
+neighbour_margin = 1
+
+# Selected's color and modifiers whilst the selector is unfocused
+selected_color = "gray"
+selected_modifiers = "underlined"
+
+# Selected's color and modifiers whilst the selector is focused
+selected_color_focused = "white"
+selected_modifiers_focused = "bold"
+
+# The length of the name of the desktop environment which is displayed.
+max_display_length = 8
+
+# The text used when no desktop environments are available
+no_envs_text = "No environments..."
+
+# The color and modifiers of the 'no desktop environments available text'
+# whilst the selector is unfocused
+no_envs_color = "white"
+no_envs_modifiers = ""
+
+# The color and modifiers of the 'no desktop environments available text'
+# whilst the selector is focused
+no_envs_color_focused = "red"
+no_envs_modifiers_focused = ""
+
+[username_field]
+# Enables showing a title
+show_title = true
+# The text used within the title
+title = "Login"
+
+# The title's color and modifiers whilst the username field is unfocused
+title_color = "white"
+content_color = "white"
+
+# The title's color and modifiers whilst the username field is focused
+title_color_focused = "orange"
+content_color_focused = "orange"
+
+# Enables showing the borders
+show_border = true
+# The borders' color and modifiers whilst the username field is unfocused
+border_color = "white"
+# The borders' color and modifiers whilst the username field is focused
+border_color_focused = "orange"
+
+[password_field]
+# Enables showing a title
+show_title = true
+# The text used within the title
+title = "Password"
+
+# The title's color and modifiers whilst the password field is unfocused
+title_color = "white"
+content_color = "white"
+
+# The title's color and modifiers whilst the password field is focused
+title_color_focused = "orange"
+content_color_focused = "orange"
+
+# The character used for replacement when typing a password. Leave empty for no
+# feedback.
+# Note: Only one character is accepted.
+content_replacement_character = "*"
+
+# Enables showing the borders
+show_border = true
+# The borders' color and modifiers whilst the username field is unfocused
+border_color = "white"
+# The borders' color and modifiers whilst the username field is focused
+border_color_focused = "orange"

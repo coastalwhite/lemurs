@@ -18,9 +18,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(arg!(--preview))
+        .arg(arg!(-c --config [FILE] "a file to replace the default configuration"))
         .get_matches();
 
-    let mut config = config::Config::default();
+    let mut config = if let Some(config_path) = matches.value_of("config") {
+        config::Config::from_file(config_path).expect("Unable to open given configuration file.")
+    } else {
+        config::Config::default()
+    };
     config.preview = matches.is_present("preview");
 
     info!("Started");
@@ -38,7 +43,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .level(log::LevelFilter::Debug)
         .level_for("hyper", log::LevelFilter::Info)
         // As of now just log to the /tmp/lemurs.log
-        .chain(fern::log_file("/tmp/lemurs.log")?)
+        .chain(fern::log_file(if config.preview {
+            "out.log"
+        } else {
+            "/tmp/lemurs.log"
+        })?)
         .apply()?;
 
     info!("Initiated logger");
