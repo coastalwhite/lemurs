@@ -7,7 +7,7 @@ use tui::text::{Span, Spans, Text};
 use tui::widgets::Paragraph;
 use tui::Frame;
 
-use crate::config::{get_color, get_key, PowerOptionsConfig, get_modifiers};
+use crate::config::{get_color, get_key, get_modifiers, PowerOptionsConfig};
 
 pub struct PowerMenuWidget {
     config: PowerOptionsConfig,
