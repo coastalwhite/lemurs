@@ -55,6 +55,13 @@ Remember to make this script runnable. This is done with the `chmod +x
 
 Upon rebooting your new *xinitrc* should show up within Lemurs.
 
+## configuration
+
+Many parts for the UI can be configured with the `/etc/lemurs/config.toml`
+file. This file contains all the options and explainations of their purpose.
+The flag `--config <CONFIG FIlE>` can be used to select another configuration
+file instead. An example configuration can be found in the `/extra` folder.
+
 ## License
 
 The project is made available under the MIT and APACHE license. See the

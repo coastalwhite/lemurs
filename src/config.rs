@@ -73,6 +73,7 @@ fn get_modifier(modifier: &str) -> Option<Modifier> {
         "rapid blink" => Modifier::RAPID_BLINK,
         "reversed" => Modifier::REVERSED,
         "crossed out" => Modifier::CROSSED_OUT,
+        "hidden" => Modifier::HIDDEN,
         _ => return None,
     })
 }
