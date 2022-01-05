@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 
+use crossterm::event::KeyCode;
 use log::error;
 use serde::Deserialize;
 
@@ -90,12 +91,44 @@ pub fn get_modifiers(modifiers: &str) -> Vec<Modifier> {
     ms
 }
 
+pub fn get_key(key: &str) -> KeyCode {
+    match key {
+        "F1" => KeyCode::F(1),
+        "F2" => KeyCode::F(2),
+        "F3" => KeyCode::F(3),
+        "F4" => KeyCode::F(4),
+        "F5" => KeyCode::F(5),
+        // TODO: Add others
+        _ => KeyCode::F(255),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct Config {
     pub preview: bool,
+    pub power_options: PowerOptionsConfig,
     pub window_manager_selector: WMSelectorConfig,
     pub username_field: UsernameFieldConfig,
     pub password_field: PasswordFieldConfig,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct PowerOptionsConfig {
+    pub allow_shutdown: bool,
+    pub shutdown_hint: String,
+    pub shutdown_hint_color: String,
+    pub shutdown_hint_modifiers: String,
+    pub shutdown_key: String,
+    pub shutdown_cmd: String,
+
+    pub allow_reboot: bool,
+    pub reboot_hint: String,
+    pub reboot_hint_color: String,
+    pub reboot_hint_modifiers: String,
+    pub reboot_key: String,
+    pub reboot_cmd: String,
+
+    pub hint_margin: u16,
 }
 
 #[derive(Clone, Deserialize)]
