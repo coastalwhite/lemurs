@@ -221,11 +221,12 @@ impl InputFieldWidget {
 mod tests {
     use super::*;
     use InputFieldDisplayType::*;
+    use crate::config::Config;
 
     #[test]
     fn cursor_movement() {
         // TODO: Verify Unicode behaviour
-        let mut input_field = InputFieldWidget::new("", Echo);
+        let mut input_field = InputFieldWidget::new(Echo, Config::default().username_field);
         assert_eq!(input_field.cursor, 0);
         input_field.insert('x');
         assert_eq!(input_field.cursor, 1);
@@ -255,7 +256,7 @@ mod tests {
 
     #[test]
     fn integration() {
-        let mut input_field = InputFieldWidget::new("", Echo);
+        let mut input_field = InputFieldWidget::new(Echo, Config::default().username_field);
         assert_eq!(&input_field.show_string(), "");
         input_field.backspace();
         assert_eq!(&input_field.show_string(), "");
