@@ -1,4 +1,4 @@
-use log::{info, error};
+use log::{error, info};
 
 use pam::{Authenticator, Converse};
 use std::env;
@@ -21,9 +21,9 @@ pub fn init_environment(passwd: &PasswdEntry) {
     env::set_var("HOME", &passwd.dir);
     let pwd = Path::new(&passwd.dir);
     if let Ok(_) = env::set_current_dir(&pwd) {
-        info!("Successfully changed working directory to {}!", pwd.display());
+        info!("Successfully changed working directory to {}!", &passwd.dir);
     } else {
-        error!("Failed to change the working directory to {}", pwd.display());
+        error!("Failed to change the working directory to {}", &passwd.dir);
     }
     env::set_var("SHELL", &passwd.shell);
     env::set_var("USER", &passwd.name);
