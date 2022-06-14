@@ -1,7 +1,7 @@
 use crossterm::event::KeyCode;
 use std::cmp::min;
 use tui::{
-    layout::{Rect, Margin},
+    layout::Rect,
     style::Style,
     terminal::Frame,
     text::Span,
@@ -175,11 +175,11 @@ impl InputFieldWidget {
 
         // Check whether a maximum width has been set
         if config.use_max_width {
-             if config.max_width < area.width {
-                 // Center the area
-                 area.x = (area.width - config.max_width) / 2;
-                 area.width = config.max_width;
-             }
+            if config.max_width < area.width {
+                // Center the area
+                area.x = (area.width - config.max_width) / 2;
+                area.width = config.max_width;
+            }
         }
 
         area
