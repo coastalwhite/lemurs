@@ -1,6 +1,6 @@
 use std::fs::File;
-use std::{fs, process};
 use std::io::{self, BufReader, Read};
+use std::{fs, process};
 
 use crossterm::event::KeyCode;
 use log::error;
@@ -257,10 +257,13 @@ impl From<PasswordFieldConfig> for UsernameFieldConfig {
 impl Default for Config {
     fn default() -> Config {
         let contents = fs::read_to_string(DEFAULT_CONFIG_PATH).unwrap_or_else(|_| {
-            eprintln!("Could not find default configuration file at {}", DEFAULT_CONFIG_PATH);
+            eprintln!(
+                "Could not find default configuration file at {}",
+                DEFAULT_CONFIG_PATH
+            );
             process::exit(1);
         });
-            
+
         toml::from_str(&contents).unwrap_or_else(|_| {
             eprintln!("Default configuration file cannot be properly parsed");
             process::exit(1);
