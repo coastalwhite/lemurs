@@ -37,7 +37,7 @@ impl InputFieldWidget {
             content: String::new(),
             cursor: 0,
             scroll: 0,
-            width: 16, // Give it some initial width
+            width: 8, // Give it some initial width
             display_type,
             config,
         }
@@ -169,12 +169,29 @@ impl InputFieldWidget {
         block
     }
 
+    /// Constraint the area to the given configuration
+    fn constraint_area(&self, mut area: Rect) -> Rect {
+        let config = &self.config;
+
+        // Check whether a maximum width has been set
+        if config.use_max_width {
+            if config.max_width < area.width {
+                // Center the area
+                area.x = (area.width - config.max_width) / 2;
+                area.width = config.max_width;
+            }
+        }
+
+        area
+    }
+
     pub fn render(
         &mut self,
         frame: &mut Frame<impl tui::backend::Backend>,
         area: Rect,
         is_focused: bool,
     ) {
+        let area = self.constraint_area(area);
         let block = self.get_block(is_focused);
         let inner = block.inner(area);
 

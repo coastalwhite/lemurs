@@ -193,6 +193,9 @@ pub struct UsernameFieldConfig {
 
     pub border_color: String,
     pub border_color_focused: String,
+
+    pub use_max_width: bool,
+    pub max_width: u16,
 }
 
 #[derive(Clone, Deserialize)]
@@ -211,6 +214,9 @@ pub struct PasswordFieldConfig {
 
     pub border_color: String,
     pub border_color_focused: String,
+
+    pub use_max_width: bool,
+    pub max_width: u16,
 }
 
 impl From<PasswordFieldConfig> for UsernameFieldConfig {
@@ -225,6 +231,8 @@ impl From<PasswordFieldConfig> for UsernameFieldConfig {
             content_color_focused,
             border_color,
             border_color_focused,
+            max_width,
+            use_max_width,
             ..
         } = item;
 
@@ -238,6 +246,8 @@ impl From<PasswordFieldConfig> for UsernameFieldConfig {
             content_color_focused,
             border_color,
             border_color_focused,
+            max_width,
+            use_max_width,
         }
     }
 }

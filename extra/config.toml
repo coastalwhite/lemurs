@@ -180,6 +180,11 @@ border_color = "white"
 # The borders' color and modifiers whilst the username field is focused
 border_color_focused = "orange"
 
+# Constrain the width of the username field
+use_max_width = false
+# The contraint of the username field's width
+max_width = 32
+
 [password_field]
 # Enables showing a title
 show_title = true
@@ -205,3 +210,8 @@ show_border = true
 border_color = "white"
 # The borders' color and modifiers whilst the username field is focused
 border_color_focused = "orange"
+
+# Constrain the width of the password field
+use_max_width = false
+# The contraint of the password field's width
+max_width = 32
