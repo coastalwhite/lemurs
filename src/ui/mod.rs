@@ -41,6 +41,7 @@ enum StatusMessage {
     PamError(PamError),
     Authenticating,
     LoggingIn,
+    NoGraphicalEnvironment,
     FailedGraphicalEnvironment,
     FailedDesktop,
 }
@@ -49,7 +50,7 @@ impl StatusMessage {
     /// Get the type of a [`StatusMessage`]
     fn message_type(status_message: &Self) -> StatusMessageType {
         match status_message {
-            Self::PamError(_) | Self::FailedGraphicalEnvironment | Self::FailedDesktop => {
+            Self::PamError(_) | Self::FailedGraphicalEnvironment | Self::FailedDesktop | Self::NoGraphicalEnvironment => {
                 StatusMessageType::Error
             }
             Self::Authenticating | Self::LoggingIn => StatusMessageType::Info,
@@ -278,20 +279,24 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                 (KeyCode::Enter, &InputMode::Password) => {
                     let username = app.username_widget.get_content();
                     let password = app.password_widget.get_content();
-                    let initrc_path = app
+
+                    // Verify that a graphical environment was actually given
+                    if let Some(initrc_path) = app
                         .window_manager_widget
                         .selected()
                         .map(|selected| selected.initrc_path.clone())
-                        .unwrap(); // TODO: Remove unwrap
-
-                    // TODO: If the Login was successful, the rendering of the UI should probably
-                    // pause.
-                    snd.send(LoginMessage::NewLogin {
-                        username,
-                        password,
-                        initrc_path,
-                    })
-                    .unwrap();
+                    {
+                        // TODO: If the Login was successful, the rendering of the UI should probably
+                        // pause.
+                        snd.send(LoginMessage::NewLogin {
+                            username,
+                            password,
+                            initrc_path,
+                        })
+                        .unwrap();
+                    } else {
+                        app.status_message = Some(StatusMessage::NoGraphicalEnvironment);
+                    }
                 }
                 (KeyCode::Enter | KeyCode::Down, _) => {
                     app.input_mode.next();
@@ -376,6 +381,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             PamError(_) => "Authentication failed",
             LoggingIn => "Authentication successful. Logging in...",
             Authenticating => "Verifying credentials",
+            NoGraphicalEnvironment => "No graphical environment specified",
             FailedGraphicalEnvironment => "Failed booting into the graphical environment",
             FailedDesktop => "Failed booting into desktop environment",
         })
