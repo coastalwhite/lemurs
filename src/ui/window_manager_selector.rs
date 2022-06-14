@@ -360,7 +360,7 @@ impl WindowManagerSelectorWidget {
         frame.render_widget(widget, area);
     }
 
-    pub fn key_press(&mut self, key_code: KeyCode) {
+    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::StatusMessage> {
         match key_code {
             KeyCode::Left | KeyCode::Char('h') => {
                 self.left();
@@ -370,6 +370,8 @@ impl WindowManagerSelectorWidget {
             }
             _ => {}
         }
+
+        None
     }
 
     pub fn selected(&self) -> Option<&WindowManager> {

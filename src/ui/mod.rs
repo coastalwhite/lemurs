@@ -37,22 +37,27 @@ enum StatusMessageType {
     Info,
 }
 
-enum StatusMessage {
+pub(crate) enum StatusMessage {
     PamError(PamError),
     Authenticating,
     LoggingIn,
     NoGraphicalEnvironment,
     FailedGraphicalEnvironment,
     FailedDesktop,
+    FailedShutdown,
+    FailedReboot,
 }
 
 impl StatusMessage {
     /// Get the type of a [`StatusMessage`]
     fn message_type(status_message: &Self) -> StatusMessageType {
         match status_message {
-            Self::PamError(_) | Self::FailedGraphicalEnvironment | Self::FailedDesktop | Self::NoGraphicalEnvironment => {
-                StatusMessageType::Error
-            }
+            Self::PamError(_)
+            | Self::FailedGraphicalEnvironment
+            | Self::FailedDesktop
+            | Self::NoGraphicalEnvironment
+            | Self::FailedShutdown
+            | Self::FailedReboot => StatusMessageType::Error,
             Self::Authenticating | Self::LoggingIn => StatusMessageType::Info,
         }
     }
@@ -275,7 +280,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
         let (snd, _) = &app.auth_channel;
 
         if let Event::Key(key) = event::read()? {
-            match (key.code, &app.input_mode) {
+            let status_message_opt = match (key.code, &app.input_mode) {
                 (KeyCode::Enter, &InputMode::Password) => {
                     let username = app.username_widget.get_content();
                     let password = app.password_widget.get_content();
@@ -294,15 +299,21 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                             initrc_path,
                         })
                         .unwrap();
+
+                        None
                     } else {
-                        app.status_message = Some(StatusMessage::NoGraphicalEnvironment);
+                        Some(StatusMessage::NoGraphicalEnvironment)
                     }
                 }
                 (KeyCode::Enter | KeyCode::Down, _) => {
                     app.input_mode.next();
+
+                    None
                 }
                 (KeyCode::Up, _) => {
                     app.input_mode.prev();
+
+                    None
                 }
                 (KeyCode::Tab, _) => {
                     if key.modifiers == KeyModifiers::SHIFT {
@@ -310,6 +321,8 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                     } else {
                         app.input_mode.next();
                     }
+
+                    None
                 }
 
                 // Esc is the overal key to get out of your input mode
@@ -320,20 +333,21 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                     }
 
                     app.input_mode = InputMode::Normal;
+
+                    None
                 }
 
                 // For the different input modes the key should be passed to the corresponding
                 // widget.
-                (k, &InputMode::WMSelect) => {
-                    app.window_manager_widget.key_press(k);
-                }
-                (k, &InputMode::Username) => {
-                    app.username_widget.key_press(k);
-                }
-                (k, &InputMode::Password) => {
-                    app.password_widget.key_press(k);
-                }
-                (k, _) => app.power_menu_widget.key_press(k),
+                (k, &InputMode::WMSelect) => app.window_manager_widget.key_press(k),
+                (k, &InputMode::Username) => app.username_widget.key_press(k),
+                (k, &InputMode::Password) => app.password_widget.key_press(k),
+                (k, &InputMode::Normal) => app.power_menu_widget.key_press(k),
+            };
+
+            // We don't wanna clear any existing error messages
+            if let Some(status_msg) = status_message_opt {
+                app.status_message = Some(status_msg);
             }
         }
     }
@@ -384,6 +398,8 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             NoGraphicalEnvironment => "No graphical environment specified",
             FailedGraphicalEnvironment => "Failed booting into the graphical environment",
             FailedDesktop => "Failed booting into desktop environment",
+            FailedShutdown => "Failed to shutdown... Check the logs for more information",
+            FailedReboot => "Failed to reboot... Check the logs for more information",
         })
         .style(
             Style::default().fg(match StatusMessage::message_type(status_message) {
