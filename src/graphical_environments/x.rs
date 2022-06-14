@@ -99,9 +99,6 @@ impl GraphicalEnvironment for X {
         setgid(gid)?;
         setuid(uid)?;
 
-        // Init environment for current TTY
-        crate::pam::init_environment(passwd_entry);
-
         let mut child = Command::new(SYSTEM_SHELL)
             .arg("-c")
             .arg(format!(
@@ -111,7 +108,6 @@ impl GraphicalEnvironment for X {
             ))
             .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
             .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
-            .env("PWD", &passwd_entry.dir)
             .spawn()?;
 
         child.wait()?;
