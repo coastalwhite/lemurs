@@ -37,10 +37,6 @@
 # - hidden
 # ---------
 #
-# Enables preview mode.
-# This will disable login in and remove the need for root priviledges to run
-# lemurs. This can be overwritten as `true` the `--preview` flag.
-preview = false
 
 [power_options]
 # Allow for the shutdown option to be used
@@ -181,9 +177,9 @@ border_color = "white"
 border_color_focused = "orange"
 
 # Constrain the width of the username field
-use_max_width = false
+use_max_width = true
 # The contraint of the username field's width
-max_width = 32
+max_width = 48
 
 [password_field]
 # Enables showing a title
@@ -212,6 +208,6 @@ border_color = "white"
 border_color_focused = "orange"
 
 # Constrain the width of the password field
-use_max_width = false
+use_max_width = true
 # The contraint of the password field's width
-max_width = 32
+max_width = 48

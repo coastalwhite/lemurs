@@ -21,12 +21,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .arg(arg!(-c --config [FILE] "a file to replace the default configuration"))
         .get_matches();
 
-    let mut config = if let Some(config_path) = matches.value_of("config") {
+    let preview = matches.is_present("preview");
+    let config = if let Some(config_path) = matches.value_of("config") {
         config::Config::from_file(config_path).expect("Unable to open given configuration file.")
     } else {
         config::Config::default()
     };
-    config.preview = matches.is_present("preview");
 
     info!("Started");
 
@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .level(log::LevelFilter::Debug)
         .level_for("hyper", log::LevelFilter::Info)
         // As of now just log to the /tmp/lemurs.log
-        .chain(fern::log_file(if config.preview {
+        .chain(fern::log_file(if preview {
             "out.log"
         } else {
             "/tmp/lemurs.log"
@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Initiated logger");
 
-    if !config.preview {
+    if !preview {
         // Switch to the proper tty
         if chvt::chvt(2).is_err() {
             error!("Failed to switch TTY");
@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Start application
     let mut terminal = ui::start()?;
-    run_app(&mut terminal, App::new(config))?;
+    run_app(&mut terminal, App::new(config, preview))?;
     ui::stop(terminal)?;
 
     info!("Booting down");

@@ -141,6 +141,9 @@ impl InputMode {
 
 /// App holds the state of the application
 pub struct App {
+    /// Whether the application is running in preview mode
+    preview: bool,
+
     /// The power menu
     power_menu_widget: PowerMenuWidget,
 
@@ -167,11 +170,9 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: Config) -> App {
+    pub fn new(config: Config, preview: bool) -> App {
         let (sender, auth_receiver) = channel();
         let (auth_sender, receiver) = channel();
-
-        let preview = config.preview;
 
         // Start the thread that will be handling the authentication
         std::thread::spawn(move || {
@@ -213,9 +214,10 @@ impl App {
         });
 
         App {
+            preview,
             power_menu_widget: PowerMenuWidget::new(config.power_options.clone()),
             window_manager_widget: WindowManagerSelectorWidget::new(
-                if config.preview {
+                if preview {
                     Vec::new()
                 } else {
                     initrcs::get_window_managers()
@@ -327,7 +329,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
 
                 // Esc is the overal key to get out of your input mode
                 (KeyCode::Esc, _) => {
-                    if app.config.preview && matches!(app.input_mode, InputMode::Normal) {
+                    if app.preview && matches!(app.input_mode, InputMode::Normal) {
                         snd.send(LoginMessage::Terminate).unwrap();
                         return Ok(());
                     }

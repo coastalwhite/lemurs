@@ -1,11 +1,14 @@
 use std::fs::File;
 use std::io::{self, BufReader, Read};
+use std::{fs, process};
 
 use crossterm::event::KeyCode;
 use log::error;
 use serde::Deserialize;
 
 use tui::style::{Color, Modifier};
+
+const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 
 pub fn get_color(color: &str) -> Color {
     if let Some(color) = str_to_color(color) {
@@ -112,7 +115,6 @@ pub fn get_key(key: &str) -> KeyCode {
 
 #[derive(Deserialize)]
 pub struct Config {
-    pub preview: bool,
     pub power_options: PowerOptionsConfig,
     pub window_manager_selector: WMSelectorConfig,
     pub username_field: UsernameFieldConfig,
@@ -254,7 +256,18 @@ impl From<PasswordFieldConfig> for UsernameFieldConfig {
 
 impl Default for Config {
     fn default() -> Config {
-        toml::from_str(include_str!("../extra/config.toml")).expect("Default config incorrect!")
+        let contents = fs::read_to_string(DEFAULT_CONFIG_PATH).unwrap_or_else(|_| {
+            eprintln!(
+                "Could not find default configuration file at {}",
+                DEFAULT_CONFIG_PATH
+            );
+            process::exit(1);
+        });
+
+        toml::from_str(&contents).unwrap_or_else(|_| {
+            eprintln!("Default configuration file cannot be properly parsed");
+            process::exit(1);
+        })
     }
 }
 
