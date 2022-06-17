@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::{fs, process};
 use std::io::{self, BufReader, Read};
-use std::{fs, process};
 
 use crossterm::event::KeyCode;
 use log::error;
@@ -116,6 +115,7 @@ pub fn get_key(key: &str) -> KeyCode {
 
 #[derive(Deserialize)]
 pub struct Config {
+    pub tty: u8,
     pub power_options: PowerOptionsConfig,
     pub window_manager_selector: WMSelectorConfig,
     pub username_field: UsernameFieldConfig,

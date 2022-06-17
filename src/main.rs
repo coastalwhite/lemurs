@@ -6,6 +6,7 @@ use log::{error, info};
 mod config;
 mod graphical_environments;
 mod initrcs;
+mod environment;
 mod pam;
 mod ui;
 
@@ -54,7 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if !preview {
         // Switch to the proper tty
-        if chvt::chvt(2).is_err() {
+        if chvt::chvt(config.tty.into()).is_err() {
             error!("Failed to switch TTY");
         };
         info!("Successfully switched TTY");

@@ -38,6 +38,8 @@
 # ---------
 #
 
+tty = 2
+
 [power_options]
 # Allow for the shutdown option to be used
 allow_shutdown = true

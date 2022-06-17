@@ -7,6 +7,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use crate::config::Config;
 use crate::graphical_environments::GraphicalEnvironment;
 use crate::pam::{open_session, PamError};
+use crate::environment::{init_environment, set_xdg_env};
 use crate::{initrcs, X};
 
 use crossterm::{
@@ -208,6 +209,7 @@ impl App {
                     password,
                     initrc_path,
                     &auth_sender,
+                    config.tty,
                     graphical_environment,
                 );
             }
@@ -419,6 +421,7 @@ fn login(
     password: String,
     initrc_path: PathBuf,
     status_send: &Sender<UIMessage>,
+    tty: u8,
     mut graphical_environment: X,
 ) {
     status_send
@@ -450,7 +453,13 @@ fn login(
     status_send
         .send(UIMessage::SetStatusMessage(StatusMessage::LoggingIn))
         .expect("MSPC failed!");
-    info!("Authentication successful. Booting up graphical environment");
+    info!("Authentication successful. Setting environment variables.");
+
+    init_environment(&passwd_entry.name, &passwd_entry.dir, &passwd_entry.shell);
+    info!("Set environment variables.");
+
+    set_xdg_env(passwd_entry.uid, &passwd_entry.dir, tty);
+    info!("Set XDG environment variables");
 
     // TODO: This should probably be moved to the graphical_environment module somewhere.
 
