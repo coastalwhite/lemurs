@@ -175,6 +175,7 @@ impl App {
     pub fn new(config: Config, preview: bool) -> App {
         let (sender, auth_receiver) = channel();
         let (auth_sender, receiver) = channel();
+        let remember_username = config.username_field.remember_username;
 
         // Start the thread that will be handling the authentication
         std::thread::spawn(move || {
@@ -211,13 +212,13 @@ impl App {
                     initrc_path,
                     &auth_sender,
                     config.tty,
-                    config.remember_username,
+                    remember_username,
                     graphical_environment,
                 );
             }
         });
 
-        let preset_username = if config.remember_username {
+        let preset_username = if remember_username {
             get_cached_username()
         } else {
             None
@@ -226,18 +227,18 @@ impl App {
 
         App {
             preview,
-            power_menu_widget: PowerMenuWidget::new(config.power_options.clone()),
+            power_menu_widget: PowerMenuWidget::new(config.power_controls.clone()),
             window_manager_widget: WindowManagerSelectorWidget::new(
                 if preview {
                     Vec::new()
                 } else {
                     initrcs::get_window_managers()
                 },
-                config.window_manager_selector.clone(),
+                config.wm_selector.clone(),
             ),
             username_widget: InputFieldWidget::new(
                 InputFieldDisplayType::Echo,
-                config.username_field.clone(),
+                config.username_field.style.clone(),
                 preset_username,
             ),
             password_widget: InputFieldWidget::new(
@@ -247,7 +248,7 @@ impl App {
                         .content_replacement_character
                         .to_string(),
                 ),
-                config.password_field.clone().into(),
+                config.password_field.style.clone().into(),
                 String::default(),
             ),
             input_mode: InputMode::Normal,

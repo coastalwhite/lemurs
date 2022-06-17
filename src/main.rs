@@ -1,7 +1,10 @@
 use std::error::Error;
+use std::process;
 
 use clap::{arg, App as ClapApp};
-use log::{error, info};
+use log::{error, info, warn};
+
+use config::Config;
 
 mod config;
 mod environment;
@@ -10,6 +13,30 @@ mod info_caching;
 mod initrcs;
 mod pam;
 mod ui;
+
+const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
+
+pub fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
+    match config::PartialConfig::from_file(config_path.unwrap_or(DEFAULT_CONFIG_PATH)) {
+        Ok(partial_config) => config.merge_in_partial(partial_config),
+        Err(err) => {
+            // If we have given it a specific config path, it should crash if this file cannot be
+            // loaded. If it is the default config location just put a warning in the logs.
+            if let Some(config_path) = config_path {
+                eprintln!(
+                    "The config file '{}' cannot be loaded.\nReason: {}",
+                    config_path, err
+                );
+                process::exit(1);
+            } else {
+                warn!(
+                    "No configuration file loaded from the expected location ({})",
+                    DEFAULT_CONFIG_PATH
+                );
+            }
+        }
+    }
+}
 
 use graphical_environments::X;
 use ui::{run_app, App};
@@ -24,11 +51,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .get_matches();
 
     let preview = matches.is_present("preview");
-    let config = if let Some(config_path) = matches.value_of("config") {
-        config::Config::from_file(config_path).expect("Unable to open given configuration file.")
-    } else {
-        config::Config::default()
-    };
+    let mut config = Config::default();
+    merge_in_configuration(&mut config, matches.value_of("config"));
 
     info!("Started");
 

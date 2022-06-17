@@ -7,14 +7,14 @@ use tui::text::{Span, Spans, Text};
 use tui::widgets::Paragraph;
 use tui::Frame;
 
-use crate::config::{get_color, get_key, get_modifiers, PowerOptionsConfig};
+use crate::config::{get_color, get_key, get_modifiers, PowerControlConfig};
 
 pub struct PowerMenuWidget {
-    config: PowerOptionsConfig,
+    config: PowerControlConfig,
 }
 
 impl PowerMenuWidget {
-    pub fn new(config: PowerOptionsConfig) -> Self {
+    pub fn new(config: PowerControlConfig) -> Self {
         Self { config }
     }
     fn shutdown_style(&self) -> Style {
