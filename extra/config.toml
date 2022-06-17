@@ -39,6 +39,7 @@
 #
 
 tty = 2
+remember_username = true
 
 [power_options]
 # Allow for the shutdown option to be used

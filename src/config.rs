@@ -116,6 +116,7 @@ pub fn get_key(key: &str) -> KeyCode {
 #[derive(Deserialize)]
 pub struct Config {
     pub tty: u8,
+    pub remember_username: bool,
     pub power_options: PowerOptionsConfig,
     pub window_manager_selector: WMSelectorConfig,
     pub username_field: UsernameFieldConfig,

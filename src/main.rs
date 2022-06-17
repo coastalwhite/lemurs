@@ -6,6 +6,7 @@ use log::{error, info};
 mod config;
 mod environment;
 mod graphical_environments;
+mod info_caching;
 mod initrcs;
 mod pam;
 mod ui;
