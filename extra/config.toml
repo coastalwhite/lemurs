@@ -38,10 +38,10 @@
 # ---------
 #
 
+# The tty which contains lemurs. This has to be mirrored in the lemurs.service
 tty = 2
-remember_username = true
 
-[power_options]
+[power_controls]
 # Allow for the shutdown option to be used
 allow_shutdown = true
 # The text in the top-left to display how to shutdown. The text '%key%' will be
@@ -77,7 +77,7 @@ reboot_cmd = "reboot"
 hint_margin = 2
 
 # Setting for the selector of the desktop environment you are using.
-[window_manager_selector]
+[wm_selector]
 # Terms:
 # ---------
 # Movers: indicators which show which direction one can move whilst selecting
@@ -159,6 +159,11 @@ no_envs_color_focused = "red"
 no_envs_modifiers_focused = ""
 
 [username_field]
+
+# Remember the username for the next time after a successful login attempt.
+remember_username = true
+
+[username_field.style]
 # Enables showing a title
 show_title = true
 # The text used within the title
@@ -185,6 +190,13 @@ use_max_width = true
 max_width = 48
 
 [password_field]
+
+# The character used for replacement when typing a password. Leave empty for no
+# feedback.
+# Note: Only one character is accepted.
+content_replacement_character = "*"
+
+[password_field.style]
 # Enables showing a title
 show_title = true
 # The text used within the title
@@ -197,11 +209,6 @@ content_color = "white"
 # The title's color and modifiers whilst the password field is focused
 title_color_focused = "orange"
 content_color_focused = "orange"
-
-# The character used for replacement when typing a password. Leave empty for no
-# feedback.
-# Note: Only one character is accepted.
-content_replacement_character = "*"
 
 # Enables showing the borders
 show_border = true
