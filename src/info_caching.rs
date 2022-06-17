@@ -1,7 +1,7 @@
-use std::fs::{read_to_string, write};
-use log::{warn, info};
 use lazy_static::lazy_static;
+use log::{info, warn};
 use regex::Regex;
+use std::fs::{read_to_string, write};
 
 const USERNAME_CACHE_PATH: &str = "/var/cache/lemurs";
 const USERNAME_REGEX_STR: &str = r"^[a-z][-a-z0-9]*$";
@@ -13,7 +13,10 @@ lazy_static! {
 }
 
 pub fn get_cached_username() -> Option<String> {
-    info!("Attempting to get a cached username from '{}'", USERNAME_CACHE_PATH);
+    info!(
+        "Attempting to get a cached username from '{}'",
+        USERNAME_CACHE_PATH
+    );
 
     match read_to_string(USERNAME_CACHE_PATH) {
         Ok(cached_username) => {
@@ -42,7 +45,7 @@ pub fn get_cached_username() -> Option<String> {
             }
 
             Some(cached_username)
-        },
+        }
         Err(err) => {
             warn!("Unable to read cache file. Reason: '{}'", err);
             None
@@ -58,7 +61,10 @@ pub fn set_cached_username(username: &str) {
         &username
     };
 
-    info!("Attempting to set username '{}' to '{}'", displayed_username, USERNAME_CACHE_PATH);
+    info!(
+        "Attempting to set username '{}' to '{}'",
+        displayed_username, USERNAME_CACHE_PATH
+    );
 
     // Username length check
     if username.len() > USERNAME_LENGTH_LIMIT {
