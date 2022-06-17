@@ -8,7 +8,6 @@ use serde::Deserialize;
 
 use tui::style::{Color, Modifier};
 
-
 pub fn get_color(color: &str) -> Color {
     if let Some(color) = str_to_color(color) {
         color
@@ -113,13 +112,21 @@ pub fn get_key(key: &str) -> KeyCode {
 }
 
 macro_rules! partial_struct_field {
-    ($field_type:ty) => { $field_type };
-    ($field_type:ty, $par_field_type:ty) => { $par_field_type };
+    ($field_type:ty) => {
+        $field_type
+    };
+    ($field_type:ty, $par_field_type:ty) => {
+        $par_field_type
+    };
 }
 
 macro_rules! merge_strategy {
-    ($self:ident, $dest:ident, $src:expr) => { $self.$dest = $src };
-    ($self:ident, $dest:ident, $src:expr, $_:ty) => { $self.$dest.merge_in_partial($src) };
+    ($self:ident, $dest:ident, $src:expr) => {
+        $self.$dest = $src
+    };
+    ($self:ident, $dest:ident, $src:expr, $_:ty) => {
+        $self.$dest.merge_in_partial($src)
+    };
 }
 
 macro_rules! toml_config_struct {
@@ -144,7 +151,7 @@ macro_rules! toml_config_struct {
     }
 }
 
-toml_config_struct!{ Config, PartialConfig,
+toml_config_struct! { Config, PartialConfig,
     tty => u8,
     power_controls => PowerControlConfig [PartialPowerControlConfig],
     wm_selector => WMSelectorConfig [PartialWMSelectorConfig],
@@ -152,7 +159,7 @@ toml_config_struct!{ Config, PartialConfig,
     password_field => PasswordFieldConfig [PartialPasswordFieldConfig],
 }
 
-toml_config_struct!{ PowerControlConfig, PartialPowerControlConfig,
+toml_config_struct! { PowerControlConfig, PartialPowerControlConfig,
     allow_shutdown => bool,
     shutdown_hint => String,
     shutdown_hint_color => String,
@@ -170,7 +177,7 @@ toml_config_struct!{ PowerControlConfig, PartialPowerControlConfig,
     hint_margin => u16,
 }
 
-toml_config_struct!{ WMSelectorConfig, PartialWMSelectorConfig,
+toml_config_struct! { WMSelectorConfig, PartialWMSelectorConfig,
     show_movers => bool,
     mover_color => String,
     mover_color_focused => String,
@@ -209,7 +216,7 @@ toml_config_struct!{ WMSelectorConfig, PartialWMSelectorConfig,
     no_envs_modifiers_focused => String,
 }
 
-toml_config_struct!{ InputFieldStyle, PartialInputFieldStyle,
+toml_config_struct! { InputFieldStyle, PartialInputFieldStyle,
     show_title => bool,
     title => String,
 
@@ -228,14 +235,14 @@ toml_config_struct!{ InputFieldStyle, PartialInputFieldStyle,
     max_width => u16,
 }
 
-toml_config_struct!{ UsernameFieldConfig, PartialUsernameFieldConfig,
+toml_config_struct! { UsernameFieldConfig, PartialUsernameFieldConfig,
     remember_username => bool,
-    style => InputFieldStyle [PartialInputFieldStyle], 
+    style => InputFieldStyle [PartialInputFieldStyle],
 }
 
-toml_config_struct!{ PasswordFieldConfig, PartialPasswordFieldConfig,
+toml_config_struct! { PasswordFieldConfig, PartialPasswordFieldConfig,
     content_replacement_character => char,
-    style => InputFieldStyle [PartialInputFieldStyle], 
+    style => InputFieldStyle [PartialInputFieldStyle],
 }
 
 impl Default for Config {
