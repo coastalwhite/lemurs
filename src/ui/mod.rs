@@ -7,6 +7,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use crate::config::Config;
 use crate::environment::{init_environment, set_xdg_env};
 use crate::graphical_environments::GraphicalEnvironment;
+use crate::info_caching::{get_cached_username, set_cached_username};
 use crate::pam::{open_session, PamError};
 use crate::{initrcs, X};
 
@@ -210,10 +211,18 @@ impl App {
                     initrc_path,
                     &auth_sender,
                     config.tty,
+                    config.remember_username,
                     graphical_environment,
                 );
             }
         });
+
+        let preset_username = if config.remember_username {
+            get_cached_username()
+        } else {
+            None
+        }
+        .unwrap_or(String::default());
 
         App {
             preview,
@@ -229,6 +238,7 @@ impl App {
             username_widget: InputFieldWidget::new(
                 InputFieldDisplayType::Echo,
                 config.username_field.clone(),
+                preset_username,
             ),
             password_widget: InputFieldWidget::new(
                 InputFieldDisplayType::Replace(
@@ -238,6 +248,7 @@ impl App {
                         .to_string(),
                 ),
                 config.password_field.clone().into(),
+                String::default(),
             ),
             input_mode: InputMode::Normal,
             status_message: None,
@@ -422,6 +433,7 @@ fn login(
     initrc_path: PathBuf,
     status_send: &Sender<UIMessage>,
     tty: u8,
+    do_remember_username: bool,
     mut graphical_environment: X,
 ) {
     status_send
@@ -434,7 +446,7 @@ fn login(
         initrc_path.to_str().unwrap_or("Not Found")
     );
 
-    let (authenticator, passwd_entry) = match open_session(username, password) {
+    let (authenticator, passwd_entry) = match open_session(username.clone(), password) {
         Err(pam_error) => {
             error!("Authentication failed"); // TODO: Improve this log
             status_send
@@ -454,6 +466,10 @@ fn login(
         .send(UIMessage::SetStatusMessage(StatusMessage::LoggingIn))
         .expect("MSPC failed!");
     info!("Authentication successful. Setting environment variables.");
+
+    if do_remember_username {
+        set_cached_username(&username);
+    }
 
     init_environment(&passwd_entry.name, &passwd_entry.dir, &passwd_entry.shell);
     info!("Set environment variables.");

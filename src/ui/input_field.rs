@@ -32,10 +32,20 @@ pub struct InputFieldWidget {
 
 impl InputFieldWidget {
     /// Creates a new input field widget
-    pub fn new(display_type: InputFieldDisplayType, config: UsernameFieldConfig) -> Self {
+    pub fn new(
+        display_type: InputFieldDisplayType,
+        config: UsernameFieldConfig,
+        preset_content: String,
+    ) -> Self {
+        // Calculate the initial cursor position from the preset_content
+        let initial_cursor_position = preset_content
+            .len()
+            .try_into() // Convert from usize to u16
+            .unwrap_or(0u16);
+
         Self {
-            content: String::new(),
-            cursor: 0,
+            content: preset_content,
+            cursor: initial_cursor_position,
             scroll: 0,
             width: 8, // Give it some initial width
             display_type,
@@ -245,7 +255,8 @@ mod tests {
     #[test]
     fn cursor_movement() {
         // TODO: Verify Unicode behaviour
-        let mut input_field = InputFieldWidget::new(Echo, Config::default().username_field);
+        let mut input_field =
+            InputFieldWidget::new(Echo, Config::default().username_field, String::default());
         assert_eq!(input_field.cursor, 0);
         input_field.insert('x');
         assert_eq!(input_field.cursor, 1);
@@ -275,7 +286,8 @@ mod tests {
 
     #[test]
     fn integration() {
-        let mut input_field = InputFieldWidget::new(Echo, Config::default().username_field);
+        let mut input_field =
+            InputFieldWidget::new(Echo, Config::default().username_field, String::default());
         assert_eq!(&input_field.show_string(), "");
         input_field.backspace();
         assert_eq!(&input_field.show_string(), "");
