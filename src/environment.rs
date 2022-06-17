@@ -1,5 +1,5 @@
+use log::{error, info};
 use std::env;
-use log::{info, error};
 
 fn env_set_and_announce(key: &str, value: &str) {
     env::set_var(key, value);

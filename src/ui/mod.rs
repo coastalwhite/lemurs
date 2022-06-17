@@ -5,9 +5,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::config::Config;
+use crate::environment::{init_environment, set_xdg_env};
 use crate::graphical_environments::GraphicalEnvironment;
 use crate::pam::{open_session, PamError};
-use crate::environment::{init_environment, set_xdg_env};
 use crate::{initrcs, X};
 
 use crossterm::{

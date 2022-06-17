@@ -4,9 +4,9 @@ use clap::{arg, App as ClapApp};
 use log::{error, info};
 
 mod config;
+mod environment;
 mod graphical_environments;
 mod initrcs;
-mod environment;
 mod pam;
 mod ui;
 
