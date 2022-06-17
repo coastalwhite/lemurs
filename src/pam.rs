@@ -14,24 +14,6 @@ pub enum PamError {
     SessionOpen,
 }
 
-/// Set all the environment variables
-pub fn init_environment(passwd: &PasswdEntry) {
-    info!("Setting environment");
-
-    env::set_var("HOME", &passwd.dir);
-    let pwd = Path::new(&passwd.dir);
-    if let Ok(_) = env::set_current_dir(&pwd) {
-        info!("Successfully changed working directory to {}!", &passwd.dir);
-    } else {
-        error!("Failed to change the working directory to {}", &passwd.dir);
-    }
-    env::set_var("SHELL", &passwd.shell);
-    env::set_var("USER", &passwd.name);
-    env::set_var("LOGNAME", &passwd.name);
-    env::set_var("PATH", "/usr/local/sbin:/usr/local/bin:/usr/bin");
-    // env::set_var("MAIL", "..."); TODO: Add
-}
-
 /// Open a PAM authenticated session
 pub fn open_session<'a>(
     username: impl ToString,
@@ -65,9 +47,6 @@ pub fn open_session<'a>(
 
     // NOTE: Maybe we should also load all groups here
     let passwd_entry = get_entry_by_name(&username).ok_or(PamError::UsernameNotFound)?;
-
-    // Init environment for current TTY
-    init_environment(&passwd_entry);
 
     authenticator
         .open_session()
