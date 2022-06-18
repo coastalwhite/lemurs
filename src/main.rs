@@ -15,11 +15,17 @@ mod pam;
 mod ui;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
+const PREVIEW_LOG_PATH: &str = "lemurs.log";
 const DEFAULT_LOG_PATH: &str = "/var/log/lemurs.log";
 
-pub fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
-    match config::PartialConfig::from_file(config_path.unwrap_or(DEFAULT_CONFIG_PATH)) {
-        Ok(partial_config) => config.merge_in_partial(partial_config),
+fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
+    let load_config_path = config_path.unwrap_or(DEFAULT_CONFIG_PATH);
+
+    match config::PartialConfig::from_file(load_config_path) {
+        Ok(partial_config) => {
+            info!("Successfully loaded configuration file from '{}'", load_config_path);
+            config.merge_in_partial(partial_config)
+        },
         Err(err) => {
             // If we have given it a specific config path, it should crash if this file cannot be
             // loaded. If it is the default config location just put a warning in the logs.
@@ -31,31 +37,28 @@ pub fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
                 process::exit(1);
             } else {
                 warn!(
-                    "No configuration file loaded from the expected location ({})",
-                    DEFAULT_CONFIG_PATH
+                    "No configuration file loaded from the expected location ({}). Reason: {}",
+                    DEFAULT_CONFIG_PATH, err
                 );
             }
         }
     }
 }
 
-use graphical_environments::X;
-use ui::{run_app, App};
+fn setup_logger(is_preview: bool) {
+    let log_path = if is_preview {
+        PREVIEW_LOG_PATH
+    } else {
+        DEFAULT_LOG_PATH
+    };
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let matches = ClapApp::new("Lemurs")
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(arg!(--preview))
-        .arg(arg!(-c --config [FILE] "a file to replace the default configuration"))
-        .get_matches();
-
-    let preview = matches.is_present("preview");
-    let mut config = Config::default();
-    merge_in_configuration(&mut config, matches.value_of("config"));
-
-    info!("Started");
+    let log_file = fern::log_file(log_path).unwrap_or_else(|err| {
+        eprintln!(
+            "Failed to open log file: '{}'. Check that the path is valid or activate `--no-log`. Reason: {}",
+            log_path, err
+        );
+        process::exit(1);
+    });
 
     fern::Dispatch::new()
         .format(|out, message, record| {
@@ -69,15 +72,43 @@ fn main() -> Result<(), Box<dyn Error>> {
         })
         .level(log::LevelFilter::Debug)
         .level_for("hyper", log::LevelFilter::Info)
-        // As of now just log to the /tmp/lemurs.log
-        .chain(fern::log_file(if preview {
-            "out.log"
-        } else {
-            DEFAULT_LOG_PATH
-        })?)
-        .apply()?;
+        .chain(log_file)
+        .apply()
+        .unwrap_or_else(|err| {
+            eprintln!(
+                "Failed to setup logger. Fix the error or activate `--no-log`. Reason: {}",
+                err
+            );
+            process::exit(1);
+        });
+}
 
-    info!("Initiated logger");
+use graphical_environments::X;
+use ui::{run_app, App};
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let matches = ClapApp::new("Lemurs")
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
+        .arg(arg!(--preview))
+        .arg(arg!(--nolog))
+        .arg(arg!(-c --config [FILE] "a file to replace the default configuration"))
+        .get_matches();
+
+    let no_log = matches.is_present("nolog");
+    let preview = matches.is_present("preview");
+
+    // Setup the logger
+    if !no_log {
+        setup_logger(preview);
+    }
+
+    info!("Lemurs logger is running");
+
+    // Load and setup configuration
+    let mut config = Config::default();
+    merge_in_configuration(&mut config, matches.value_of("config"));
 
     if !preview {
         // Switch to the proper tty
