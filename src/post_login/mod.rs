@@ -1,0 +1,71 @@
+use log::warn;
+use std::fs;
+
+use crate::auth::AuthUserInfo;
+
+mod x;
+
+const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
+
+#[derive(Clone)]
+pub enum PostLoginEnvironment {
+    X { xinitrc_path: String },
+    Wayland { script_path: String },
+    Shell,
+}
+
+pub enum EnvironmentStartError {
+    XSetupError(x::XSetupError),
+    XStartEnvError(x::XStartEnvError),
+}
+
+impl PostLoginEnvironment {
+    pub fn start<'a>(&self, user_info: &AuthUserInfo<'a>) -> Result<(), EnvironmentStartError> {
+        match self {
+            PostLoginEnvironment::X { xinitrc_path } => {
+                let mut x_server = x::setup_x(&user_info)
+                    .map_err(|err| EnvironmentStartError::XSetupError(err))?;
+                let mut gui_environment = x::start_env(user_info, xinitrc_path)
+                    .map_err(|err| EnvironmentStartError::XStartEnvError(err))?;
+
+                gui_environment.wait().unwrap();
+            }
+            _ => unimplemented!(),
+        }
+
+        Ok(())
+    }
+}
+
+pub fn get_envs() -> Vec<(String, PostLoginEnvironment)> {
+    let found_paths = match fs::read_dir(INITRCS_FOLDER_PATH) {
+        Ok(paths) => paths,
+        Err(_) => return Vec::new(),
+    };
+
+    // NOTE: Maybe we can do something smart with `with_capacity` here.
+    let mut envs = Vec::new();
+
+    // TODO: Add other post login environment methods
+    for path in found_paths {
+        if let Ok(path) = path {
+            let file_name = path.file_name().into_string();
+
+            if let Ok(file_name) = file_name {
+                envs.push((
+                    file_name,
+                    PostLoginEnvironment::X {
+                        // TODO: Remove unwrap
+                        xinitrc_path: path.path().to_str().unwrap().to_string(),
+                    },
+                ));
+            } else {
+                warn!("Unable to convert OSString to String");
+            }
+        } else {
+            warn!("Ignored errorinous path: '{}'", path.unwrap_err());
+        }
+    }
+
+    envs
+}

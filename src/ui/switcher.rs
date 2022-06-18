@@ -1,5 +1,4 @@
 use crossterm::event::KeyCode;
-use std::path::PathBuf;
 use tui::{
     layout::{Alignment, Rect},
     style::Style,
@@ -8,54 +7,44 @@ use tui::{
     widgets::{Block, Paragraph},
 };
 
-use crate::config::{get_color, get_modifiers, WMSelectorConfig};
+use crate::config::{get_color, get_modifiers, SwitcherConfig};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct WindowManager {
+pub struct SwitcherItem<T> {
     pub title: String,
-    pub initrc_path: PathBuf,
+    pub content: T,
 }
 
 #[derive(Debug)]
-struct WindowManagerSelector {
+struct Switcher<T> {
     selected: Option<usize>,
-    window_managers: Vec<WindowManager>,
+    items: Vec<SwitcherItem<T>>,
 }
 
 /// A widget used to select a specific window manager
-pub struct WindowManagerSelectorWidget {
-    selector: WindowManagerSelector,
-    config: WMSelectorConfig,
+pub struct SwitcherWidget<T> {
+    selector: Switcher<T>,
+    config: SwitcherConfig,
 }
 
-impl WindowManager {
-    /// Create a new [`WindowManager`]
-    pub fn new(title: impl ToString, initrc_path: PathBuf) -> WindowManager {
+impl<T> SwitcherItem<T> {
+    pub fn new(title: impl ToString, content: T) -> Self {
         let title = title.to_string();
-
-        Self { title, initrc_path }
+        Self { title, content }
     }
 }
 
-impl WindowManagerSelector {
-    /// Create a new [`WindowManagerSelector`]
-    fn new(window_managers: Vec<WindowManager>) -> Self {
-        Self {
-            selected: if window_managers.is_empty() {
-                None
-            } else {
-                Some(0)
-            },
-            window_managers,
-        }
+impl<T> Switcher<T> {
+    fn new(items: Vec<SwitcherItem<T>>) -> Self {
+        let selected = if items.is_empty() { None } else { Some(0) };
+        Self { selected, items }
     }
 
     #[inline]
     fn len(&self) -> usize {
-        self.window_managers.len()
+        self.items.len()
     }
 
-    #[inline]
     fn next_index(&self, index: usize) -> Option<usize> {
         let next_index = index + 1;
 
@@ -66,7 +55,6 @@ impl WindowManagerSelector {
         }
     }
 
-    #[inline]
     fn prev_index(&self, index: usize) -> Option<usize> {
         if index == 0 {
             return None;
@@ -89,38 +77,38 @@ impl WindowManagerSelector {
         }
     }
 
-    fn next(&self) -> Option<&WindowManager> {
+    fn next(&self) -> Option<&SwitcherItem<T>> {
         self.selected.and_then(|index| {
             debug_assert!(self.len() > 0);
             match self.next_index(index) {
-                Some(next_index) => self.window_managers.get(next_index),
+                Some(next_index) => self.items.get(next_index),
                 None => None,
             }
         })
     }
 
-    fn prev(&self) -> Option<&WindowManager> {
+    fn prev(&self) -> Option<&SwitcherItem<T>> {
         self.selected.and_then(|index| {
             debug_assert!(self.len() > 0);
             match self.prev_index(index) {
-                Some(prev_index) => self.window_managers.get(prev_index),
+                Some(prev_index) => self.items.get(prev_index),
                 None => None,
             }
         })
     }
 
-    pub fn current(&self) -> Option<&WindowManager> {
+    pub fn current(&self) -> Option<&SwitcherItem<T>> {
         self.selected.and_then(|index| {
             debug_assert!(self.len() > 0);
-            self.window_managers.get(index)
+            self.items.get(index)
         })
     }
 }
 
-impl WindowManagerSelectorWidget {
-    pub fn new(window_managers: Vec<WindowManager>, config: WMSelectorConfig) -> Self {
+impl<T> SwitcherWidget<T> {
+    pub fn new(items: Vec<SwitcherItem<T>>, config: SwitcherConfig) -> Self {
         Self {
-            selector: WindowManagerSelector::new(window_managers),
+            selector: Switcher::new(items),
             config,
         }
     }
@@ -168,7 +156,6 @@ impl WindowManagerSelectorWidget {
         }
     }
 
-    #[inline]
     fn empty_style(&self, is_focused: bool) -> Style {
         let mut style = Style::default().fg(if is_focused {
             get_color(&self.config.no_envs_color_focused)
@@ -187,7 +174,6 @@ impl WindowManagerSelectorWidget {
         style
     }
 
-    #[inline]
     fn arrow_style(&self, is_focused: bool) -> Style {
         let mut style = Style::default().fg(if is_focused {
             get_color(&self.config.mover_color_focused)
@@ -206,7 +192,6 @@ impl WindowManagerSelectorWidget {
         style
     }
 
-    #[inline]
     fn neighbour_wm_style(&self, is_focused: bool) -> Style {
         let mut style = Style::default().fg(if is_focused {
             get_color(&self.config.neighbour_color_focused)
@@ -225,7 +210,6 @@ impl WindowManagerSelectorWidget {
         style
     }
 
-    #[inline]
     fn current_wm_style(&self, is_focused: bool) -> Style {
         let mut style = Style::default().fg(get_color(if is_focused {
             &self.config.selected_color_focused
@@ -244,17 +228,16 @@ impl WindowManagerSelectorWidget {
         style
     }
 
-    #[inline]
     fn add_wm_title(
         &self,
         items: &mut Vec<Span>,
-        window_manager: &WindowManager,
+        item: &SwitcherItem<T>,
         is_focused: bool,
         is_current: bool,
     ) {
         // TODO: Maybe if the strings empty, there should be no span generated
         let (left_padding, title, right_padding) =
-            self.cutoff_wm_title_with_padding(&window_manager.title);
+            self.cutoff_wm_title_with_padding(&item.title);
 
         let style = if is_current {
             self.current_wm_style(is_focused)
@@ -273,7 +256,7 @@ impl WindowManagerSelectorWidget {
         area: Rect,
         is_focused: bool,
     ) {
-        let Self { selector, .. } = &self;
+        let Self { selector, config } = &self;
 
         let mut spans = Vec::with_capacity(
             // Left + Right +
@@ -288,28 +271,28 @@ impl WindowManagerSelectorWidget {
 
             // Showing left item
             if let Some(prev) = selector.prev() {
-                if self.config.show_movers {
+                if config.show_movers {
                     spans.push(Span::styled(
-                        &self.config.left_mover,
+                        &config.left_mover,
                         self.arrow_style(is_focused),
                     )); // Left Arrow
-                    spans.push(Span::raw(" ".repeat(self.config.mover_margin.into())));
+                    spans.push(Span::raw(" ".repeat(config.mover_margin.into())));
                     // LeftPad
                 }
 
                 if do_show_neighbours {
                     self.add_wm_title(&mut spans, prev, is_focused, false); // LeftWM
-                    spans.push(Span::raw(" ".repeat(self.config.neighbour_margin.into())));
+                    spans.push(Span::raw(" ".repeat(config.neighbour_margin.into())));
                     // LeftWMPad
                 }
             } else {
                 spans.push(Span::raw(" ".repeat(
-                    if self.config.show_movers {
-                        self.config.left_mover.len() + usize::from(self.config.mover_margin)
+                    if config.show_movers {
+                        config.left_mover.len() + usize::from(self.config.mover_margin)
                     } else {
                         0
                     } + if do_show_neighbours {
-                        usize::from(self.config.max_display_length + self.config.neighbour_margin)
+                        usize::from(config.max_display_length + config.neighbour_margin)
                     } else {
                         0
                     },
@@ -321,12 +304,12 @@ impl WindowManagerSelectorWidget {
             // Showing next item
             if let Some(next) = selector.next() {
                 if do_show_neighbours {
-                    spans.push(Span::raw(" ".repeat(self.config.neighbour_margin.into()))); // RightWMPad
+                    spans.push(Span::raw(" ".repeat(config.neighbour_margin.into()))); // RightWMPad
                     self.add_wm_title(&mut spans, next, is_focused, false); // RightWM
                 }
 
-                if self.config.show_movers {
-                    spans.push(Span::raw(" ".repeat(self.config.mover_margin.into()))); // RightPad
+                if config.show_movers {
+                    spans.push(Span::raw(" ".repeat(config.mover_margin.into()))); // RightPad
                     spans.push(Span::styled(
                         &self.config.right_mover,
                         self.arrow_style(is_focused),
@@ -334,12 +317,12 @@ impl WindowManagerSelectorWidget {
                 }
             } else {
                 spans.push(Span::raw(" ".repeat(
-                    if self.config.show_movers {
-                        self.config.right_mover.len() + usize::from(self.config.mover_margin)
+                    if config.show_movers {
+                        config.right_mover.len() + usize::from(config.mover_margin)
                     } else {
                         0
                     } + if do_show_neighbours {
-                        usize::from(self.config.max_display_length + self.config.neighbour_margin)
+                        usize::from(config.max_display_length + config.neighbour_margin)
                     } else {
                         0
                     },
@@ -347,7 +330,7 @@ impl WindowManagerSelectorWidget {
             }
         } else {
             spans.push(Span::styled(
-                &self.config.no_envs_text,
+                &config.no_envs_text,
                 self.empty_style(is_focused),
             ));
         }
@@ -360,7 +343,7 @@ impl WindowManagerSelectorWidget {
         frame.render_widget(widget, area);
     }
 
-    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::StatusMessage> {
+    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         match key_code {
             KeyCode::Left | KeyCode::Char('h') => {
                 self.left();
@@ -374,7 +357,7 @@ impl WindowManagerSelectorWidget {
         None
     }
 
-    pub fn selected(&self) -> Option<&WindowManager> {
+    pub fn selected(&self) -> Option<&SwitcherItem<T>> {
         let Self { selector, .. } = &self;
         selector.current()
     }
@@ -390,14 +373,14 @@ mod tests {
         fn empty_creation() {
             // On an empty selector the go_next and go_prev should do nothing.
 
-            let mut selector = WindowManagerSelector::new(vec![]);
+            let mut selector = Switcher::new(vec![]);
             assert_eq!(selector.current(), None);
             selector.go_next();
             assert_eq!(selector.current(), None);
             selector.go_prev();
             assert_eq!(selector.current(), None);
 
-            let mut selector = WindowManagerSelector::new(vec![]);
+            let mut selector = Switcher::new(vec![]);
             assert_eq!(selector.current(), None);
             selector.go_prev();
             assert_eq!(selector.current(), None);
@@ -407,30 +390,30 @@ mod tests {
 
         #[test]
         fn single_creation() {
-            let wm = WindowManager::new("abc", "/abc".into());
+            let wm = SwitcherItem::new("abc", "/abc".into());
 
-            let mut selector = WindowManagerSelector::new(vec![wm.clone()]);
+            let mut selector = Switcher::new(vec![wm.clone()]);
             assert_eq!(selector.current(), Some(&wm));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm));
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm));
 
-            let mut selector = WindowManagerSelector::new(vec![wm.clone()]);
+            let mut selector = Switcher::new(vec![wm.clone()]);
             assert_eq!(selector.current(), Some(&wm));
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm));
 
-            let mut selector = WindowManagerSelector::new(vec![wm.clone()]);
+            let mut selector = Switcher::new(vec![wm.clone()]);
             assert_eq!(selector.current(), Some(&wm));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm));
 
-            let mut selector = WindowManagerSelector::new(vec![wm.clone()]);
+            let mut selector = Switcher::new(vec![wm.clone()]);
             assert_eq!(selector.current(), Some(&wm));
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm));
@@ -440,54 +423,46 @@ mod tests {
 
         #[test]
         fn multiple_creation() {
-            let wm1 = WindowManager::new("abc", "/abc".into());
-            let wm2 = WindowManager::new("def", "/def".into());
+            let wm1 = SwitcherItem::new("abc", "/abc".into());
+            let wm2 = SwitcherItem::new("def", "/def".into());
 
-            let mut selector = WindowManagerSelector::new(vec![wm1.clone(), wm2.clone()]);
+            let mut selector = Switcher::new(vec![wm1.clone(), wm2.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm2));
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm1));
 
-            let mut selector = WindowManagerSelector::new(vec![wm1.clone(), wm2.clone()]);
+            let mut selector = Switcher::new(vec![wm1.clone(), wm2.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm2));
 
-            let mut selector = WindowManagerSelector::new(vec![wm1.clone(), wm2.clone()]);
+            let mut selector = Switcher::new(vec![wm1.clone(), wm2.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm2));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm2));
 
-            let mut selector = WindowManagerSelector::new(vec![wm1.clone(), wm2.clone()]);
+            let mut selector = Switcher::new(vec![wm1.clone(), wm2.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm1));
 
-            let wm3 = WindowManager::new("ghi", "/ghi".into());
-            let wm4 = WindowManager::new("jkl", "/jkl".into());
+            let wm3 = SwitcherItem::new("ghi", "/ghi".into());
+            let wm4 = SwitcherItem::new("jkl", "/jkl".into());
 
-            let mut selector = WindowManagerSelector::new(vec![
-                wm1.clone(),
-                wm2.clone(),
-                wm3.clone(),
-                wm4.clone(),
-            ]);
+            let mut selector =
+                Switcher::new(vec![wm1.clone(), wm2.clone(), wm3.clone(), wm4.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_prev();
             assert_eq!(selector.current(), Some(&wm1));
 
-            let mut selector = WindowManagerSelector::new(vec![
-                wm1.clone(),
-                wm2.clone(),
-                wm3.clone(),
-                wm4.clone(),
-            ]);
+            let mut selector =
+                Switcher::new(vec![wm1.clone(), wm2.clone(), wm3.clone(), wm4.clone()]);
             assert_eq!(selector.current(), Some(&wm1));
             selector.go_next();
             assert_eq!(selector.current(), Some(&wm2));

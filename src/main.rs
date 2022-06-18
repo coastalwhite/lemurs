@@ -1,18 +1,26 @@
 use std::error::Error;
+use std::io;
 use std::process;
 
 use clap::{arg, App as ClapApp};
+use crossterm::{
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
 use log::{error, info, warn};
+use tui::backend::CrosstermBackend;
+use tui::Terminal;
 
-use config::Config;
-
+mod auth;
 mod config;
 mod environment;
-mod graphical_environments;
 mod info_caching;
-mod initrcs;
-mod pam;
+mod post_login;
 mod ui;
+
+use auth::{try_auth, AuthUserInfo};
+use config::Config;
+use post_login::{EnvironmentStartError, PostLoginEnvironment};
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
@@ -86,8 +94,6 @@ fn setup_logger(is_preview: bool) {
         });
 }
 
-use ui::{run_app, App};
-
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = ClapApp::new("Lemurs")
         .version(env!("CARGO_PKG_VERSION"))
@@ -122,11 +128,41 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Start application
-    let mut terminal = ui::start()?;
-    run_app(&mut terminal, App::new(config, preview))?;
-    ui::stop(terminal)?;
+    let mut terminal = tui_enable()?;
+    let mut login_form = ui::LoginForm::new(config, preview);
+    login_form.run(&mut terminal, try_auth, post_login_env_start)?;
+    tui_disable(terminal)?;
 
     info!("Lemurs is booting down");
 
     Ok(())
+}
+
+pub fn tui_enable() -> io::Result<Terminal<CrosstermBackend<io::Stdout>>> {
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let terminal = Terminal::new(backend)?;
+
+    info!("UI booted up");
+
+    Ok(terminal)
+}
+
+pub fn tui_disable(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+
+    info!("Reset terminal environment");
+
+    Ok(())
+}
+
+fn post_login_env_start<'a>(
+    user_info: &AuthUserInfo<'a>,
+    post_login_env: &PostLoginEnvironment,
+) -> Result<(), EnvironmentStartError> {
+    post_login_env.start(user_info)
 }

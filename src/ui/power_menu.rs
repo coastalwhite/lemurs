@@ -68,7 +68,7 @@ impl PowerMenuWidget {
         frame.render_widget(widget, area);
     }
 
-    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::StatusMessage> {
+    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         // TODO: Properly handle StdIn
         if self.config.allow_shutdown && key_code == get_key(&self.config.shutdown_key) {
             let cmd_status = Command::new("bash")
@@ -79,7 +79,7 @@ impl PowerMenuWidget {
             match cmd_status {
                 Err(err) => {
                     log::error!("Failed to execute shutdown command: {:?}", err);
-                    return Some(super::StatusMessage::FailedShutdown);
+                    return Some(super::ErrorStatusMessage::FailedShutdown);
                 }
                 Ok(Output {
                     status,
@@ -90,7 +90,7 @@ impl PowerMenuWidget {
                     log::error!("STDOUT:\n{:?}", stdout);
                     log::error!("STDERR:\n{:?}", stderr);
 
-                    return Some(super::StatusMessage::FailedShutdown);
+                    return Some(super::ErrorStatusMessage::FailedShutdown);
                 }
                 _ => {}
             }
@@ -104,7 +104,7 @@ impl PowerMenuWidget {
             match cmd_status {
                 Err(err) => {
                     log::error!("Failed to execute reboot command: {:?}", err);
-                    return Some(super::StatusMessage::FailedReboot);
+                    return Some(super::ErrorStatusMessage::FailedReboot);
                 }
                 Ok(Output {
                     status,
@@ -115,7 +115,7 @@ impl PowerMenuWidget {
                     log::error!("STDOUT:\n{:?}", stdout);
                     log::error!("STDERR:\n{:?}", stderr);
 
-                    return Some(super::StatusMessage::FailedReboot);
+                    return Some(super::ErrorStatusMessage::FailedReboot);
                 }
                 _ => {}
             }

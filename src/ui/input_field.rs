@@ -225,7 +225,7 @@ impl InputFieldWidget {
         }
     }
 
-    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::StatusMessage> {
+    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         match key_code {
             KeyCode::Backspace => self.backspace(),
             KeyCode::Delete => self.delete(),
