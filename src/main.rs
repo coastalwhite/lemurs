@@ -23,9 +23,12 @@ fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
 
     match config::PartialConfig::from_file(load_config_path) {
         Ok(partial_config) => {
-            info!("Successfully loaded configuration file from '{}'", load_config_path);
+            info!(
+                "Successfully loaded configuration file from '{}'",
+                load_config_path
+            );
             config.merge_in_partial(partial_config)
-        },
+        }
         Err(err) => {
             // If we have given it a specific config path, it should crash if this file cannot be
             // loaded. If it is the default config location just put a warning in the logs.
@@ -83,7 +86,6 @@ fn setup_logger(is_preview: bool) {
         });
 }
 
-use graphical_environments::X;
 use ui::{run_app, App};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -112,10 +114,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if !preview {
         // Switch to the proper tty
-        if chvt::chvt(config.tty.into()).is_err() {
-            error!("Failed to switch TTY");
-        };
-        info!("Successfully switched TTY");
+        info!("Switching to tty {}", config.tty);
+
+        chvt::chvt(config.tty.into()).unwrap_or_else(|err| {
+            error!("Failed to switch tty {}. Reason: {}", config.tty, err);
+        });
     }
 
     // Start application
@@ -123,9 +126,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     run_app(&mut terminal, App::new(config, preview))?;
     ui::stop(terminal)?;
 
-    info!("Booting down");
-
-    // TODO: Listen to signals
+    info!("Lemurs is booting down");
 
     Ok(())
 }
