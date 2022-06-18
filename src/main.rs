@@ -15,6 +15,7 @@ mod pam;
 mod ui;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
+const DEFAULT_LOG_PATH: &str = "/var/log/lemurs.log";
 
 pub fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
     match config::PartialConfig::from_file(config_path.unwrap_or(DEFAULT_CONFIG_PATH)) {
@@ -72,7 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .chain(fern::log_file(if preview {
             "out.log"
         } else {
-            "/tmp/lemurs.log"
+            DEFAULT_LOG_PATH
         })?)
         .apply()?;
 
