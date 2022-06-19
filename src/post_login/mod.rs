@@ -23,7 +23,11 @@ pub enum EnvironmentStartError {
 }
 
 impl PostLoginEnvironment {
-    pub fn start<'a>(&self, config: &Config, user_info: &AuthUserInfo<'a>) -> Result<(), EnvironmentStartError> {
+    pub fn start<'a>(
+        &self,
+        config: &Config,
+        user_info: &AuthUserInfo<'a>,
+    ) -> Result<(), EnvironmentStartError> {
         init_environment(&user_info.name, &user_info.dir, &user_info.shell);
         info!("Set environment variables.");
 

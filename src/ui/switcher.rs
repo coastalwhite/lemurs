@@ -237,8 +237,7 @@ impl<T> SwitcherWidget<T> {
         is_current: bool,
     ) {
         // TODO: Maybe if the strings empty, there should be no span generated
-        let (left_padding, title, right_padding) =
-            self.cutoff_wm_title_with_padding(&item.title);
+        let (left_padding, title, right_padding) = self.cutoff_wm_title_with_padding(&item.title);
 
         let style = if is_current {
             self.current_wm_style(is_focused)

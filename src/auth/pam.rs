@@ -36,8 +36,8 @@ pub fn open_session<'a>(
 
     info!("Started opening session");
 
-    let mut authenticator = Authenticator::with_password(PAM_SERVICE)
-        .map_err(|_| AuthenticationError::PamService)?;
+    let mut authenticator =
+        Authenticator::with_password(PAM_SERVICE).map_err(|_| AuthenticationError::PamService)?;
 
     info!("Gotten Authenticator");
 
