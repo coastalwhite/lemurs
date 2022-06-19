@@ -186,12 +186,10 @@ impl InputFieldWidget {
         let style = &self.style;
 
         // Check whether a maximum width has been set
-        if style.use_max_width {
-            if style.max_width < area.width {
-                // Center the area
-                area.x = (area.width - style.max_width) / 2;
-                area.width = style.max_width;
-            }
+        if style.use_max_width && style.max_width < area.width {
+            // Center the area
+            area.x = (area.width - style.max_width) / 2;
+            area.width = style.max_width;
         }
 
         area

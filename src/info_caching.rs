@@ -58,7 +58,7 @@ pub fn set_cached_username(username: &str) {
     let displayed_username = if username.len() > USERNAME_DISPLAY_SIZE {
         &username[..USERNAME_DISPLAY_SIZE]
     } else {
-        &username
+        username
     };
 
     info!(

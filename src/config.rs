@@ -45,7 +45,7 @@ fn str_to_color(color: &str) -> Option<Color> {
 
         // Hex and unknown
         c => {
-            if !c.starts_with("#") || c.len() != 7 {
+            if !c.starts_with('#') || c.len() != 7 {
                 return None;
             }
 
@@ -83,7 +83,7 @@ fn get_modifier(modifier: &str) -> Option<Modifier> {
 pub fn get_modifiers(modifiers: &str) -> Vec<Modifier> {
     let mut ms = Vec::new();
 
-    for modifier in modifiers.split(",") {
+    for modifier in modifiers.split(',') {
         if let Some(modifier) = get_modifier(modifier) {
             ms.push(modifier);
         }

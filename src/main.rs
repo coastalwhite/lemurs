@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Start application
     let mut terminal = tui_enable()?;
-    let mut login_form = ui::LoginForm::new(config, preview);
+    let login_form = ui::LoginForm::new(config, preview);
     login_form.run(&mut terminal, try_auth, post_login_env_start)?;
     tui_disable(terminal)?;
 

@@ -36,10 +36,10 @@ impl PostLoginEnvironment {
 
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
-                let mut x_server = x::setup_x(&user_info)
-                    .map_err(|err| EnvironmentStartError::XSetupError(err))?;
+                let mut x_server =
+                    x::setup_x(user_info).map_err(EnvironmentStartError::XSetupError)?;
                 let mut gui_environment = x::start_env(user_info, xinitrc_path)
-                    .map_err(|err| EnvironmentStartError::XStartEnvError(err))?;
+                    .map_err(EnvironmentStartError::XStartEnvError)?;
 
                 gui_environment.wait().unwrap();
             }

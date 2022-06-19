@@ -17,8 +17,8 @@ const VIRTUAL_TERMINAL: &str = "vt01";
 const SYSTEM_SHELL: &str = "/bin/sh";
 
 pub enum XSetupError {
-    XAuthFileCreation,
-    XAuthFilling,
+    FileCreationXAuth,
+    FillingXAuth,
     XServerStart,
 }
 
@@ -42,7 +42,8 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
     info!("Start setup of X");
 
     // Setup xauth
-    let xauth_dir = PathBuf::from(env::var("XDG_CONFIG_HOME").unwrap_or(user_info.dir.to_string()));
+    let xauth_dir =
+        PathBuf::from(env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| user_info.dir.to_string()));
     let xauth_path = xauth_dir.join(".Xauthority");
     env::set_var("XAUTHORITY", xauth_path.clone());
     env::set_var("DISPLAY", DISPLAY);
@@ -51,7 +52,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
     info!("Creating xauth file");
     File::create(xauth_path).map_err(|err| {
         error!("Creation of xauth file failed. Reason: {}", err);
-        XSetupError::XAuthFileCreation
+        XSetupError::FileCreationXAuth
     })?;
 
     info!("Filling xauth file");
@@ -63,7 +64,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
         .status()
         .map_err(|err| {
             error!("Filling xauth file failed. Reason: {}", err);
-            XSetupError::XAuthFilling
+            XSetupError::FillingXAuth
         })?;
 
     info!("Run X server");

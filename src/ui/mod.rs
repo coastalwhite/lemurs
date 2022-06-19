@@ -68,7 +68,7 @@ impl InputMode {
 }
 
 enum UIThreadRequest {
-    Redraw(LoginForm),
+    Redraw(Box<LoginForm>),
     StopDrawing,
 }
 
@@ -99,7 +99,7 @@ impl LoginForm {
     fn try_redraw(&mut self) {
         if let Some(ui_thread_channel) = &self.send_redraw_channel {
             ui_thread_channel
-                .send(UIThreadRequest::Redraw(self.clone()))
+                .send(UIThreadRequest::Redraw(Box::new(self.clone())))
                 .unwrap();
         }
     }
@@ -123,7 +123,7 @@ impl LoginForm {
         } else {
             None
         }
-        .unwrap_or(String::default());
+        .unwrap_or_default();
 
         LoginForm {
             preview,
@@ -147,7 +147,7 @@ impl LoginForm {
                         .content_replacement_character
                         .to_string(),
                 ),
-                config.password_field.style.clone().into(),
+                config.password_field.style.clone(),
                 String::default(),
             ),
             input_mode: InputMode::Normal,
@@ -250,16 +250,13 @@ impl LoginForm {
         // Start the UI thread. This actually draws to the screen.
         //
         // This blocks until we actually call StopDrawing
-        loop {
-            match req_recv_channel.recv().unwrap() {
-                UIThreadRequest::Redraw(mut login_form) => terminal
-                    .draw(|f| {
-                        let layout = Chunks::new(f);
-                        login_form.render(f, layout);
-                    })
-                    .unwrap(),
-                UIThreadRequest::StopDrawing => break,
-            };
+        while let UIThreadRequest::Redraw(mut login_form) = req_recv_channel.recv().unwrap() {
+            terminal
+                .draw(|f| {
+                    let layout = Chunks::new(f);
+                    login_form.render(f, layout);
+                })
+                .unwrap();
         }
 
         Ok(())

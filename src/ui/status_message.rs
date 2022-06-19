@@ -16,11 +16,11 @@ pub enum ErrorStatusMessage {
     FailedReboot,
 }
 
-impl Into<&'static str> for ErrorStatusMessage {
-    fn into(self) -> &'static str {
+impl From<ErrorStatusMessage> for &'static str {
+    fn from(err: ErrorStatusMessage) -> Self {
         use ErrorStatusMessage::*;
 
-        match self {
+        match err {
             AuthenticationError(_) => "Authentication failed",
             NoGraphicalEnvironment => "No graphical environment specified",
             FailedGraphicalEnvironment => "Failed booting into the graphical environment",
@@ -31,9 +31,9 @@ impl Into<&'static str> for ErrorStatusMessage {
     }
 }
 
-impl Into<StatusMessage> for ErrorStatusMessage {
-    fn into(self) -> StatusMessage {
-        StatusMessage::Error(self)
+impl From<ErrorStatusMessage> for StatusMessage {
+    fn from(err: ErrorStatusMessage) -> Self {
+        Self::Error(err)
     }
 }
 
@@ -43,20 +43,20 @@ pub enum InfoStatusMessage {
     Authenticating,
 }
 
-impl Into<&'static str> for InfoStatusMessage {
-    fn into(self) -> &'static str {
+impl From<InfoStatusMessage> for &'static str {
+    fn from(info: InfoStatusMessage) -> Self {
         use InfoStatusMessage::*;
 
-        match self {
+        match info {
             LoggingIn => "Authentication successful. Logging in...",
             Authenticating => "Verifying credentials",
         }
     }
 }
 
-impl Into<StatusMessage> for InfoStatusMessage {
-    fn into(self) -> StatusMessage {
-        StatusMessage::Info(self)
+impl From<InfoStatusMessage> for StatusMessage {
+    fn from(info: InfoStatusMessage) -> Self {
+        Self::Info(info)
     }
 }
 
@@ -80,13 +80,10 @@ impl From<StatusMessage> for &'static str {
 impl StatusMessage {
     /// Fetch whether status is an error
     pub fn is_error(&self) -> bool {
-        match self {
-            Self::Error(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Error(_))
     }
 
-    pub fn render<'a, B: Backend>(status: Option<Self>, frame: &mut Frame<'a, B>, area: Rect) {
+    pub fn render<B: Backend>(status: Option<Self>, frame: &mut Frame<B>, area: Rect) {
         if let Some(status_message) = status {
             let widget = Paragraph::new(<&'static str>::from(status_message)).style(
                 tui::style::Style::default().fg(if status_message.is_error() {
