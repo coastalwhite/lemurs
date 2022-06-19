@@ -1,8 +1,11 @@
-use log::warn;
+use log::{info, warn};
 use std::fs;
 
 use crate::auth::AuthUserInfo;
+use crate::config::Config;
+use env_variables::{init_environment, set_xdg_env};
 
+mod env_variables;
 mod x;
 
 const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
@@ -20,7 +23,13 @@ pub enum EnvironmentStartError {
 }
 
 impl PostLoginEnvironment {
-    pub fn start<'a>(&self, user_info: &AuthUserInfo<'a>) -> Result<(), EnvironmentStartError> {
+    pub fn start<'a>(&self, config: &Config, user_info: &AuthUserInfo<'a>) -> Result<(), EnvironmentStartError> {
+        init_environment(&user_info.name, &user_info.dir, &user_info.shell);
+        info!("Set environment variables.");
+
+        set_xdg_env(user_info.uid, &user_info.dir, config.tty);
+        info!("Set XDG environment variables");
+
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
                 let mut x_server = x::setup_x(&user_info)

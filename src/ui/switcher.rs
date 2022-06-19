@@ -15,13 +15,14 @@ pub struct SwitcherItem<T> {
     pub content: T,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Switcher<T> {
     selected: Option<usize>,
     items: Vec<SwitcherItem<T>>,
 }
 
 /// A widget used to select a specific window manager
+#[derive(Clone)]
 pub struct SwitcherWidget<T> {
     selector: Switcher<T>,
     config: SwitcherConfig,

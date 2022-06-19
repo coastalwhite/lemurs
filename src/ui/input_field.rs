@@ -12,6 +12,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::config::{get_color, InputFieldStyle};
 
 /// The type of the input field display. How are the characters which are typed displayed?
+#[derive(Clone)]
 pub enum InputFieldDisplayType {
     /// Show the characters that were typed
     Echo,
@@ -19,6 +20,7 @@ pub enum InputFieldDisplayType {
     Replace(String),
 }
 
+#[derive(Clone)]
 pub struct InputFieldWidget {
     content: String,
     /// Horizontal position of the cursor

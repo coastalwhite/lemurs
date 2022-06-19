@@ -1,3 +1,9 @@
+use tui::backend::Backend;
+use tui::layout::Rect;
+use tui::style::Color;
+use tui::widgets::Paragraph;
+use tui::Frame;
+
 use crate::auth::AuthenticationError;
 
 #[derive(Clone, Copy)]
@@ -77,6 +83,25 @@ impl StatusMessage {
         match self {
             Self::Error(_) => true,
             _ => false,
+        }
+    }
+
+    pub fn render<'a, B: Backend>(status: Option<Self>, frame: &mut Frame<'a, B>, area: Rect) {
+        if let Some(status_message) = status {
+            let widget = Paragraph::new(<&'static str>::from(status_message)).style(
+                tui::style::Style::default().fg(if status_message.is_error() {
+                    Color::Red
+                } else {
+                    Color::Yellow
+                }),
+            );
+
+            frame.render_widget(widget, area);
+        } else {
+            // Clear the area
+
+            let widget = Paragraph::new("");
+            frame.render_widget(widget, area);
         }
     }
 }

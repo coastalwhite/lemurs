@@ -13,7 +13,6 @@ use tui::Terminal;
 
 mod auth;
 mod config;
-mod environment;
 mod info_caching;
 mod post_login;
 mod ui;
@@ -161,8 +160,9 @@ pub fn tui_disable(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::
 }
 
 fn post_login_env_start<'a>(
-    user_info: &AuthUserInfo<'a>,
     post_login_env: &PostLoginEnvironment,
+    config: &Config,
+    user_info: &AuthUserInfo<'a>,
 ) -> Result<(), EnvironmentStartError> {
-    post_login_env.start(user_info)
+    post_login_env.start(config, user_info)
 }

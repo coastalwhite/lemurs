@@ -9,6 +9,7 @@ use tui::Frame;
 
 use crate::config::{get_color, get_key, get_modifiers, PowerControlConfig};
 
+#[derive(Clone)]
 pub struct PowerMenuWidget {
     config: PowerControlConfig,
 }
