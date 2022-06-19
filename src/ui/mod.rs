@@ -1,74 +1,35 @@
 use log::{error, info};
 
 use std::io;
-use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Sender};
+use std::time::Duration;
 
+use crate::auth::{AuthUserInfo, AuthenticationError};
 use crate::config::Config;
-use crate::environment::{init_environment, set_xdg_env};
-use crate::graphical_environments::GraphicalEnvironment;
 use crate::info_caching::{get_cached_username, set_cached_username};
-use crate::pam::{open_session, PamError};
-use crate::{initrcs, X};
+use crate::post_login::{EnvironmentStartError, PostLoginEnvironment};
+use status_message::StatusMessage;
 
-use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
-use tui::backend::CrosstermBackend;
-use tui::{
-    backend::Backend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
-    widgets::Paragraph,
-    Frame, Terminal,
-};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use tui::{backend::Backend, Frame, Terminal};
 
+mod chunks;
 mod input_field;
 mod power_menu;
-mod window_manager_selector;
+mod status_message;
+mod switcher;
 
-pub use input_field::{InputFieldDisplayType, InputFieldWidget};
-pub use window_manager_selector::{WindowManager, WindowManagerSelectorWidget};
-
-use self::power_menu::PowerMenuWidget;
-
-enum StatusMessageType {
-    Error,
-    Info,
-}
-
-pub(crate) enum StatusMessage {
-    PamError(PamError),
-    Authenticating,
-    LoggingIn,
-    NoGraphicalEnvironment,
-    FailedGraphicalEnvironment,
-    FailedDesktop,
-    FailedShutdown,
-    FailedReboot,
-}
-
-impl StatusMessage {
-    /// Get the type of a [`StatusMessage`]
-    fn message_type(status_message: &Self) -> StatusMessageType {
-        match status_message {
-            Self::PamError(_)
-            | Self::FailedGraphicalEnvironment
-            | Self::FailedDesktop
-            | Self::NoGraphicalEnvironment
-            | Self::FailedShutdown
-            | Self::FailedReboot => StatusMessageType::Error,
-            Self::Authenticating | Self::LoggingIn => StatusMessageType::Info,
-        }
-    }
-}
+use chunks::Chunks;
+use input_field::{InputFieldDisplayType, InputFieldWidget};
+use power_menu::PowerMenuWidget;
+use status_message::{ErrorStatusMessage, InfoStatusMessage};
+use switcher::{SwitcherItem, SwitcherWidget};
 
 /// All the different modes for input
+#[derive(Clone, Copy)]
 enum InputMode {
-    /// Using the WM selector widget
-    WMSelect,
+    /// Using the env switcher widget
+    Switcher,
 
     /// Typing within the Username input field
     Username,
@@ -80,49 +41,14 @@ enum InputMode {
     Normal,
 }
 
-enum LoginMessage {
-    NewLogin {
-        username: String,
-        password: String,
-        initrc_path: PathBuf,
-    },
-    Terminate,
-}
-
-enum UIMessage {
-    StopRefreshing,
-    StartRefreshing,
-    SetStatusMessage(StatusMessage),
-    ClearStatusMessage,
-    ClearPassword,
-}
-
-impl UIMessage {
-    fn resolve(self, app: &mut App) {
-        use UIMessage::*;
-        match self {
-            SetStatusMessage(status_msg) => app.status_message = Some(status_msg),
-            ClearStatusMessage => app.status_message = None,
-            StopRefreshing => loop {
-                match app.auth_channel.1.recv().unwrap() {
-                    StartRefreshing => break,
-                    msg => msg.resolve(app),
-                }
-            },
-            ClearPassword => app.password_widget.clear(),
-            StartRefreshing => {}
-        }
-    }
-}
-
 impl InputMode {
     /// Move to the next mode
     fn next(&mut self) {
         use InputMode::*;
 
         *self = match self {
-            Normal => WMSelect,
-            WMSelect => Username,
+            Normal => Switcher,
+            Switcher => Username,
             Username => Password,
             Password => Password,
         }
@@ -134,107 +60,80 @@ impl InputMode {
 
         *self = match self {
             Normal => Normal,
-            WMSelect => Normal,
-            Username => WMSelect,
+            Switcher => Normal,
+            Username => Switcher,
             Password => Username,
         }
     }
 }
 
+enum UIThreadRequest {
+    Redraw(Box<LoginForm>),
+    StopDrawing,
+}
+
 /// App holds the state of the application
-pub struct App {
+#[derive(Clone)]
+pub struct LoginForm {
     /// Whether the application is running in preview mode
     preview: bool,
-
-    /// The power menu
     power_menu_widget: PowerMenuWidget,
-
-    /// The widget used for selection of the window manager
-    window_manager_widget: WindowManagerSelectorWidget,
-
-    /// Current value of the Username
+    switcher_widget: SwitcherWidget<PostLoginEnvironment>,
     username_widget: InputFieldWidget,
-
-    /// Current value of the Password
     password_widget: InputFieldWidget,
 
     /// Current input mode
     input_mode: InputMode,
 
-    /// Error Message
+    /// Message that is displayed
     status_message: Option<StatusMessage>,
-
-    /// Authentication Receiver
-    auth_channel: (Sender<LoginMessage>, Receiver<UIMessage>),
 
     /// The configuration for the app
     config: Config,
+
+    /// Used for the event thread to send redraw and terminate requests
+    send_redraw_channel: Option<Sender<UIThreadRequest>>,
 }
 
-impl App {
-    pub fn new(config: Config, preview: bool) -> App {
-        let (sender, auth_receiver) = channel();
-        let (auth_sender, receiver) = channel();
+impl LoginForm {
+    fn try_redraw(&mut self) {
+        if let Some(ui_thread_channel) = &self.send_redraw_channel {
+            ui_thread_channel
+                .send(UIThreadRequest::Redraw(Box::new(self.clone())))
+                .unwrap();
+        }
+    }
+
+    fn set_status_message(&mut self, status: impl Into<StatusMessage>) {
+        let status = status.into();
+        self.status_message = Some(status);
+        self.try_redraw();
+    }
+
+    fn clear_status_message(&mut self) {
+        self.status_message = None;
+        self.try_redraw();
+    }
+
+    pub fn new(config: Config, preview: bool) -> LoginForm {
         let remember_username = config.username_field.remember_username;
-
-        // Start the thread that will be handling the authentication
-        std::thread::spawn(move || {
-            while let LoginMessage::NewLogin {
-                username,
-                password,
-                initrc_path,
-            } = auth_receiver.recv().unwrap()
-            {
-                if preview {
-                    let two_seconds = std::time::Duration::from_secs(2);
-
-                    auth_sender
-                        .send(UIMessage::SetStatusMessage(StatusMessage::Authenticating))
-                        .unwrap();
-                    std::thread::sleep(two_seconds);
-                    auth_sender
-                        .send(UIMessage::SetStatusMessage(StatusMessage::LoggingIn))
-                        .unwrap();
-                    auth_sender.send(UIMessage::StopRefreshing).unwrap();
-                    std::thread::sleep(two_seconds);
-                    auth_sender.send(UIMessage::StartRefreshing).unwrap();
-                    auth_sender.send(UIMessage::ClearStatusMessage).unwrap();
-
-                    continue;
-                }
-
-                // TODO: Move this into the WindowManager struct to make it adjustable depending on
-                // the window manager you are using
-                let graphical_environment = X::new();
-                login(
-                    username,
-                    password,
-                    initrc_path,
-                    &auth_sender,
-                    config.tty,
-                    remember_username,
-                    graphical_environment,
-                );
-            }
-        });
 
         let preset_username = if remember_username {
             get_cached_username()
         } else {
             None
         }
-        .unwrap_or(String::default());
+        .unwrap_or_default();
 
-        App {
+        LoginForm {
             preview,
             power_menu_widget: PowerMenuWidget::new(config.power_controls.clone()),
-            window_manager_widget: WindowManagerSelectorWidget::new(
-                if preview {
-                    Vec::new()
-                } else {
-                    initrcs::get_window_managers()
-                },
-                config.wm_selector.clone(),
+            switcher_widget: SwitcherWidget::new(
+                crate::post_login::get_envs()
+                    .into_iter()
+                    .map(|(title, content)| SwitcherItem::new(title, content))
+                    .collect(),
+                config.environment_switcher.clone(),
             ),
             username_widget: InputFieldWidget::new(
                 InputFieldDisplayType::Echo,
@@ -248,263 +147,192 @@ impl App {
                         .content_replacement_character
                         .to_string(),
                 ),
-                config.password_field.style.clone().into(),
+                config.password_field.style.clone(),
                 String::default(),
             ),
             input_mode: InputMode::Normal,
             status_message: None,
-            auth_channel: (sender, receiver),
             config,
+            send_redraw_channel: None,
         }
     }
-}
 
-pub fn start() -> io::Result<Terminal<CrosstermBackend<io::Stdout>>> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let terminal = Terminal::new(backend)?;
+    pub fn run<'a, B, A, S>(
+        mut self,
+        terminal: &mut Terminal<B>,
+        auth_fn: A,
+        start_env_fn: S,
+    ) -> io::Result<()>
+    where
+        B: Backend,
+        A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>
+            + std::marker::Send
+            + 'static,
+        S: Fn(&PostLoginEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>
+            + std::marker::Send
+            + 'static,
+    {
+        let mut login_form = self.clone();
+        terminal
+            .draw(|f| {
+                let layout = Chunks::new(f);
+                login_form.render(f, layout);
+            })
+            .unwrap();
 
-    info!("UI booted up");
+        let (req_send_channel, req_recv_channel) = channel();
 
-    Ok(terminal)
-}
+        std::thread::spawn(move || {
+            self.send_redraw_channel = Some(req_send_channel.clone());
 
-pub fn stop(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
+            loop {
+                if let Event::Key(key) = event::read().unwrap() {
+                    match (key.code, &self.input_mode) {
+                        (KeyCode::Enter, &InputMode::Password) => {
+                            if self.preview {
+                                self.set_status_message(InfoStatusMessage::Authenticating);
+                                std::thread::sleep(Duration::from_secs(2));
+                                self.set_status_message(InfoStatusMessage::LoggingIn);
+                                std::thread::sleep(Duration::from_secs(2));
+                                self.clear_status_message();
+                            } else {
+                                self.attempt_login(&auth_fn, &start_env_fn);
+                            }
+                        }
+                        (KeyCode::Enter | KeyCode::Down, _) => {
+                            self.input_mode.next();
+                        }
+                        (KeyCode::Up, _) => {
+                            self.input_mode.prev();
+                        }
+                        (KeyCode::Tab, _) => {
+                            if key.modifiers == KeyModifiers::SHIFT {
+                                self.input_mode.prev();
+                            } else {
+                                self.input_mode.next();
+                            }
+                        }
 
-    info!("Reset terminal environment");
+                        // Esc is the overal key to get out of your input mode
+                        (KeyCode::Esc, InputMode::Normal) => {
+                            if self.preview {
+                                info!("Pressed escape in preview mode to exit the application");
+                                req_send_channel.send(UIThreadRequest::StopDrawing).unwrap();
+                            }
+                        }
 
-    Ok(())
-}
+                        (KeyCode::Esc, _) => {
+                            self.input_mode = InputMode::Normal;
+                        }
 
-pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
-    loop {
-        if let Ok(ui_message) = app.auth_channel.1.try_recv() {
-            ui_message.resolve(&mut app);
-        }
+                        // For the different input modes the key should be passed to the corresponding
+                        // widget.
+                        (k, mode) => {
+                            let status_message_opt = match *mode {
+                                InputMode::Switcher => self.switcher_widget.key_press(k),
+                                InputMode::Username => self.username_widget.key_press(k),
+                                InputMode::Password => self.password_widget.key_press(k),
+                                InputMode::Normal => self.power_menu_widget.key_press(k),
+                            };
 
-        terminal.draw(|f| ui(f, &mut app))?;
-
-        let (snd, _) = &app.auth_channel;
-
-        if let Event::Key(key) = event::read()? {
-            let status_message_opt = match (key.code, &app.input_mode) {
-                (KeyCode::Enter, &InputMode::Password) => {
-                    let username = app.username_widget.get_content();
-                    let password = app.password_widget.get_content();
-
-                    // Verify that a graphical environment was actually given
-                    if let Some(initrc_path) = app
-                        .window_manager_widget
-                        .selected()
-                        .map(|selected| selected.initrc_path.clone())
-                    {
-                        // TODO: If the Login was successful, the rendering of the UI should probably
-                        // pause.
-                        snd.send(LoginMessage::NewLogin {
-                            username,
-                            password,
-                            initrc_path,
-                        })
-                        .unwrap();
-
-                        None
-                    } else {
-                        Some(StatusMessage::NoGraphicalEnvironment)
-                    }
-                }
-                (KeyCode::Enter | KeyCode::Down, _) => {
-                    app.input_mode.next();
-
-                    None
-                }
-                (KeyCode::Up, _) => {
-                    app.input_mode.prev();
-
-                    None
-                }
-                (KeyCode::Tab, _) => {
-                    if key.modifiers == KeyModifiers::SHIFT {
-                        app.input_mode.prev();
-                    } else {
-                        app.input_mode.next();
-                    }
-
-                    None
-                }
-
-                // Esc is the overal key to get out of your input mode
-                (KeyCode::Esc, _) => {
-                    if app.preview && matches!(app.input_mode, InputMode::Normal) {
-                        snd.send(LoginMessage::Terminate).unwrap();
-                        return Ok(());
-                    }
-
-                    app.input_mode = InputMode::Normal;
-
-                    None
+                            // We don't wanna clear any existing error messages
+                            if let Some(status_msg) = status_message_opt {
+                                self.set_status_message(status_msg);
+                            }
+                        }
+                    };
                 }
 
-                // For the different input modes the key should be passed to the corresponding
-                // widget.
-                (k, &InputMode::WMSelect) => app.window_manager_widget.key_press(k),
-                (k, &InputMode::Username) => app.username_widget.key_press(k),
-                (k, &InputMode::Password) => app.password_widget.key_press(k),
-                (k, &InputMode::Normal) => app.power_menu_widget.key_press(k),
-            };
-
-            // We don't wanna clear any existing error messages
-            if let Some(status_msg) = status_message_opt {
-                app.status_message = Some(status_msg);
+                self.try_redraw();
             }
+        });
+
+        // Start the UI thread. This actually draws to the screen.
+        //
+        // This blocks until we actually call StopDrawing
+        while let UIThreadRequest::Redraw(mut login_form) = req_recv_channel.recv().unwrap() {
+            terminal
+                .draw(|f| {
+                    let layout = Chunks::new(f);
+                    login_form.render(f, layout);
+                })
+                .unwrap();
         }
+
+        Ok(())
     }
-}
 
-pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
-    use Constraint::{Length, Min};
-
-    let constraints = [
-        Length(1),
-        Length(1),
-        Length(2),
-        Length(1),
-        Length(2),
-        Length(3),
-        Length(2),
-        Length(3),
-        Length(2),
-        Length(1),
-        Min(0),
-    ];
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .horizontal_margin(2)
-        .vertical_margin(1)
-        .constraints(constraints.as_ref())
-        .split(f.size());
-
-    app.power_menu_widget.render(f, chunks[0]);
-
-    app.window_manager_widget
-        .render(f, chunks[3], matches!(app.input_mode, InputMode::WMSelect));
-
-    app.username_widget
-        .render(f, chunks[5], matches!(app.input_mode, InputMode::Username));
-
-    app.password_widget
-        .render(f, chunks[7], matches!(app.input_mode, InputMode::Password));
-
-    // Display Status Message
-    if let Some(status_message) = &app.status_message {
-        use StatusMessage::*;
-
-        let error_widget = Paragraph::new(match status_message {
-            PamError(_) => "Authentication failed",
-            LoggingIn => "Authentication successful. Logging in...",
-            Authenticating => "Verifying credentials",
-            NoGraphicalEnvironment => "No graphical environment specified",
-            FailedGraphicalEnvironment => "Failed booting into the graphical environment",
-            FailedDesktop => "Failed booting into desktop environment",
-            FailedShutdown => "Failed to shutdown... Check the logs for more information",
-            FailedReboot => "Failed to reboot... Check the logs for more information",
-        })
-        .style(
-            Style::default().fg(match StatusMessage::message_type(status_message) {
-                StatusMessageType::Info => Color::Yellow,
-                StatusMessageType::Error => Color::Red,
-            }),
+    fn render<B: Backend>(&mut self, frame: &mut Frame<B>, chunks: Chunks) {
+        self.power_menu_widget.render(frame, chunks.power_menu);
+        self.switcher_widget.render(
+            frame,
+            chunks.switcher,
+            matches!(self.input_mode, InputMode::Switcher),
+        );
+        self.username_widget.render(
+            frame,
+            chunks.username_field,
+            matches!(self.input_mode, InputMode::Username),
+        );
+        self.password_widget.render(
+            frame,
+            chunks.password_field,
+            matches!(self.input_mode, InputMode::Password),
         );
 
-        f.render_widget(error_widget, chunks[9]);
+        // Display Status Message
+        StatusMessage::render(self.status_message, frame, chunks.status_message);
     }
-}
 
-fn login(
-    username: String,
-    password: String,
-    initrc_path: PathBuf,
-    status_send: &Sender<UIMessage>,
-    tty: u8,
-    do_remember_username: bool,
-    mut graphical_environment: X,
-) {
-    status_send
-        .send(UIMessage::SetStatusMessage(StatusMessage::Authenticating))
-        .expect("MSPC failed!");
+    fn attempt_login<'a, A, S>(&mut self, auth_fn: A, start_env_fn: S)
+    where
+        A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>,
+        S: Fn(&PostLoginEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>,
+    {
+        let username = self.username_widget.get_content();
+        let password = self.password_widget.get_content();
 
-    info!(
-        "Login attempt for '{}' with '{}'",
-        username,
-        initrc_path.to_str().unwrap_or("Not Found")
-    );
-
-    let (authenticator, passwd_entry) = match open_session(username.clone(), password) {
-        Err(pam_error) => {
-            error!("Authentication failed"); // TODO: Improve this log
-            status_send
-                .send(UIMessage::SetStatusMessage(StatusMessage::PamError(
-                    pam_error,
-                )))
-                .expect("MSPC failed!");
-            status_send
-                .send(UIMessage::ClearPassword)
-                .expect("MSPC failed!");
-            return;
+        // Fetch the selected post login environment
+        let post_login_env = match self.switcher_widget.selected() {
+            None => {
+                self.set_status_message(ErrorStatusMessage::NoGraphicalEnvironment);
+                return;
+            }
+            Some(selected) => selected,
         }
-        Ok(res) => res,
-    };
+        .content
+        .clone();
 
-    status_send
-        .send(UIMessage::SetStatusMessage(StatusMessage::LoggingIn))
-        .expect("MSPC failed!");
-    info!("Authentication successful. Setting environment variables.");
+        self.set_status_message(InfoStatusMessage::Authenticating);
+        let user_info = match auth_fn(username.clone(), password) {
+            Err(err) => {
+                self.set_status_message(ErrorStatusMessage::AuthenticationError(err));
 
-    if do_remember_username {
-        set_cached_username(&username);
+                // Clear the password field
+                self.password_widget.clear();
+
+                return;
+            }
+            Ok(res) => res,
+        };
+
+        // Remember username for next time
+        if self.config.username_field.remember_username {
+            set_cached_username(&username);
+        }
+
+        self.set_status_message(InfoStatusMessage::LoggingIn);
+
+        // NOTE: if this call is succesful, it blocks the thread until the environment is
+        // terminated
+        start_env_fn(&post_login_env, &self.config, &user_info).unwrap_or_else(|_| {
+            error!("Starting post-login environment failed");
+            self.set_status_message(ErrorStatusMessage::FailedGraphicalEnvironment);
+        });
+
+        self.clear_status_message();
+
+        // Just to add explicitness that the user session is dropped here
+        drop(user_info);
     }
-
-    init_environment(&passwd_entry.name, &passwd_entry.dir, &passwd_entry.shell);
-    info!("Set environment variables.");
-
-    set_xdg_env(passwd_entry.uid, &passwd_entry.dir, tty);
-    info!("Set XDG environment variables");
-
-    // TODO: This should probably be moved to the graphical_environment module somewhere.
-
-    if let Err(err) = graphical_environment.start(&passwd_entry) {
-        error!("Failed to boot graphical enviroment. Reason: '{}'", err);
-        status_send
-            .send(UIMessage::SetStatusMessage(
-                StatusMessage::FailedGraphicalEnvironment,
-            ))
-            .expect("MSPC failed!");
-        return;
-    }
-
-    info!("Graphical environment booted up successfully. Booting up desktop environment");
-
-    if let Err(err) = graphical_environment.desktop(initrc_path, &passwd_entry) {
-        error!("Failed to boot desktop environment. Reason: '{}'", err);
-        status_send
-            .send(UIMessage::SetStatusMessage(StatusMessage::FailedDesktop))
-            .expect("MSPC failed!");
-        return;
-    }
-
-    status_send
-        .send(UIMessage::ClearStatusMessage)
-        .expect("MSPC failed!");
-    info!("Desktop environment shutdown. Shutting down graphical enviroment");
-
-    graphical_environment.stop();
-
-    info!("Graphical environment shutdown. Logging out");
-
-    // Logout
-    drop(authenticator);
 }

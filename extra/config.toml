@@ -77,7 +77,7 @@ reboot_cmd = "reboot"
 hint_margin = 2
 
 # Setting for the selector of the desktop environment you are using.
-[wm_selector]
+[environment_switcher]
 # Terms:
 # ---------
 # Movers: indicators which show which direction one can move whilst selecting

@@ -11,7 +11,7 @@ pub fn init_environment(username: &str, homedir: &str, shell: &str) {
     env_set_and_announce("HOME", homedir);
 
     let pwd = homedir;
-    if let Ok(_) = env::set_current_dir(pwd) {
+    if env::set_current_dir(pwd).is_ok() {
         info!("Successfully changed working directory to {}!", pwd);
     } else {
         error!("Failed to change the working directory to {}", pwd);

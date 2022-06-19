@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{self, BufReader, Read};
-use std::{fs, process};
+use std::process;
 
 use crossterm::event::KeyCode;
 use log::error;
@@ -45,7 +45,7 @@ fn str_to_color(color: &str) -> Option<Color> {
 
         // Hex and unknown
         c => {
-            if !c.starts_with("#") || c.len() != 7 {
+            if !c.starts_with('#') || c.len() != 7 {
                 return None;
             }
 
@@ -83,7 +83,7 @@ fn get_modifier(modifier: &str) -> Option<Modifier> {
 pub fn get_modifiers(modifiers: &str) -> Vec<Modifier> {
     let mut ms = Vec::new();
 
-    for modifier in modifiers.split(",") {
+    for modifier in modifiers.split(',') {
         if let Some(modifier) = get_modifier(modifier) {
             ms.push(modifier);
         }
@@ -131,7 +131,7 @@ macro_rules! merge_strategy {
 
 macro_rules! toml_config_struct {
     ($struct_name:ident, $partial_struct_name:ident, $($field_name:ident => $field_type:ty $([$par_field_type:ty])?),+ $(,)?) => {
-        #[derive(Clone, Deserialize)]
+        #[derive(Debug, Clone, Deserialize)]
         pub struct $struct_name {
             $(pub $field_name: $field_type,)+
         }
@@ -154,7 +154,7 @@ macro_rules! toml_config_struct {
 toml_config_struct! { Config, PartialConfig,
     tty => u8,
     power_controls => PowerControlConfig [PartialPowerControlConfig],
-    wm_selector => WMSelectorConfig [PartialWMSelectorConfig],
+    environment_switcher => SwitcherConfig [PartialSwitcherConfig],
     username_field => UsernameFieldConfig [PartialUsernameFieldConfig],
     password_field => PasswordFieldConfig [PartialPasswordFieldConfig],
 }
@@ -177,7 +177,7 @@ toml_config_struct! { PowerControlConfig, PartialPowerControlConfig,
     hint_margin => u16,
 }
 
-toml_config_struct! { WMSelectorConfig, PartialWMSelectorConfig,
+toml_config_struct! { SwitcherConfig, PartialSwitcherConfig,
     show_movers => bool,
     mover_color => String,
     mover_color_focused => String,

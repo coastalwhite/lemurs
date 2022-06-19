@@ -12,6 +12,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::config::{get_color, InputFieldStyle};
 
 /// The type of the input field display. How are the characters which are typed displayed?
+#[derive(Clone)]
 pub enum InputFieldDisplayType {
     /// Show the characters that were typed
     Echo,
@@ -19,6 +20,7 @@ pub enum InputFieldDisplayType {
     Replace(String),
 }
 
+#[derive(Clone)]
 pub struct InputFieldWidget {
     content: String,
     /// Horizontal position of the cursor
@@ -184,12 +186,10 @@ impl InputFieldWidget {
         let style = &self.style;
 
         // Check whether a maximum width has been set
-        if style.use_max_width {
-            if style.max_width < area.width {
-                // Center the area
-                area.x = (area.width - style.max_width) / 2;
-                area.width = style.max_width;
-            }
+        if style.use_max_width && style.max_width < area.width {
+            // Center the area
+            area.x = (area.width - style.max_width) / 2;
+            area.width = style.max_width;
         }
 
         area
@@ -225,7 +225,7 @@ impl InputFieldWidget {
         }
     }
 
-    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::StatusMessage> {
+    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         match key_code {
             KeyCode::Backspace => self.backspace(),
             KeyCode::Delete => self.delete(),
