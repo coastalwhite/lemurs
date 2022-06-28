@@ -1,8 +1,9 @@
-use nix::unistd::{initgroups, setgid, setuid, Gid, Uid};
 use rand::Rng;
 use std::env;
+use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::{thread, time};
+use users::get_user_groups;
 
 use std::fs::File;
 use std::path::PathBuf;
@@ -88,8 +89,14 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
 }
 
 pub fn start_env(user_info: &AuthUserInfo, script_path: &str) -> Result<Child, XStartEnvError> {
-    let uid = Uid::from_raw(user_info.uid);
-    let gid = Gid::from_raw(user_info.gid);
+    let uid = user_info.uid;
+    let gid = user_info.gid;
+    let groups: Vec<u32> = get_user_groups(&user_info.name, gid)
+        .unwrap()
+        .iter()
+        .map(|group| group.gid())
+        .collect();
+
     let username = std::ffi::CString::new(user_info.name.clone()).map_err(|err| {
         error!(
             "Failed to convert '{}' into CString. Reason: {}",
@@ -98,31 +105,21 @@ pub fn start_env(user_info: &AuthUserInfo, script_path: &str) -> Result<Child, X
         XStartEnvError::UsernameConversion
     })?;
 
-    info!("Setting uid, gid and supplementary groups");
-    initgroups(username.as_c_str(), gid).map_err(|err| {
-        error!("Failed to set supplementary groups. Reason: {}", err);
-        XStartEnvError::SettingGroups
-    })?;
-    setgid(gid).map_err(|err| {
-        error!("Failed to set gid. Reason: {}", err);
-        XStartEnvError::SettingGid
-    })?;
-    setuid(uid).map_err(|err| {
-        error!("Failed to set uid. Reason: {}", err);
-        XStartEnvError::SettingUid
-    })?;
-
     info!("Starting specified environment");
     let child = Command::new(SYSTEM_SHELL)
         .arg("-c")
         .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", script_path))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
+        .uid(uid)
+        .gid(gid)
+        .groups(&groups)
         .spawn()
         .map_err(|err| {
             error!("Failed to start specified environment. Reason: {}", err);
             XStartEnvError::StartingEnvironment
         })?;
+
     info!("Started specified environment");
 
     Ok(child)
