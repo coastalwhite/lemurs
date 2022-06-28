@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Output};
 
 use crossterm::event::KeyCode;
 use tui::layout::Rect;
@@ -7,14 +7,15 @@ use tui::text::{Span, Spans, Text};
 use tui::widgets::Paragraph;
 use tui::Frame;
 
-use crate::config::{get_color, get_key, get_modifiers, PowerOptionsConfig};
+use crate::config::{get_color, get_key, get_modifiers, PowerControlConfig};
 
+#[derive(Clone)]
 pub struct PowerMenuWidget {
-    config: PowerOptionsConfig,
+    config: PowerControlConfig,
 }
 
 impl PowerMenuWidget {
-    pub fn new(config: PowerOptionsConfig) -> Self {
+    pub fn new(config: PowerControlConfig) -> Self {
         Self { config }
     }
     fn shutdown_style(&self) -> Style {
@@ -68,20 +69,59 @@ impl PowerMenuWidget {
         frame.render_widget(widget, area);
     }
 
-    pub fn key_press(&mut self, key_code: KeyCode) {
+    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
+        // TODO: Properly handle StdIn
         if self.config.allow_shutdown && key_code == get_key(&self.config.shutdown_key) {
-            Command::new("bash")
+            let cmd_status = Command::new("bash")
                 .arg("-c")
                 .arg(self.config.shutdown_cmd.clone())
-                .status()
-                .expect("Unable to shutdown");
+                .output();
+
+            match cmd_status {
+                Err(err) => {
+                    log::error!("Failed to execute shutdown command: {:?}", err);
+                    return Some(super::ErrorStatusMessage::FailedShutdown);
+                }
+                Ok(Output {
+                    status,
+                    stdout,
+                    stderr,
+                }) if !status.success() => {
+                    log::error!("Error while executing shutdown command");
+                    log::error!("STDOUT:\n{:?}", stdout);
+                    log::error!("STDERR:\n{:?}", stderr);
+
+                    return Some(super::ErrorStatusMessage::FailedShutdown);
+                }
+                _ => {}
+            }
         }
         if self.config.allow_reboot && key_code == get_key(&self.config.reboot_key) {
-            Command::new("bash")
+            let cmd_status = Command::new("bash")
                 .arg("-c")
                 .arg(self.config.reboot_cmd.clone())
-                .status()
-                .expect("Unable to reboot");
+                .output();
+
+            match cmd_status {
+                Err(err) => {
+                    log::error!("Failed to execute reboot command: {:?}", err);
+                    return Some(super::ErrorStatusMessage::FailedReboot);
+                }
+                Ok(Output {
+                    status,
+                    stdout,
+                    stderr,
+                }) if !status.success() => {
+                    log::error!("Error while executing reboot command");
+                    log::error!("STDOUT:\n{:?}", stdout);
+                    log::error!("STDERR:\n{:?}", stderr);
+
+                    return Some(super::ErrorStatusMessage::FailedReboot);
+                }
+                _ => {}
+            }
         }
+
+        None
     }
 }

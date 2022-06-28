@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{self, BufReader, Read};
+use std::process;
 
 use crossterm::event::KeyCode;
 use log::error;
@@ -44,7 +45,7 @@ fn str_to_color(color: &str) -> Option<Color> {
 
         // Hex and unknown
         c => {
-            if !c.starts_with("#") || c.len() != 7 {
+            if !c.starts_with('#') || c.len() != 7 {
                 return None;
             }
 
@@ -82,7 +83,7 @@ fn get_modifier(modifier: &str) -> Option<Modifier> {
 pub fn get_modifiers(modifiers: &str) -> Vec<Modifier> {
     let mut ms = Vec::new();
 
-    for modifier in modifiers.split(",") {
+    for modifier in modifiers.split(',') {
         if let Some(modifier) = get_modifier(modifier) {
             ms.push(modifier);
         }
@@ -110,146 +111,151 @@ pub fn get_key(key: &str) -> KeyCode {
     }
 }
 
-#[derive(Deserialize)]
-pub struct Config {
-    pub preview: bool,
-    pub power_options: PowerOptionsConfig,
-    pub window_manager_selector: WMSelectorConfig,
-    pub username_field: UsernameFieldConfig,
-    pub password_field: PasswordFieldConfig,
+macro_rules! partial_struct_field {
+    ($field_type:ty) => {
+        $field_type
+    };
+    ($field_type:ty, $par_field_type:ty) => {
+        $par_field_type
+    };
 }
 
-#[derive(Clone, Deserialize)]
-pub struct PowerOptionsConfig {
-    pub allow_shutdown: bool,
-    pub shutdown_hint: String,
-    pub shutdown_hint_color: String,
-    pub shutdown_hint_modifiers: String,
-    pub shutdown_key: String,
-    pub shutdown_cmd: String,
-
-    pub allow_reboot: bool,
-    pub reboot_hint: String,
-    pub reboot_hint_color: String,
-    pub reboot_hint_modifiers: String,
-    pub reboot_key: String,
-    pub reboot_cmd: String,
-
-    pub hint_margin: u16,
+macro_rules! merge_strategy {
+    ($self:ident, $dest:ident, $src:expr) => {
+        $self.$dest = $src
+    };
+    ($self:ident, $dest:ident, $src:expr, $_:ty) => {
+        $self.$dest.merge_in_partial($src)
+    };
 }
 
-#[derive(Clone, Deserialize)]
-pub struct WMSelectorConfig {
-    pub show_movers: bool,
-    pub mover_color: String,
-    pub mover_color_focused: String,
-
-    pub mover_modifiers: String,
-    pub mover_modifiers_focused: String,
-
-    pub left_mover: String,
-    pub right_mover: String,
-
-    pub mover_margin: u16,
-
-    pub selected_color: String,
-    pub selected_color_focused: String,
-
-    pub selected_modifiers: String,
-    pub selected_modifiers_focused: String,
-
-    pub show_neighbours: bool,
-    pub neighbour_color: String,
-    pub neighbour_color_focused: String,
-
-    pub neighbour_modifiers: String,
-    pub neighbour_modifiers_focused: String,
-
-    pub neighbour_margin: u16,
-
-    pub max_display_length: u16,
-
-    pub no_envs_text: String,
-
-    pub no_envs_color: String,
-    pub no_envs_color_focused: String,
-
-    pub no_envs_modifiers: String,
-    pub no_envs_modifiers_focused: String,
-}
-
-#[derive(Clone, Deserialize)]
-pub struct UsernameFieldConfig {
-    pub show_title: bool,
-    pub title: String,
-
-    pub show_border: bool,
-
-    pub title_color: String,
-    pub title_color_focused: String,
-
-    pub content_color: String,
-    pub content_color_focused: String,
-
-    pub border_color: String,
-    pub border_color_focused: String,
-}
-
-#[derive(Clone, Deserialize)]
-pub struct PasswordFieldConfig {
-    pub show_title: bool,
-    pub title: String,
-
-    pub show_border: bool,
-
-    pub title_color: String,
-    pub title_color_focused: String,
-
-    pub content_color: String,
-    pub content_color_focused: String,
-    pub content_replacement_character: char,
-
-    pub border_color: String,
-    pub border_color_focused: String,
-}
-
-impl From<PasswordFieldConfig> for UsernameFieldConfig {
-    fn from(item: PasswordFieldConfig) -> Self {
-        let PasswordFieldConfig {
-            show_title,
-            title,
-            show_border,
-            title_color,
-            title_color_focused,
-            content_color,
-            content_color_focused,
-            border_color,
-            border_color_focused,
-            ..
-        } = item;
-
-        UsernameFieldConfig {
-            show_title,
-            title,
-            show_border,
-            title_color,
-            title_color_focused,
-            content_color,
-            content_color_focused,
-            border_color,
-            border_color_focused,
+macro_rules! toml_config_struct {
+    ($struct_name:ident, $partial_struct_name:ident, $($field_name:ident => $field_type:ty $([$par_field_type:ty])?),+ $(,)?) => {
+        #[derive(Debug, Clone, Deserialize)]
+        pub struct $struct_name {
+            $(pub $field_name: $field_type,)+
+        }
+        #[derive(Clone, Deserialize)]
+        pub struct $partial_struct_name {
+            $(pub $field_name: Option<partial_struct_field!($field_type$(, $par_field_type)?)>,)+
+        }
+        impl $struct_name {
+            pub fn merge_in_partial(&mut self, partial: $partial_struct_name) {
+                $(
+                if let Some($field_name) = partial.$field_name {
+                    merge_strategy!(self, $field_name, $field_name $(, $par_field_type)?);
+                }
+                )+
+            }
         }
     }
 }
 
+toml_config_struct! { Config, PartialConfig,
+    tty => u8,
+    power_controls => PowerControlConfig [PartialPowerControlConfig],
+    environment_switcher => SwitcherConfig [PartialSwitcherConfig],
+    username_field => UsernameFieldConfig [PartialUsernameFieldConfig],
+    password_field => PasswordFieldConfig [PartialPasswordFieldConfig],
+}
+
+toml_config_struct! { PowerControlConfig, PartialPowerControlConfig,
+    allow_shutdown => bool,
+    shutdown_hint => String,
+    shutdown_hint_color => String,
+    shutdown_hint_modifiers => String,
+    shutdown_key => String,
+    shutdown_cmd => String,
+
+    allow_reboot => bool,
+    reboot_hint => String,
+    reboot_hint_color => String,
+    reboot_hint_modifiers => String,
+    reboot_key => String,
+    reboot_cmd => String,
+
+    hint_margin => u16,
+}
+
+toml_config_struct! { SwitcherConfig, PartialSwitcherConfig,
+    show_movers => bool,
+    mover_color => String,
+    mover_color_focused => String,
+
+    mover_modifiers => String,
+    mover_modifiers_focused => String,
+
+    left_mover => String,
+    right_mover => String,
+
+    mover_margin => u16,
+
+    selected_color => String,
+    selected_color_focused => String,
+
+    selected_modifiers => String,
+    selected_modifiers_focused => String,
+
+    show_neighbours => bool,
+    neighbour_color => String,
+    neighbour_color_focused => String,
+
+    neighbour_modifiers => String,
+    neighbour_modifiers_focused => String,
+
+    neighbour_margin => u16,
+
+    max_display_length => u16,
+
+    no_envs_text => String,
+
+    no_envs_color => String,
+    no_envs_color_focused => String,
+
+    no_envs_modifiers => String,
+    no_envs_modifiers_focused => String,
+}
+
+toml_config_struct! { InputFieldStyle, PartialInputFieldStyle,
+    show_title => bool,
+    title => String,
+
+    show_border => bool,
+
+    title_color => String,
+    title_color_focused => String,
+
+    content_color => String,
+    content_color_focused => String,
+
+    border_color => String,
+    border_color_focused => String,
+
+    use_max_width => bool,
+    max_width => u16,
+}
+
+toml_config_struct! { UsernameFieldConfig, PartialUsernameFieldConfig,
+    remember_username => bool,
+    style => InputFieldStyle [PartialInputFieldStyle],
+}
+
+toml_config_struct! { PasswordFieldConfig, PartialPasswordFieldConfig,
+    content_replacement_character => char,
+    style => InputFieldStyle [PartialInputFieldStyle],
+}
+
 impl Default for Config {
     fn default() -> Config {
-        toml::from_str(include_str!("../extra/config.toml")).expect("Default config incorrect!")
+        toml::from_str(include_str!("../extra/config.toml")).unwrap_or_else(|_| {
+            eprintln!("Default configuration file cannot be properly parsed");
+            process::exit(1);
+        })
     }
 }
 
-impl Config {
-    pub fn from_file(path: &str) -> io::Result<Config> {
+impl PartialConfig {
+    pub fn from_file(path: &str) -> io::Result<PartialConfig> {
         let file = File::open(path)?;
         let mut buf_reader = BufReader::new(file);
         let mut contents = String::new();
