@@ -1,4 +1,4 @@
-use log::{error, info};
+use log::{error, info, warn};
 
 use std::io;
 use std::sync::mpsc::{channel, Sender};
@@ -98,9 +98,10 @@ pub struct LoginForm {
 impl LoginForm {
     fn try_redraw(&mut self) {
         if let Some(ui_thread_channel) = &self.send_redraw_channel {
-            ui_thread_channel
-                .send(UIThreadRequest::Redraw(Box::new(self.clone())))
-                .unwrap();
+            match ui_thread_channel.send(UIThreadRequest::Redraw(Box::new(self.clone()))) {
+                Ok(_) => {}
+                Err(err) => warn!("Failed to redraw. Reason: {}", err),
+            }
         }
     }
 
@@ -173,12 +174,16 @@ impl LoginForm {
             + 'static,
     {
         let mut login_form = self.clone();
-        terminal
-            .draw(|f| {
-                let layout = Chunks::new(f);
-                login_form.render(f, layout);
-            })
-            .unwrap();
+        match terminal.draw(|f| {
+            let layout = Chunks::new(f);
+            login_form.render(f, layout);
+        }) {
+            Ok(_) => {}
+            Err(err) => {
+                error!("Failed to draw. Reason: {}", err);
+                std::process::exit(1);
+            }
+        }
 
         let (req_send_channel, req_recv_channel) = channel();
 
@@ -186,7 +191,7 @@ impl LoginForm {
             self.send_redraw_channel = Some(req_send_channel.clone());
 
             loop {
-                if let Event::Key(key) = event::read().unwrap() {
+                if let Ok(Event::Key(key)) = event::read() {
                     match (key.code, &self.input_mode) {
                         (KeyCode::Enter, &InputMode::Password) => {
                             if self.preview {

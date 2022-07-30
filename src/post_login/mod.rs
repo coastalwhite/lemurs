@@ -20,6 +20,7 @@ pub enum PostLoginEnvironment {
 pub enum EnvironmentStartError {
     XSetupError(x::XSetupError),
     XStartEnvError(x::XStartEnvError),
+    WaitingForEnv,
 }
 
 impl PostLoginEnvironment {
@@ -40,7 +41,10 @@ impl PostLoginEnvironment {
                 let mut gui_environment = x::start_env(user_info, xinitrc_path)
                     .map_err(EnvironmentStartError::XStartEnvError)?;
 
-                gui_environment.wait().unwrap();
+                gui_environment.wait().map_err(|err| {
+                    warn!("Failed waiting for GUI Environment. Reason: {}", err);
+                    EnvironmentStartError::WaitingForEnv
+                })?;
             }
         }
 
@@ -67,7 +71,15 @@ pub fn get_envs() -> Vec<(String, PostLoginEnvironment)> {
                     file_name,
                     PostLoginEnvironment::X {
                         // TODO: Remove unwrap
-                        xinitrc_path: path.path().to_str().unwrap().to_string(),
+                        xinitrc_path: match path.path().to_str() {
+                            Some(p) => p.to_string(),
+                            None => {
+                                warn!(
+                                    "Skipped item because it was impossible to convert to string"
+                                );
+                                continue;
+                            }
+                        },
                     },
                 ));
             } else {
