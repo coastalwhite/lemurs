@@ -49,14 +49,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
     env::set_var("XAUTHORITY", xauth_path.clone());
     env::set_var("DISPLAY", DISPLAY);
 
-    // TODO: Log the xauth path
-    info!("Creating xauth file");
-    File::create(xauth_path).map_err(|err| {
-        error!("Creation of xauth file failed. Reason: {}", err);
-        XSetupError::FileCreationXAuth
-    })?;
-
-    info!("Filling xauth file");
+    info!("Filling Xauthority file");
     Command::new(SYSTEM_SHELL)
         .arg("-c")
         .arg(format!("/usr/bin/xauth add {} . {}", DISPLAY, mcookie()))

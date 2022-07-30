@@ -68,3 +68,7 @@ echo 'Step 9: Enable the lemurs service'
 $ROOT_CMD systemctl enable lemurs.service
 if [ $? -ne 0 ]; then exit 1; fi
 
+# Make sure Xauthority file exists
+echo 'Step 10: Ensure the Xauthority file exists'
+touch ~/.Xauthority
+if [ $? -ne 0 ]; then exit 1; fi
