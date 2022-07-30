@@ -80,10 +80,10 @@ impl InputFieldWidget {
 
         let index = usize::from(self.cursor + self.scroll - 1);
 
-        if self.cursor > 0 {
-            self.cursor -= 1;
-        } else if self.scroll > 0 {
+        if self.scroll > 0 {
             self.scroll -= 1;
+        } else if self.cursor > 0 {
+            self.cursor -= 1;
         }
         self.content.remove(index);
     }
