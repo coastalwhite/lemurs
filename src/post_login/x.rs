@@ -16,6 +16,9 @@ const VIRTUAL_TERMINAL: &str = "vt01";
 
 const SYSTEM_SHELL: &str = "/bin/sh";
 
+const XSTART_TIMEOUT_SECS: u64 = 20;
+const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
+
 pub enum XSetupError {
     FillingXAuth,
     XServerStart,
@@ -68,11 +71,16 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
         })?;
 
     // Wait for XServer to boot-up
-    // TODO: There should be a better way of doing this.
-    let mut loop_count = 0;
+    let start_time = time::SystemTime::now();
     loop {
         // Timeout
-        if loop_count == 10 {
+        if match start_time.elapsed() {
+            Ok(dur) => dur.as_secs() >= XSTART_TIMEOUT_SECS,
+            Err(_) => {
+                error!("Failed to resolve elapsed time");
+                std::process::exit(1);
+            }
+        } {
             return Err(XSetupError::XServerStart);
         }
 
@@ -83,10 +91,10 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
             .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
             .status()
         {
-            Ok(status) => if status.success() {
-                break;
-            } else {
-                loop_count += 1;
+            Ok(status) => {
+                if status.success() {
+                    break;
+                }
             }
             Err(_) => {
                 error!("Failed to run xset to check X server status");
@@ -94,7 +102,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
             }
         }
 
-        thread::sleep(time::Duration::from_secs(1));
+        thread::sleep(time::Duration::from_millis(XSTART_CHECK_INTERVAL_MILLIS));
     }
     info!("X server is running");
 
