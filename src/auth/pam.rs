@@ -2,7 +2,7 @@ use log::info;
 
 use pam::{Authenticator, PasswordConv};
 
-const PAM_SERVICE: &str = "system-login";
+const PAM_SERVICE: &str = "login";
 
 use pgs_files::passwd::{get_entry_by_name, PasswdEntry};
 
