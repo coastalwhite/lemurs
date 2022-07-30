@@ -258,6 +258,7 @@ dependencies = [
  "toml",
  "tui",
  "unicode-width",
+ "users 0.11.0",
 ]
 
 [[package]]
@@ -404,7 +405,7 @@ checksum = "fa2bdc959c201c047004a1420a92aaa1dd1a6b64d5ef333aa3a4ac764fb93097"
 dependencies = [
  "libc 0.2.112",
  "pam-sys",
- "users",
+ "users 0.8.1",
 ]
 
 [[package]]
@@ -738,6 +739,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fed7d0912567d35f88010c23dbaf865e9da8b5227295e8dc0f2fdd109155ab7"
 dependencies = [
  "libc 0.2.112",
+]
+
+[[package]]
+name = "users"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24cc0f6d6f267b73e5a2cadf007ba8f9bc39c6a6f9666f8cf25ea809a153b032"
+dependencies = [
+ "libc 0.2.112",
+ "log",
 ]
 
 [[package]]
