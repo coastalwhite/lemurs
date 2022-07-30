@@ -75,7 +75,33 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
 
     // Wait for XServer to boot-up
     // TODO: There should be a better way of doing this.
-    thread::sleep(time::Duration::from_secs(1));
+    let mut loop_count = 0;
+    loop {
+        // Timeout
+        if loop_count == 10 {
+            return Err(XSetupError::XServerStart);
+        }
+
+        match Command::new(SYSTEM_SHELL)
+            .arg("-c")
+            .arg(format!("timeout 1s /usr/bin/xset q"))
+            .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
+            .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
+            .status()
+        {
+            Ok(status) => if status.success() {
+                break;
+            } else {
+                loop_count += 1;
+            }
+            Err(_) => {
+                error!("Failed to run xset to check X server status");
+                return Err(XSetupError::XServerStart);
+            }
+        }
+
+        thread::sleep(time::Duration::from_secs(1));
+    }
     info!("X server is running");
 
     Ok(child)
