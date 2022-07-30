@@ -53,7 +53,7 @@ exec bspwm
 Remember to make this script runnable. This is done with the `chmod +x
 /etc/lemurs/wms/bspwm` command.
 
-Upon rebooting your new _xinitrc_ should show up within Lemurs.
+Upon rebooting your new `bspwm` should show up within Lemurs.
 
 ## Configuration
 
