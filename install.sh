@@ -20,7 +20,7 @@ echo
 
 # Compile lemurs
 echo 'Step 1: Compile Lemurs'
-cargo build --release 
+cargo +nightly build --release 
 if [ $? -ne 0 ]; then exit 1; fi
 
 # Move lemurs to /usr/bin
@@ -52,7 +52,7 @@ fi
 
 # Cache the current user
 echo 'Step 7: Caching the current user'
-$ROOT_CMD echo $USER > /var/cache/lemurs
+$ROOT_CMD /bin/bash -c "echo $USER > /var/cache/lemurs"
 
 # Disable previous Display Manager
 echo 'Step 7: Disabling the current display-manager. This might throw an error if no display manager is set up.'
