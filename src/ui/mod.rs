@@ -2,6 +2,7 @@ use log::{error, info, warn};
 
 use std::io;
 use std::sync::mpsc::{channel, Sender};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::auth::{AuthUserInfo, AuthenticationError};
@@ -68,7 +69,7 @@ impl InputMode {
 }
 
 enum UIThreadRequest {
-    Redraw(Box<LoginForm>),
+    Redraw,
     StopDrawing,
 }
 
@@ -98,7 +99,7 @@ pub struct LoginForm {
 impl LoginForm {
     fn try_redraw(&mut self) {
         if let Some(ui_thread_channel) = &self.send_redraw_channel {
-            match ui_thread_channel.send(UIThreadRequest::Redraw(Box::new(self.clone()))) {
+            match ui_thread_channel.send(UIThreadRequest::Redraw) {
                 Ok(_) => {}
                 Err(err) => warn!("Failed to redraw. Reason: {}", err),
             }
@@ -159,7 +160,7 @@ impl LoginForm {
     }
 
     pub fn run<'a, B, A, S>(
-        mut self,
+        self,
         terminal: &mut Terminal<B>,
         auth_fn: A,
         start_env_fn: S,
@@ -173,9 +174,16 @@ impl LoginForm {
             + std::marker::Send
             + 'static,
     {
-        let mut login_form = self.clone();
+        let login_form = Arc::new(Mutex::new(self));
         match terminal.draw(|f| {
             let layout = Chunks::new(f);
+            let mut login_form = match login_form.lock() {
+                Ok(guard) => guard,
+                Err(err) => {
+                    error!("Lock failed. Reason: {}", err);
+                    std::process::exit(1);
+                }
+            };
             login_form.render(f, layout);
         }) {
             Ok(_) => {}
@@ -187,78 +195,111 @@ impl LoginForm {
 
         let (req_send_channel, req_recv_channel) = channel();
 
+        let event_login_form = login_form.clone();
         std::thread::spawn(move || {
-            self.send_redraw_channel = Some(req_send_channel.clone());
+            {
+                let mut login_form = match event_login_form.lock() {
+                    Ok(guard) => guard,
+                    Err(err) => {
+                        error!("Lock failed. Reason: {}", err);
+                        std::process::exit(1);
+                    }
+                };
+                login_form.send_redraw_channel = Some(req_send_channel.clone());
+            }
 
             loop {
                 if let Ok(Event::Key(key)) = event::read() {
-                    match (key.code, &self.input_mode) {
+                    let mut login_form = match event_login_form.lock() {
+                        Ok(guard) => guard,
+                        Err(err) => {
+                            error!("Lock failed. Reason: {}", err);
+                            std::process::exit(1);
+                        }
+                    };
+                    match (key.code, &login_form.input_mode) {
                         (KeyCode::Enter, &InputMode::Password) => {
-                            if self.preview {
-                                self.set_status_message(InfoStatusMessage::Authenticating);
+                            if login_form.preview {
+                                login_form.set_status_message(InfoStatusMessage::Authenticating);
                                 std::thread::sleep(Duration::from_secs(2));
-                                self.set_status_message(InfoStatusMessage::LoggingIn);
+                                login_form.set_status_message(InfoStatusMessage::LoggingIn);
                                 std::thread::sleep(Duration::from_secs(2));
-                                self.clear_status_message();
+                                login_form.clear_status_message();
                             } else {
-                                self.attempt_login(&auth_fn, &start_env_fn);
+                                login_form.attempt_login(&auth_fn, &start_env_fn);
                             }
                         }
                         (KeyCode::Enter | KeyCode::Down, _) => {
-                            self.input_mode.next();
+                            login_form.input_mode.next();
                         }
                         (KeyCode::Up, _) => {
-                            self.input_mode.prev();
+                            login_form.input_mode.prev();
                         }
                         (KeyCode::Tab, _) => {
                             if key.modifiers == KeyModifiers::SHIFT {
-                                self.input_mode.prev();
+                                login_form.input_mode.prev();
                             } else {
-                                self.input_mode.next();
+                                login_form.input_mode.next();
                             }
                         }
 
                         // Esc is the overal key to get out of your input mode
                         (KeyCode::Esc, InputMode::Normal) => {
-                            if self.preview {
+                            if login_form.preview {
                                 info!("Pressed escape in preview mode to exit the application");
                                 req_send_channel.send(UIThreadRequest::StopDrawing).unwrap();
                             }
                         }
 
                         (KeyCode::Esc, _) => {
-                            self.input_mode = InputMode::Normal;
+                            login_form.input_mode = InputMode::Normal;
                         }
 
                         // For the different input modes the key should be passed to the corresponding
                         // widget.
                         (k, mode) => {
                             let status_message_opt = match *mode {
-                                InputMode::Switcher => self.switcher_widget.key_press(k),
-                                InputMode::Username => self.username_widget.key_press(k),
-                                InputMode::Password => self.password_widget.key_press(k),
-                                InputMode::Normal => self.power_menu_widget.key_press(k),
+                                InputMode::Switcher => login_form.switcher_widget.key_press(k),
+                                InputMode::Username => login_form.username_widget.key_press(k),
+                                InputMode::Password => login_form.password_widget.key_press(k),
+                                InputMode::Normal => login_form.power_menu_widget.key_press(k),
                             };
 
                             // We don't wanna clear any existing error messages
                             if let Some(status_msg) = status_message_opt {
-                                self.set_status_message(status_msg);
+                                login_form.set_status_message(status_msg);
                             }
                         }
                     };
                 }
 
-                self.try_redraw();
+                {
+                    let mut login_form = match event_login_form.lock() {
+                        Ok(guard) => guard,
+                        Err(err) => {
+                            error!("Lock failed. Reason: {}", err);
+                            std::process::exit(1);
+                        }
+                    };
+                    login_form.try_redraw();
+                }
             }
         });
 
         // Start the UI thread. This actually draws to the screen.
         //
         // This blocks until we actually call StopDrawing
-        while let UIThreadRequest::Redraw(mut login_form) = req_recv_channel.recv().unwrap() {
+        while let UIThreadRequest::Redraw = req_recv_channel.recv().unwrap() {
             terminal
                 .draw(|f| {
                     let layout = Chunks::new(f);
+                    let mut login_form = match login_form.lock() {
+                        Ok(guard) => guard,
+                        Err(err) => {
+                            error!("Lock failed. Reason: {}", err);
+                            std::process::exit(1);
+                        }
+                    };
                     login_form.render(f, layout);
                 })
                 .unwrap();
