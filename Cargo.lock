@@ -3,6 +3,15 @@
 version = 3
 
 [[package]]
+name = "aho-corasick"
+version = "0.7.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e37cfd5e7657ada45f742d6e99ca5788580b5c529dc78faf11ece6dc702656f"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -230,7 +239,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lemurs"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "chvt",
@@ -238,15 +247,18 @@ dependencies = [
  "crossterm 0.22.1",
  "fern",
  "hex",
+ "lazy_static",
  "log",
  "nix 0.23.1",
  "pam",
  "pgs-files",
  "rand",
+ "regex",
  "serde",
  "toml",
  "tui",
  "unicode-width",
+ "users 0.11.0",
 ]
 
 [[package]]
@@ -393,7 +405,7 @@ checksum = "fa2bdc959c201c047004a1420a92aaa1dd1a6b64d5ef333aa3a4ac764fb93097"
 dependencies = [
  "libc 0.2.112",
  "pam-sys",
- "users",
+ "users 0.8.1",
 ]
 
 [[package]]
@@ -544,6 +556,23 @@ checksum = "8440d8acb4fd3d277125b4bd01a6f38aee8d814b3b5fc09b3f2b825d37d3fe8f"
 dependencies = [
  "redox_syscall",
 ]
+
+[[package]]
+name = "regex"
+version = "1.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d83f127d94bdbcda4c8cc2e50f6f84f4b611f69c902699ca385a39c3a75f9ff1"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-syntax"
+version = "0.6.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49b3de9ec5dc0a3417da371aab17d729997c15010e7fd24ff707773a33bddb64"
 
 [[package]]
 name = "scopeguard"
@@ -710,6 +739,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fed7d0912567d35f88010c23dbaf865e9da8b5227295e8dc0f2fdd109155ab7"
 dependencies = [
  "libc 0.2.112",
+]
+
+[[package]]
+name = "users"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24cc0f6d6f267b73e5a2cadf007ba8f9bc39c6a6f9666f8cf25ea809a153b032"
+dependencies = [
+ "libc 0.2.112",
+ "log",
 ]
 
 [[package]]

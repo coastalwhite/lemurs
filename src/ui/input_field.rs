@@ -9,9 +9,10 @@ use tui::{
 };
 use unicode_width::UnicodeWidthStr;
 
-use crate::config::{get_color, UsernameFieldConfig};
+use crate::config::{get_color, InputFieldStyle};
 
 /// The type of the input field display. How are the characters which are typed displayed?
+#[derive(Clone)]
 pub enum InputFieldDisplayType {
     /// Show the characters that were typed
     Echo,
@@ -19,6 +20,7 @@ pub enum InputFieldDisplayType {
     Replace(String),
 }
 
+#[derive(Clone)]
 pub struct InputFieldWidget {
     content: String,
     /// Horizontal position of the cursor
@@ -27,19 +29,29 @@ pub struct InputFieldWidget {
     scroll: u16,
     width: u16,
     display_type: InputFieldDisplayType,
-    config: UsernameFieldConfig,
+    style: InputFieldStyle,
 }
 
 impl InputFieldWidget {
     /// Creates a new input field widget
-    pub fn new(display_type: InputFieldDisplayType, config: UsernameFieldConfig) -> Self {
+    pub fn new(
+        display_type: InputFieldDisplayType,
+        style: InputFieldStyle,
+        preset_content: String,
+    ) -> Self {
+        // Calculate the initial cursor position from the preset_content
+        let initial_cursor_position = preset_content
+            .len()
+            .try_into() // Convert from usize to u16
+            .unwrap_or(0u16);
+
         Self {
-            content: String::new(),
-            cursor: 0,
+            content: preset_content,
+            cursor: initial_cursor_position,
             scroll: 0,
-            width: 16, // Give it some initial width
+            width: 8, // Give it some initial width
             display_type,
-            config,
+            style,
         }
     }
 
@@ -68,10 +80,10 @@ impl InputFieldWidget {
 
         let index = usize::from(self.cursor + self.scroll - 1);
 
-        if self.cursor > 0 {
-            self.cursor -= 1;
-        } else if self.scroll > 0 {
+        if self.scroll > 0 {
             self.scroll -= 1;
+        } else if self.cursor > 0 {
+            self.cursor -= 1;
         }
         self.content.remove(index);
     }
@@ -133,34 +145,34 @@ impl InputFieldWidget {
 
     fn get_text_style(&self, is_focused: bool) -> Style {
         if is_focused {
-            Style::default().fg(get_color(&self.config.content_color_focused))
+            Style::default().fg(get_color(&self.style.content_color_focused))
         } else {
-            Style::default().fg(get_color(&self.config.content_color))
+            Style::default().fg(get_color(&self.style.content_color))
         }
     }
 
     fn get_block(&self, is_focused: bool) -> Block {
         let (title_style, border_style) = if is_focused {
             (
-                Style::default().fg(get_color(&self.config.title_color_focused)),
-                Style::default().fg(get_color(&self.config.border_color_focused)),
+                Style::default().fg(get_color(&self.style.title_color_focused)),
+                Style::default().fg(get_color(&self.style.border_color_focused)),
             )
         } else {
             (
-                Style::default().fg(get_color(&self.config.title_color)),
-                Style::default().fg(get_color(&self.config.border_color)),
+                Style::default().fg(get_color(&self.style.title_color)),
+                Style::default().fg(get_color(&self.style.border_color)),
             )
         };
 
         let block = Block::default();
 
-        let block = if self.config.show_title {
-            block.title(Span::styled(self.config.title.clone(), title_style))
+        let block = if self.style.show_title {
+            block.title(Span::styled(self.style.title.clone(), title_style))
         } else {
             block
         };
 
-        let block = if self.config.show_border {
+        let block = if self.style.show_border {
             block.borders(Borders::ALL).style(border_style)
         } else {
             block
@@ -169,12 +181,27 @@ impl InputFieldWidget {
         block
     }
 
+    /// Constraint the area to the given configuration
+    fn constraint_area(&self, mut area: Rect) -> Rect {
+        let style = &self.style;
+
+        // Check whether a maximum width has been set
+        if style.use_max_width && style.max_width < area.width {
+            // Center the area
+            area.x = (area.width - style.max_width) / 2;
+            area.width = style.max_width;
+        }
+
+        area
+    }
+
     pub fn render(
         &mut self,
         frame: &mut Frame<impl tui::backend::Backend>,
         area: Rect,
         is_focused: bool,
     ) {
+        let area = self.constraint_area(area);
         let block = self.get_block(is_focused);
         let inner = block.inner(area);
 
@@ -198,7 +225,7 @@ impl InputFieldWidget {
         }
     }
 
-    pub fn key_press(&mut self, key_code: KeyCode) {
+    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         match key_code {
             KeyCode::Backspace => self.backspace(),
             KeyCode::Delete => self.delete(),
@@ -209,6 +236,8 @@ impl InputFieldWidget {
             KeyCode::Char(c) => self.insert(c),
             _ => {}
         }
+
+        None
     }
 
     /// Get the real content of the input field
@@ -226,7 +255,11 @@ mod tests {
     #[test]
     fn cursor_movement() {
         // TODO: Verify Unicode behaviour
-        let mut input_field = InputFieldWidget::new(Echo, Config::default().username_field);
+        let mut input_field = InputFieldWidget::new(
+            Echo,
+            Config::default().username_field.style,
+            String::default(),
+        );
         assert_eq!(input_field.cursor, 0);
         input_field.insert('x');
         assert_eq!(input_field.cursor, 1);
@@ -256,7 +289,11 @@ mod tests {
 
     #[test]
     fn integration() {
-        let mut input_field = InputFieldWidget::new(Echo, Config::default().username_field);
+        let mut input_field = InputFieldWidget::new(
+            Echo,
+            Config::default().username_field.style,
+            String::default(),
+        );
         assert_eq!(&input_field.show_string(), "");
         input_field.backspace();
         assert_eq!(&input_field.show_string(), "");
