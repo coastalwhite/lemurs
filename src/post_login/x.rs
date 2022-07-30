@@ -40,7 +40,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
     let xauth_dir =
         PathBuf::from(env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| user_info.dir.to_string()));
     let xauth_path = xauth_dir.join(".Xauthority");
-    env::set_var("XAUTHORITY", xauth_path.clone());
+    env::set_var("XAUTHORITY", xauth_path);
     env::set_var("DISPLAY", DISPLAY);
 
     info!("Filling Xauthority file");
@@ -78,7 +78,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
 
         match Command::new(SYSTEM_SHELL)
             .arg("-c")
-            .arg(format!("timeout 1s /usr/bin/xset q"))
+            .arg("timeout 1s /usr/bin/xset q")
             .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
             .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
             .status()
