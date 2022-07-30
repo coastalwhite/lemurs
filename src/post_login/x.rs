@@ -5,7 +5,6 @@ use std::process::{Child, Command, Stdio};
 use std::{thread, time};
 use users::get_user_groups;
 
-use std::fs::File;
 use std::path::PathBuf;
 
 use log::{error, info};
@@ -18,16 +17,11 @@ const VIRTUAL_TERMINAL: &str = "vt01";
 const SYSTEM_SHELL: &str = "/bin/sh";
 
 pub enum XSetupError {
-    FileCreationXAuth,
     FillingXAuth,
     XServerStart,
 }
 
 pub enum XStartEnvError {
-    UsernameConversion,
-    SettingGroups,
-    SettingUid,
-    SettingGid,
     StartingEnvironment,
 }
 
@@ -115,14 +109,6 @@ pub fn start_env(user_info: &AuthUserInfo, script_path: &str) -> Result<Child, X
         .iter()
         .map(|group| group.gid())
         .collect();
-
-    let username = std::ffi::CString::new(user_info.name.clone()).map_err(|err| {
-        error!(
-            "Failed to convert '{}' into CString. Reason: {}",
-            user_info.name, err
-        );
-        XStartEnvError::UsernameConversion
-    })?;
 
     info!("Starting specified environment");
     let child = Command::new(SYSTEM_SHELL)

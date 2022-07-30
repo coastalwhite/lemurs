@@ -13,8 +13,8 @@ const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
 #[derive(Clone)]
 pub enum PostLoginEnvironment {
     X { xinitrc_path: String },
-    Wayland { script_path: String },
-    Shell,
+    // Wayland { script_path: String },
+    // Shell,
 }
 
 pub enum EnvironmentStartError {
@@ -36,14 +36,12 @@ impl PostLoginEnvironment {
 
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
-                let mut x_server =
-                    x::setup_x(user_info).map_err(EnvironmentStartError::XSetupError)?;
+                x::setup_x(user_info).map_err(EnvironmentStartError::XSetupError)?;
                 let mut gui_environment = x::start_env(user_info, xinitrc_path)
                     .map_err(EnvironmentStartError::XStartEnvError)?;
 
                 gui_environment.wait().unwrap();
             }
-            _ => unimplemented!(),
         }
 
         Ok(())
