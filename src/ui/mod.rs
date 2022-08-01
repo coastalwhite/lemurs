@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::auth::{AuthUserInfo, AuthenticationError};
-use crate::config::Config;
+use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_username, set_cached_username};
 use crate::post_login::{EnvironmentStartError, PostLoginEnvironment};
 use status_message::StatusMessage;
@@ -124,8 +124,7 @@ impl LoginForm {
             get_cached_username()
         } else {
             None
-        }
-        .unwrap_or_default();
+        };
 
         LoginForm {
             preview,
@@ -140,7 +139,7 @@ impl LoginForm {
             username_widget: InputFieldWidget::new(
                 InputFieldDisplayType::Echo,
                 config.username_field.style.clone(),
-                preset_username,
+                preset_username.clone().unwrap_or_default(),
             ),
             password_widget: InputFieldWidget::new(
                 InputFieldDisplayType::Replace(
@@ -152,7 +151,16 @@ impl LoginForm {
                 config.password_field.style.clone(),
                 String::default(),
             ),
-            input_mode: InputMode::Normal,
+            input_mode: match config.focus_behaviour {
+                FocusBehaviour::NoFocus => InputMode::Normal,
+                FocusBehaviour::Environment => InputMode::Switcher,
+                FocusBehaviour::Username => InputMode::Username,
+                FocusBehaviour::Password => InputMode::Password,
+                FocusBehaviour::FirstNonCached => match preset_username {
+                    Some(_) => InputMode::Password,
+                    None => InputMode::Username,
+                },
+            },
             status_message: None,
             config,
             send_redraw_channel: None,

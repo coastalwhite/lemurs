@@ -153,6 +153,9 @@ macro_rules! toml_config_struct {
 
 toml_config_struct! { Config, PartialConfig,
     tty => u8,
+
+    focus_behaviour => FocusBehaviour,
+
     power_controls => PowerControlConfig [PartialPowerControlConfig],
     environment_switcher => SwitcherConfig [PartialSwitcherConfig],
     username_field => UsernameFieldConfig [PartialUsernameFieldConfig],
@@ -243,6 +246,20 @@ toml_config_struct! { UsernameFieldConfig, PartialUsernameFieldConfig,
 toml_config_struct! { PasswordFieldConfig, PartialPasswordFieldConfig,
     content_replacement_character => char,
     style => InputFieldStyle [PartialInputFieldStyle],
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub enum FocusBehaviour {
+    #[serde(rename = "default")]
+    FirstNonCached,
+    #[serde(rename = "no-focus")]
+    NoFocus,
+    #[serde(rename = "environment")]
+    Environment,
+    #[serde(rename = "username")]
+    Username,
+    #[serde(rename = "password")]
+    Password,
 }
 
 impl Default for Config {
