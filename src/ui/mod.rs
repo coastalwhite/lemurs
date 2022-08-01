@@ -156,12 +156,10 @@ impl LoginForm {
                 FocusBehaviour::Environment => InputMode::Switcher,
                 FocusBehaviour::Username => InputMode::Username,
                 FocusBehaviour::Password => InputMode::Password,
-                FocusBehaviour::FirstNonCached => {
-                    match preset_username {
-                        Some(_) => InputMode::Password,
-                        None => InputMode::Username,
-                    }
-                }
+                FocusBehaviour::FirstNonCached => match preset_username {
+                    Some(_) => InputMode::Password,
+                    None => InputMode::Username,
+                },
             },
             status_message: None,
             config,
