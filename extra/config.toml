@@ -41,6 +41,16 @@
 # The tty which contains lemurs. This has to be mirrored in the lemurs.service
 tty = 2
 
+# Focus behaviour of fields when Lemurs is initially started
+# 
+# Possible values:
+# - default: Initially focus on first non-cached value
+# - no-focus: No initial focus
+# - environment: Initially focus on the environment selector
+# - username: Initially focus on the username field
+# - password: Initially focus on the password field
+focus_behaviour = "default"
+
 [power_controls]
 # Allow for the shutdown option to be used
 allow_shutdown = true
