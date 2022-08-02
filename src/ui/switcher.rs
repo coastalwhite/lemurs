@@ -1,5 +1,5 @@
-use log::warn;
 use crossterm::event::KeyCode;
+use log::warn;
 use tui::{
     layout::{Alignment, Rect},
     style::Style,
