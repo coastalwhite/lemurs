@@ -61,7 +61,7 @@ pub fn get_cached_information() -> CachedInfo {
                     None
 
                 // Username validity check (through regex)
-                } else if !USERNAME_REGEX.is_match(&cached_username) {
+                } else if !USERNAME_REGEX.is_match(cached_username) {
                     warn!("Cached username is not a valid username and is therefore not loaded.");
                     None
                 } else {
@@ -97,14 +97,12 @@ pub fn set_cache(environment: Option<&str>, username: Option<&str>) {
         }
 
         // Username validity check (through regex)
-        let username = if !USERNAME_REGEX.is_match(username) {
+        if !USERNAME_REGEX.is_match(username) {
             warn!("Username is not a valid username and is therefore not cached.");
             None
         } else {
             Some(username)
-        };
-
-        username
+        }
     } else {
         None
     };
