@@ -1,4 +1,5 @@
 use crossterm::event::KeyCode;
+use log::warn;
 use tui::{
     layout::{Alignment, Rect},
     style::Style,
@@ -44,6 +45,21 @@ impl<T> Switcher<T> {
     #[inline]
     fn len(&self) -> usize {
         self.items.len()
+    }
+
+    pub fn try_select(&mut self, title: &str) {
+        // Only set the selected if we find a matching title
+        if let Some(selected) = self
+            .items
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.title == title)
+            .map(|(index, _)| index)
+        {
+            self.selected = Some(selected);
+        } else {
+            warn!("Failed to find selection with title: '{}'", title);
+        }
     }
 
     fn next_index(&self, index: usize) -> Option<usize> {
@@ -112,6 +128,10 @@ impl<T> SwitcherWidget<T> {
             selector: Switcher::new(items),
             config,
         }
+    }
+
+    pub fn try_select(&mut self, title: &str) {
+        self.selector.try_select(title)
     }
 
     fn do_show_neighbours(&self, area_width: usize) -> bool {

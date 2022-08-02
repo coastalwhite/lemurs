@@ -244,6 +244,11 @@ impl InputFieldWidget {
     pub fn get_content(&self) -> String {
         self.content.clone()
     }
+
+    pub fn set_content(&mut self, content: &str) {
+        self.cursor = content.len() as u16;
+        self.content = content.to_string();
+    }
 }
 
 #[cfg(test)]
