@@ -107,6 +107,9 @@ hint_margin = 2
 # ---------
 #
 
+# Remember the selected environment after logging in for the next time
+remember = true
+
 # Enables showing the movers
 show_movers = true
 
@@ -171,7 +174,7 @@ no_envs_modifiers_focused = ""
 [username_field]
 
 # Remember the username for the next time after a successful login attempt.
-remember_username = true
+remember = true
 
 [username_field.style]
 # Enables showing a title

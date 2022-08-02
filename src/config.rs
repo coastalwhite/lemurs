@@ -181,6 +181,8 @@ toml_config_struct! { PowerControlConfig, PartialPowerControlConfig,
 }
 
 toml_config_struct! { SwitcherConfig, PartialSwitcherConfig,
+    remember => bool,
+
     show_movers => bool,
     mover_color => String,
     mover_color_focused => String,
@@ -239,7 +241,7 @@ toml_config_struct! { InputFieldStyle, PartialInputFieldStyle,
 }
 
 toml_config_struct! { UsernameFieldConfig, PartialUsernameFieldConfig,
-    remember_username => bool,
+    remember => bool,
     style => InputFieldStyle [PartialInputFieldStyle],
 }
 

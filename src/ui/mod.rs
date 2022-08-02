@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::auth::{AuthUserInfo, AuthenticationError};
 use crate::config::{Config, FocusBehaviour};
-use crate::info_caching::{get_cached_username, set_cached_username};
+use crate::info_caching::{get_cached_information, set_cache};
 use crate::post_login::{EnvironmentStartError, PostLoginEnvironment};
 use status_message::StatusMessage;
 
@@ -117,15 +117,51 @@ impl LoginForm {
         self.try_redraw();
     }
 
-    pub fn new(config: Config, preview: bool) -> LoginForm {
-        let remember_username = config.username_field.remember_username;
+    fn set_cache(&self) {
+        let env_remember = self.config.environment_switcher.remember;
+        let username_remember = self.config.username_field.remember;
 
-        let preset_username = if remember_username {
-            get_cached_username()
+        if !env_remember && !username_remember {
+            info!("Nothing to cache.");
+            return;
+        }
+
+        let selected_env = if self.config.environment_switcher.remember {
+            self.switcher_widget.selected().map(|item| &item.title[..])
         } else {
             None
         };
+        let username = self
+            .config
+            .username_field
+            .remember
+            .then_some(self.username_widget.get_content());
 
+        info!("Setting cached information");
+        set_cache(selected_env, username.as_deref());
+    }
+
+    fn load_cache(&mut self) {
+        let env_remember = self.config.environment_switcher.remember;
+        let username_remember = self.config.username_field.remember;
+
+        let cached = get_cached_information();
+
+        if username_remember {
+            if let Some(username) = cached.username() {
+                info!("Loading username '{}' from cache", username);
+                self.username_widget.set_content(username);
+            }
+        }
+        if env_remember {
+            if let Some(env) = cached.environment() {
+                info!("Loading environment '{}' from cache", env);
+                self.switcher_widget.try_select(env);
+            }
+        }
+    }
+
+    pub fn new(config: Config, preview: bool) -> LoginForm {
         LoginForm {
             preview,
             power_menu_widget: PowerMenuWidget::new(config.power_controls.clone()),
@@ -139,7 +175,7 @@ impl LoginForm {
             username_widget: InputFieldWidget::new(
                 InputFieldDisplayType::Echo,
                 config.username_field.style.clone(),
-                preset_username.clone().unwrap_or_default(),
+                String::default(),
             ),
             password_widget: InputFieldWidget::new(
                 InputFieldDisplayType::Replace(
@@ -152,14 +188,11 @@ impl LoginForm {
                 String::default(),
             ),
             input_mode: match config.focus_behaviour {
-                FocusBehaviour::NoFocus => InputMode::Normal,
+                // FirstNonCached gets fixed on run
+                FocusBehaviour::NoFocus | FocusBehaviour::FirstNonCached => InputMode::Normal,
                 FocusBehaviour::Environment => InputMode::Switcher,
                 FocusBehaviour::Username => InputMode::Username,
                 FocusBehaviour::Password => InputMode::Password,
-                FocusBehaviour::FirstNonCached => match preset_username {
-                    Some(_) => InputMode::Password,
-                    None => InputMode::Username,
-                },
             },
             status_message: None,
             config,
@@ -168,7 +201,7 @@ impl LoginForm {
     }
 
     pub fn run<'a, B, A, S>(
-        self,
+        mut self,
         terminal: &mut Terminal<B>,
         auth_fn: A,
         start_env_fn: S,
@@ -182,6 +215,23 @@ impl LoginForm {
             + std::marker::Send
             + 'static,
     {
+        self.load_cache();
+        if matches!(self.config.focus_behaviour, FocusBehaviour::FirstNonCached) {
+            self.input_mode = match (
+                self.config.username_field.remember,
+                !self.username_widget.get_content().is_empty(),
+                self.config.environment_switcher.remember,
+                self.switcher_widget
+                    .selected()
+                    .map(|s| !s.title.is_empty())
+                    .unwrap_or(false),
+            ) {
+                (true, true, true, true) => InputMode::Password,
+                (true, true, _, _) => InputMode::Username,
+                _ => InputMode::Switcher,
+            };
+        }
+
         let login_form = Arc::new(Mutex::new(self));
         match terminal.draw(|f| {
             let layout = Chunks::new(f);
@@ -237,6 +287,7 @@ impl LoginForm {
                                 login_form.attempt_login(&auth_fn, &start_env_fn);
                             }
                         }
+                        (KeyCode::Char('s'), &InputMode::Normal) => login_form.set_cache(),
                         (KeyCode::Enter | KeyCode::Down, _) => {
                             login_form.input_mode.next();
                         }
@@ -347,15 +398,17 @@ impl LoginForm {
         let password = self.password_widget.get_content();
 
         // Fetch the selected post login environment
-        let post_login_env = match self.switcher_widget.selected() {
-            None => {
-                self.set_status_message(ErrorStatusMessage::NoGraphicalEnvironment);
-                return;
-            }
-            Some(selected) => selected,
-        }
-        .content
-        .clone();
+        let (selected_env, post_login_env) = {
+            let switcher_item = match self.switcher_widget.selected() {
+                None => {
+                    self.set_status_message(ErrorStatusMessage::NoGraphicalEnvironment);
+                    return;
+                }
+                Some(selected) => selected,
+            };
+
+            (switcher_item.title.clone(), switcher_item.content.clone())
+        };
 
         self.set_status_message(InfoStatusMessage::Authenticating);
         let user_info = match auth_fn(username.clone(), password) {
@@ -371,9 +424,18 @@ impl LoginForm {
         };
 
         // Remember username for next time
-        if self.config.username_field.remember_username {
-            set_cached_username(&username);
-        }
+        set_cache(
+            if self.config.username_field.remember {
+                Some(&username)
+            } else {
+                None
+            },
+            if self.config.environment_switcher.remember {
+                Some(&selected_env)
+            } else {
+                None
+            },
+        );
 
         self.set_status_message(InfoStatusMessage::LoggingIn);
 
