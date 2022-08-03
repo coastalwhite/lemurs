@@ -368,6 +368,7 @@ impl LoginForm {
                     match (key.code, input_mode.get()) {
                         (KeyCode::Enter, InputMode::Password) => {
                             if self.preview {
+                                // This is only for demonstration purposes
                                 status_message.set(InfoStatusMessage::Authenticating);
                                 try_redraw();
                                 std::thread::sleep(Duration::from_secs(2));
