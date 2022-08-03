@@ -38,7 +38,7 @@ impl PowerMenuWidget {
         style
     }
 
-    pub fn render(&mut self, frame: &mut Frame<impl tui::backend::Backend>, area: Rect) {
+    pub fn render(&self, frame: &mut Frame<impl tui::backend::Backend>, area: Rect) {
         let mut items = Vec::new();
 
         if self.config.allow_shutdown {
@@ -69,7 +69,7 @@ impl PowerMenuWidget {
         frame.render_widget(widget, area);
     }
 
-    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
+    pub(crate) fn key_press(&self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         // TODO: Properly handle StdIn
         if self.config.allow_shutdown && key_code == get_key(&self.config.shutdown_key) {
             let cmd_status = Command::new("bash")
