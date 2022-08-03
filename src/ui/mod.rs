@@ -486,17 +486,26 @@ fn login_form_render<B: Backend>(
     status_message: Option<StatusMessage>,
 ) {
     power_menu.render(frame, chunks.power_menu);
-    environment.lock().unwrap().render(
+    environment.lock().unwrap_or_else(|err| {
+        error!("Failed to lock post-login environment. Reason: {}", err);
+        std::process::exit(1);
+    }).render(
         frame,
         chunks.switcher,
         matches!(input_mode, InputMode::Switcher),
     );
-    username.lock().unwrap().render(
+    username.lock().unwrap_or_else(|err| {
+        error!("Failed to lock username. Reason: {}", err);
+        std::process::exit(1);
+    }).render(
         frame,
         chunks.username_field,
         matches!(input_mode, InputMode::Username),
     );
-    password.lock().unwrap().render(
+    password.lock().unwrap_or_else(|err| {
+        error!("Failed to lock password. Reason: {}", err);
+        std::process::exit(1);
+    }).render(
         frame,
         chunks.password_field,
         matches!(input_mode, InputMode::Password),
