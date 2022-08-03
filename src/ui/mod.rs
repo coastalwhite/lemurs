@@ -47,7 +47,7 @@ impl LoginFormInputMode {
     }
 
     fn get(&self) -> InputMode {
-        self.get_guard().clone()
+        *self.get_guard()
     }
 
     fn prev(&self) {
@@ -82,7 +82,7 @@ impl LoginFormStatusMessage {
     }
 
     fn get(&self) -> Option<StatusMessage> {
-        self.get_guard().clone()
+        *self.get_guard()
     }
 
     fn clear(&self) {
@@ -392,7 +392,7 @@ impl LoginForm {
                                     password,
                                     config,
                                     status_message.clone(),
-                                    try_redraw.clone(),
+                                    try_redraw,
                                     || self.widgets.clear_password(),
                                     || self.set_cache(),
                                     &auth_fn,
@@ -487,30 +487,39 @@ fn login_form_render<B: Backend>(
     status_message: Option<StatusMessage>,
 ) {
     power_menu.render(frame, chunks.power_menu);
-    environment.lock().unwrap_or_else(|err| {
-        error!("Failed to lock post-login environment. Reason: {}", err);
-        std::process::exit(1);
-    }).render(
-        frame,
-        chunks.switcher,
-        matches!(input_mode, InputMode::Switcher),
-    );
-    username.lock().unwrap_or_else(|err| {
-        error!("Failed to lock username. Reason: {}", err);
-        std::process::exit(1);
-    }).render(
-        frame,
-        chunks.username_field,
-        matches!(input_mode, InputMode::Username),
-    );
-    password.lock().unwrap_or_else(|err| {
-        error!("Failed to lock password. Reason: {}", err);
-        std::process::exit(1);
-    }).render(
-        frame,
-        chunks.password_field,
-        matches!(input_mode, InputMode::Password),
-    );
+    environment
+        .lock()
+        .unwrap_or_else(|err| {
+            error!("Failed to lock post-login environment. Reason: {}", err);
+            std::process::exit(1);
+        })
+        .render(
+            frame,
+            chunks.switcher,
+            matches!(input_mode, InputMode::Switcher),
+        );
+    username
+        .lock()
+        .unwrap_or_else(|err| {
+            error!("Failed to lock username. Reason: {}", err);
+            std::process::exit(1);
+        })
+        .render(
+            frame,
+            chunks.username_field,
+            matches!(input_mode, InputMode::Username),
+        );
+    password
+        .lock()
+        .unwrap_or_else(|err| {
+            error!("Failed to lock password. Reason: {}", err);
+            std::process::exit(1);
+        })
+        .render(
+            frame,
+            chunks.password_field,
+            matches!(input_mode, InputMode::Password),
+        );
 
     // Display Status Message
     StatusMessage::render(status_message, frame, chunks.status_message);
@@ -547,7 +556,7 @@ fn attempt_login<'a, TR, PC, SC, A, S>(
     status_message.set(InfoStatusMessage::Authenticating);
     try_redraw();
 
-    let user_info = match auth_fn(username.clone(), password) {
+    let user_info = match auth_fn(username, password) {
         Err(err) => {
             status_message.set(ErrorStatusMessage::AuthenticationError(err));
 
