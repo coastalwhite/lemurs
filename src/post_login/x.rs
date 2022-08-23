@@ -1,3 +1,4 @@
+use nix::unistd::Gid;
 use rand::Rng;
 use std::env;
 use std::os::unix::process::CommandExt;
@@ -112,26 +113,28 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
 pub fn start_env(user_info: &AuthUserInfo, script_path: &str) -> Result<Child, XStartEnvError> {
     let uid = user_info.uid;
     let gid = user_info.gid;
-    let groups: Vec<u32> = get_user_groups(&user_info.name, gid)
+    let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
         .unwrap()
         .iter()
-        .map(|group| group.gid())
+        .map(|group| Gid::from_raw(group.gid()))
         .collect();
 
     info!("Starting specified environment");
-    let child = Command::new(SYSTEM_SHELL)
+    let mut cmd = Command::new(SYSTEM_SHELL);
+    let cmd = cmd
         .arg("-c")
         .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", script_path))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .uid(uid)
-        .gid(gid)
-        .groups(&groups)
-        .spawn()
-        .map_err(|err| {
-            error!("Failed to start specified environment. Reason: {}", err);
-            XStartEnvError::StartingEnvironment
-        })?;
+        .gid(gid);
+    let cmd =
+        unsafe { cmd.pre_exec(move || nix::unistd::setgroups(&groups).map_err(|err| err.into())) };
+
+    let child = cmd.spawn().map_err(|err| {
+        error!("Failed to start specified environment. Reason: {}", err);
+        XStartEnvError::StartingEnvironment
+    })?;
 
     info!("Started specified environment");
 

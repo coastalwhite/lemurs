@@ -393,14 +393,14 @@ mod tests {
         fn empty_creation() {
             // On an empty selector the go_next and go_prev should do nothing.
 
-            let mut selector = Switcher::new(vec![]);
+            let mut selector: Switcher<()> = Switcher::new(vec![]);
             assert_eq!(selector.current(), None);
             selector.go_next();
             assert_eq!(selector.current(), None);
             selector.go_prev();
             assert_eq!(selector.current(), None);
 
-            let mut selector = Switcher::new(vec![]);
+            let mut selector: Switcher<()> = Switcher::new(vec![]);
             assert_eq!(selector.current(), None);
             selector.go_prev();
             assert_eq!(selector.current(), None);
@@ -410,7 +410,7 @@ mod tests {
 
         #[test]
         fn single_creation() {
-            let wm = SwitcherItem::new("abc", "/abc".into());
+            let wm: SwitcherItem<String> = SwitcherItem::new("abc", "/abc".into());
 
             let mut selector = Switcher::new(vec![wm.clone()]);
             assert_eq!(selector.current(), Some(&wm));
@@ -443,7 +443,7 @@ mod tests {
 
         #[test]
         fn multiple_creation() {
-            let wm1 = SwitcherItem::new("abc", "/abc".into());
+            let wm1: SwitcherItem<String> = SwitcherItem::new("abc", "/abc".into());
             let wm2 = SwitcherItem::new("def", "/def".into());
 
             let mut selector = Switcher::new(vec![wm1.clone(), wm2.clone()]);

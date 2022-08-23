@@ -1,5 +1,3 @@
-#![feature(setgroups)]
-
 use std::error::Error;
 use std::io;
 use std::path::{Path, PathBuf};
