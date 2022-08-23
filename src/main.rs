@@ -2,9 +2,10 @@
 
 use std::error::Error;
 use std::io;
+use std::path::{Path, PathBuf};
 use std::process;
 
-use clap::{arg, App as ClapApp};
+use clap::Parser;
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -27,14 +28,14 @@ const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
 const DEFAULT_LOG_PATH: &str = "/var/log/lemurs.log";
 
-fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
-    let load_config_path = config_path.unwrap_or(DEFAULT_CONFIG_PATH);
+fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
+    let load_config_path = config_path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
 
     match config::PartialConfig::from_file(load_config_path) {
         Ok(partial_config) => {
             info!(
                 "Successfully loaded configuration file from '{}'",
-                load_config_path
+                load_config_path.display()
             );
             config.merge_in_partial(partial_config)
         }
@@ -44,7 +45,8 @@ fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
             if let Some(config_path) = config_path {
                 eprintln!(
                     "The config file '{}' cannot be loaded.\nReason: {}",
-                    config_path, err
+                    config_path.display(),
+                    err
                 );
                 process::exit(1);
             } else {
@@ -95,31 +97,35 @@ fn setup_logger(is_preview: bool) {
         });
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let matches = ClapApp::new("Lemurs")
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(arg!(--preview))
-        .arg(arg!(--nolog))
-        .arg(arg!(-c --config [FILE] "a file to replace the default configuration"))
-        .get_matches();
+#[derive(Parser)]
+#[clap(name = "Lemurs", about, author, version)]
+struct Cli {
+    #[clap(long)]
+    preview: bool,
 
-    let no_log = matches.is_present("nolog");
-    let preview = matches.is_present("preview");
+    #[clap(long)]
+    no_log: bool,
+
+    /// A file to replace the default configuration
+    #[clap(short, long, value_name = "FILE")]
+    config: Option<PathBuf>,
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let cli = Cli::parse();
 
     // Setup the logger
-    if !no_log {
-        setup_logger(preview);
+    if !cli.no_log {
+        setup_logger(cli.preview);
     }
 
     info!("Lemurs logger is running");
 
     // Load and setup configuration
     let mut config = Config::default();
-    merge_in_configuration(&mut config, matches.value_of("config"));
+    merge_in_configuration(&mut config, cli.config.as_deref());
 
-    if !preview {
+    if !cli.preview {
         // Switch to the proper tty
         info!("Switching to tty {}", config.tty);
 
@@ -130,7 +136,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Start application
     let mut terminal = tui_enable()?;
-    let login_form = ui::LoginForm::new(config, preview);
+    let login_form = ui::LoginForm::new(config, cli.preview);
     login_form.run(&mut terminal, try_auth, post_login_env_start)?;
     tui_disable(terminal)?;
 

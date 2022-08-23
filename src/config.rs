@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{self, BufReader, Read};
+use std::path::Path;
 use std::process;
 
 use crossterm::event::KeyCode;
@@ -274,7 +275,7 @@ impl Default for Config {
 }
 
 impl PartialConfig {
-    pub fn from_file(path: &str) -> io::Result<PartialConfig> {
+    pub fn from_file(path: &Path) -> io::Result<PartialConfig> {
         let file = File::open(path)?;
         let mut buf_reader = BufReader::new(file);
         let mut contents = String::new();
