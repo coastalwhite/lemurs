@@ -2,7 +2,7 @@
 
 use std::error::Error;
 use std::io;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::process;
 
 use clap::Parser;
@@ -45,7 +45,8 @@ fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
             if let Some(config_path) = config_path {
                 eprintln!(
                     "The config file '{}' cannot be loaded.\nReason: {}",
-                    config_path.display(), err
+                    config_path.display(),
+                    err
                 );
                 process::exit(1);
             } else {
