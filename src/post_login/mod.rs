@@ -67,6 +67,17 @@ pub fn get_envs() -> Vec<(String, PostLoginEnvironment)> {
             let file_name = path.file_name().into_string();
 
             if let Ok(file_name) = file_name {
+                if let Ok(metadata) = path.metadata() {
+                    if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
+                        warn!(
+                            "'{}' is not executable and therefore not added as an environment",
+                            file_name
+                        );
+
+                        continue;
+                    }
+                }
+
                 envs.push((
                     file_name,
                     PostLoginEnvironment::X {
