@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -107,10 +107,28 @@ struct Cli {
     /// A file to replace the default configuration
     #[clap(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
+
+    #[clap(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Envs,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
+
+    if matches!(cli.command, Some(Commands::Envs)) {
+        let envs = post_login::get_envs();
+
+        for (env_name, _) in envs.into_iter() {
+            println!("{}", env_name);
+        }
+
+        return Ok(());
+    }
 
     // Setup the logger
     if !cli.no_log {
