@@ -3,7 +3,7 @@ use log::{info, warn};
 use regex::Regex;
 use std::fs::{read_to_string, write};
 
-const CACHE_PATH: &str = "/var/cache/lemurs";
+pub const CACHE_PATH: &str = "/var/cache/lemurs";
 const USERNAME_REGEX_STR: &str = r"^[a-z][-a-z0-9]*$";
 const USERNAME_LENGTH_LIMIT: usize = 32;
 

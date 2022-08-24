@@ -115,16 +115,41 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Envs,
+    Cache,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    if matches!(cli.command, Some(Commands::Envs)) {
-        let envs = post_login::get_envs();
+    if let Some(cmd) = cli.command {
+        match cmd {
+            Commands::Envs => {
+                let envs = post_login::get_envs();
 
-        for (env_name, _) in envs.into_iter() {
-            println!("{}", env_name);
+                for (env_name, _) in envs.into_iter() {
+                    println!("{}", env_name);
+                }
+            }
+            Commands::Cache => {
+                let cached_info = info_caching::get_cached_information();
+
+                let environment = cached_info
+                    .environment()
+                    .map(|s| format!("'{}'", s))
+                    .unwrap_or(String::from("No cached value"));
+                let username = cached_info
+                    .username()
+                    .map(|s| format!("'{}'", s))
+                    .unwrap_or(String::from("No cached value"));
+
+                println!(
+                    "Information currently cached within '{}'\n",
+                    info_caching::CACHE_PATH
+                );
+
+                println!("environment: {}", environment);
+                println!("username: {}", username);
+            }
         }
 
         return Ok(());
