@@ -1,4 +1,4 @@
-use nix::unistd::Gid;
+use nix::unistd::{Gid, Uid};
 use rand::Rng;
 use std::env;
 use std::os::unix::process::CommandExt;
@@ -125,11 +125,17 @@ pub fn start_env(user_info: &AuthUserInfo, script_path: &str) -> Result<Child, X
         .arg("-c")
         .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", script_path))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-        .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
-        .uid(uid)
-        .gid(gid);
-    let cmd =
-        unsafe { cmd.pre_exec(move || nix::unistd::setgroups(&groups) }.map_err(|err| err.into()));
+        .stderr(Stdio::null()); // TODO: Maybe this should be logged or something?
+    let cmd = unsafe {
+        cmd.pre_exec(move || {
+            // NOTE: The order here is very vital, otherwise permission errors occur
+            // This is basically a copy of how the nightly standard library does it.
+            nix::unistd::setgroups(&groups)
+                .and(nix::unistd::setgid(Gid::from_raw(gid)))
+                .and(nix::unistd::setuid(Uid::from_raw(uid)))
+                .map_err(|err| err.into())
+        })
+    };
 
     let child = cmd.spawn().map_err(|err| {
         error!("Failed to start specified environment. Reason: {}", err);
