@@ -20,7 +20,7 @@ echo
 
 # Compile lemurs
 echo 'Step 1: Compile Lemurs'
-cargo +nightly build --release 
+cargo build --release 
 if [ $? -ne 0 ]; then exit 1; fi
 
 # Move lemurs to /usr/bin
