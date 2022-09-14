@@ -129,7 +129,7 @@ pub fn start_env(user_info: &AuthUserInfo, script_path: &str) -> Result<Child, X
         .uid(uid)
         .gid(gid);
     let cmd =
-        unsafe { cmd.pre_exec(move || nix::unistd::setgroups(&groups).map_err(|err| err.into())) };
+        unsafe { cmd.pre_exec(move || nix::unistd::setgroups(&groups) }.map_err(|err| err.into()));
 
     let child = cmd.spawn().map_err(|err| {
         error!("Failed to start specified environment. Reason: {}", err);
