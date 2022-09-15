@@ -104,6 +104,10 @@ struct Cli {
     #[clap(long)]
     no_log: bool,
 
+    /// Override the configured TTY number
+    #[clap(long, value_name = "N")]
+    tty: Option<u8>,
+
     /// A file to replace the default configuration
     #[clap(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
@@ -165,6 +169,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Load and setup configuration
     let mut config = Config::default();
     merge_in_configuration(&mut config, cli.config.as_deref());
+
+    if let Some(tty) = cli.tty {
+        config.tty = tty;
+    }
 
     if !cli.preview {
         // Switch to the proper tty
