@@ -171,6 +171,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     merge_in_configuration(&mut config, cli.config.as_deref());
 
     if let Some(tty) = cli.tty {
+        info!("Overwritten the tty to '{}' with the --tty flag", tty);
         config.tty = tty;
     }
 
