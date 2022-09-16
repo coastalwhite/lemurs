@@ -125,10 +125,14 @@ enum Commands {
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
+    // Load and setup configuration
+    let mut config = Config::default();
+    merge_in_configuration(&mut config, cli.config.as_deref());
+
     if let Some(cmd) = cli.command {
         match cmd {
             Commands::Envs => {
-                let envs = post_login::get_envs();
+                let envs = post_login::get_envs(config.environment_switcher.include_tty_shell);
 
                 for (env_name, _) in envs.into_iter() {
                     println!("{}", env_name);
@@ -165,10 +169,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     info!("Lemurs logger is running");
-
-    // Load and setup configuration
-    let mut config = Config::default();
-    merge_in_configuration(&mut config, cli.config.as_deref());
 
     if let Some(tty) = cli.tty {
         info!("Overwritten the tty to '{}' with the --tty flag", tty);

@@ -11,7 +11,13 @@ use crate::info_caching::{get_cached_information, set_cache};
 use crate::post_login::{EnvironmentStartError, PostLoginEnvironment};
 use status_message::StatusMessage;
 
+use crossterm::cursor::MoveTo;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use crossterm::execute;
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
+};
+use tui::backend::CrosstermBackend;
 use tui::{backend::Backend, Frame, Terminal};
 
 mod chunks;
@@ -137,6 +143,8 @@ impl InputMode {
 
 enum UIThreadRequest {
     Redraw,
+    DisableTui,
+    EnableTui,
     StopDrawing,
 }
 
@@ -262,7 +270,7 @@ impl LoginForm {
             widgets: Widgets {
                 power_menu: PowerMenuWidget::new(config.power_controls.clone()),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
-                    crate::post_login::get_envs()
+                    crate::post_login::get_envs(config.environment_switcher.include_tty_shell)
                         .into_iter()
                         .map(|(title, content)| SwitcherItem::new(title, content))
                         .collect(),
@@ -288,14 +296,13 @@ impl LoginForm {
         }
     }
 
-    pub fn run<'a, B, A, S>(
+    pub fn run<'a, A, S>(
         self,
-        terminal: &mut Terminal<B>,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
         auth_fn: A,
         start_env_fn: S,
     ) -> io::Result<()>
     where
-        B: Backend,
         A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>
             + std::marker::Send
             + 'static,
@@ -358,9 +365,9 @@ impl LoginForm {
             let input_mode = event_input_mode;
             let status_message = event_status_message;
 
-            let try_redraw = || match req_send_channel.send(UIThreadRequest::Redraw) {
+            let send_ui_request = |request: UIThreadRequest| match req_send_channel.send(request) {
                 Ok(_) => {}
-                Err(err) => warn!("Failed to redraw. Reason: {}", err),
+                Err(err) => warn!("Failed to send UI request. Reason: {}", err),
             };
 
             loop {
@@ -370,15 +377,15 @@ impl LoginForm {
                             if self.preview {
                                 // This is only for demonstration purposes
                                 status_message.set(InfoStatusMessage::Authenticating);
-                                try_redraw();
+                                send_ui_request(UIThreadRequest::Redraw);
                                 std::thread::sleep(Duration::from_secs(2));
 
                                 status_message.set(InfoStatusMessage::LoggingIn);
-                                try_redraw();
+                                send_ui_request(UIThreadRequest::Redraw);
                                 std::thread::sleep(Duration::from_secs(2));
 
                                 status_message.clear();
-                                try_redraw();
+                                send_ui_request(UIThreadRequest::Redraw);
                             } else {
                                 let environment =
                                     self.widgets.get_environment().map(|(_, content)| content);
@@ -392,7 +399,7 @@ impl LoginForm {
                                     password,
                                     config,
                                     status_message.clone(),
-                                    try_redraw,
+                                    send_ui_request,
                                     || self.widgets.clear_password(),
                                     || self.set_cache(),
                                     &auth_fn,
@@ -447,29 +454,50 @@ impl LoginForm {
                     };
                 }
 
-                try_redraw();
+                send_ui_request(UIThreadRequest::Redraw);
             }
         });
 
         // Start the UI thread. This actually draws to the screen.
         //
         // This blocks until we actually call StopDrawing
-        while let UIThreadRequest::Redraw = req_recv_channel.recv().unwrap() {
-            terminal
-                .draw(|f| {
-                    let layout = Chunks::new(f);
-                    login_form_render(
-                        f,
-                        layout,
-                        power_menu.clone(),
-                        environment.clone(),
-                        username.clone(),
-                        password.clone(),
-                        input_mode.get(),
-                        status_message.get(),
-                    );
-                })
-                .unwrap();
+        while let Ok(request) = req_recv_channel.recv() {
+            match request {
+                UIThreadRequest::Redraw => {
+                    terminal
+                        .draw(|f| {
+                            let layout = Chunks::new(f);
+                            login_form_render(
+                                f,
+                                layout,
+                                power_menu.clone(),
+                                environment.clone(),
+                                username.clone(),
+                                password.clone(),
+                                input_mode.get(),
+                                status_message.get(),
+                            );
+                        })
+                        .unwrap();
+                }
+                UIThreadRequest::DisableTui => {
+                    disable_raw_mode()?;
+                    execute!(
+                        terminal.backend_mut(),
+                        LeaveAlternateScreen,
+                        Clear(ClearType::All),
+                        MoveTo(0, 0)
+                    )?;
+                    terminal.show_cursor()?;
+                }
+                UIThreadRequest::EnableTui => {
+                    enable_raw_mode()?;
+                    let mut stdout = io::stdout();
+                    execute!(stdout, EnterAlternateScreen)?;
+                    terminal.clear()?;
+                }
+                _ => break,
+            }
         }
 
         Ok(())
@@ -531,13 +559,13 @@ fn attempt_login<'a, TR, PC, SC, A, S>(
     password: String,
     config: Config,
     status_message: LoginFormStatusMessage,
-    try_redraw: TR,
+    send_ui_request: TR,
     password_clear: PC,
     set_cache: SC,
     auth_fn: A,
     start_env_fn: S,
 ) where
-    TR: Fn(),
+    TR: Fn(UIThreadRequest),
     PC: Fn(),
     SC: Fn(),
     A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>,
@@ -547,14 +575,14 @@ fn attempt_login<'a, TR, PC, SC, A, S>(
     let post_login_env = match environment {
         None => {
             status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
-            try_redraw();
+            send_ui_request(UIThreadRequest::Redraw);
             return;
         }
         Some(selected) => selected,
     };
 
     status_message.set(InfoStatusMessage::Authenticating);
-    try_redraw();
+    send_ui_request(UIThreadRequest::Redraw);
 
     let user_info = match auth_fn(username, password) {
         Err(err) => {
@@ -562,7 +590,7 @@ fn attempt_login<'a, TR, PC, SC, A, S>(
 
             // Clear the password field
             password_clear();
-            try_redraw();
+            send_ui_request(UIThreadRequest::Redraw);
 
             return;
         }
@@ -573,18 +601,24 @@ fn attempt_login<'a, TR, PC, SC, A, S>(
     set_cache();
 
     status_message.set(InfoStatusMessage::LoggingIn);
-    try_redraw();
+    send_ui_request(UIThreadRequest::Redraw);
+
+    // Disable the rendering of the login manager
+    send_ui_request(UIThreadRequest::DisableTui);
 
     // NOTE: if this call is succesful, it blocks the thread until the environment is
     // terminated
     start_env_fn(&post_login_env, &config, &user_info).unwrap_or_else(|_| {
         error!("Starting post-login environment failed");
         status_message.set(ErrorStatusMessage::FailedGraphicalEnvironment);
-        try_redraw();
+        send_ui_request(UIThreadRequest::Redraw);
     });
 
+    // Enable the rendering of the login manager
+    send_ui_request(UIThreadRequest::EnableTui);
+
     status_message.clear();
-    try_redraw();
+    send_ui_request(UIThreadRequest::Redraw);
 
     // Just to add explicitness that the user session is dropped here
     drop(user_info);
