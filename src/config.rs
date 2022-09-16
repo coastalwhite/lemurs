@@ -182,6 +182,8 @@ toml_config_struct! { PowerControlConfig, PartialPowerControlConfig,
 }
 
 toml_config_struct! { SwitcherConfig, PartialSwitcherConfig,
+    include_tty_shell => bool,
+
     remember => bool,
 
     show_movers => bool,

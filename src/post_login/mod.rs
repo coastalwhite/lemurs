@@ -1,9 +1,16 @@
-use log::{info, warn};
+use log::{error, info, warn};
 use std::fs;
+
+use users::get_user_groups;
+
+use std::os::unix::process::CommandExt;
+use std::process::{Command, Stdio};
 
 use crate::auth::AuthUserInfo;
 use crate::config::Config;
 use env_variables::{init_environment, set_xdg_env};
+
+use nix::unistd::{Gid, Uid};
 
 mod env_variables;
 mod x;
@@ -14,7 +21,7 @@ const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
 pub enum PostLoginEnvironment {
     X { xinitrc_path: String },
     // Wayland { script_path: String },
-    // Shell,
+    Shell,
 }
 
 pub enum EnvironmentStartError {
@@ -46,13 +53,49 @@ impl PostLoginEnvironment {
                     EnvironmentStartError::WaitingForEnv
                 })?;
             }
+            PostLoginEnvironment::Shell => {
+                let uid = user_info.uid;
+                let gid = user_info.gid;
+                let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
+                    .unwrap()
+                    .iter()
+                    .map(|group| Gid::from_raw(group.gid()))
+                    .collect();
+
+                info!("Starting TTY shell");
+                let shell = &user_info.shell;
+                let status = unsafe {
+                    Command::new(shell).pre_exec(move || {
+                        // NOTE: The order here is very vital, otherwise permission errors occur
+                        // This is basically a copy of how the nightly standard library does it.
+                        nix::unistd::setgroups(&groups)
+                            .and(nix::unistd::setgid(Gid::from_raw(gid)))
+                            .and(nix::unistd::setuid(Uid::from_raw(uid)))
+                            .map_err(|err| err.into())
+                    })
+                }
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .stdin(Stdio::inherit())
+                .status();
+
+                match status {
+                    Ok(_) => info!("Successfully returned from TTY shell"),
+                    Err(err) => {
+                        error!(
+                            "Failed to start TTY shell, Reason: {}. Returning to Lemurs...",
+                            err
+                        );
+                    }
+                };
+            }
         }
 
         Ok(())
     }
 }
 
-pub fn get_envs() -> Vec<(String, PostLoginEnvironment)> {
+pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
     let found_paths = match fs::read_dir(INITRCS_FOLDER_PATH) {
         Ok(paths) => paths,
         Err(_) => return Vec::new(),
@@ -60,6 +103,9 @@ pub fn get_envs() -> Vec<(String, PostLoginEnvironment)> {
 
     // NOTE: Maybe we can do something smart with `with_capacity` here.
     let mut envs = Vec::new();
+    if with_tty_shell {
+        envs.push(("TTYSHELL".to_string(), PostLoginEnvironment::Shell));
+    }
 
     // TODO: Add other post login environment methods
     for path in found_paths {
