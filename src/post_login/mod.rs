@@ -103,9 +103,6 @@ pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
 
     // NOTE: Maybe we can do something smart with `with_capacity` here.
     let mut envs = Vec::new();
-    if with_tty_shell {
-        envs.push(("TTYSHELL".to_string(), PostLoginEnvironment::Shell));
-    }
 
     // TODO: Add other post login environment methods
     for path in found_paths {
@@ -145,6 +142,10 @@ pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
         } else {
             warn!("Ignored errorinous path: '{}'", path.unwrap_err());
         }
+    }
+
+    if envs.is_empty() || with_tty_shell {
+        envs.push(("TTYSHELL".to_string(), PostLoginEnvironment::Shell));
     }
 
     envs
