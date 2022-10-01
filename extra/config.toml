@@ -107,8 +107,9 @@ hint_margin = 2
 # ---------
 #
 
-# Show an option for the TTY shell when logging in as one of the environments
-include_tty_shell = true
+# Show an option for the TTY shell when logging in as one of the environments. 
+# NOTE: it is always shown when no viable options are found. 
+include_tty_shell = false
 
 # Remember the selected environment after logging in for the next time
 remember = true
