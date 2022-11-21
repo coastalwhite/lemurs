@@ -83,12 +83,7 @@ file. This file contains all the options and explanations of their purpose.
 The flag `--config <CONFIG FIlE>` can be used to select another configuration
 file instead. An example configuration can be found in the `/extra` folder.
 
-## License
-
-The project is made available under the MIT and APACHE license. See the
-`LICENSE-MIT` and `LICENSE-APACHE` files, respectively, for more information.
-
-## Debugging / Logging
+## Preview & Debugging
 
 Lemurs logs a lot of information of it running to a logging file. This is
 located by default at `/var/log/lemurs.log`, but can be turned of by running
@@ -97,6 +92,39 @@ with the `--nolog` flag.
 If you want to test your configuration file you can also run `lemurs
 --preview`. This will run a preview instance of your configuration. This will
 automatically create a `lemurs.log` in the working directory.
+
+## File Structure
+
+Below is overview of the source files in this project and a short description of
+each of them and their use. This can be used by people who want to contribute or
+want to tweak details for their own installation.
+
+```
+|- src: Rust Source Code
+|  |- main.rs: CLI argument parsing & main logic
+|  |- auth: Interaction with PAM modules
+|  |- config.rs: Configuration file format and options
+|  |- info_caching.rs: Reading and writing cached login information
+|  |- post_login: All logic after authentication
+|  |  |- env_variables.rs: General environment variables settings
+|  |  |- x.rs: Logic concerning Xorg
+|  |- ui: TUI code
+|  |  |- mod.rs: UI calling logic, separated over 2 threads
+|  |  |- input_field.rs: TUI input field used for username and password
+|  |  |- power_menu.rs: Shutdown and Reboot options UI
+|  |  |- status_message.rs: UI for error and information messages
+|  |  |- switcher.rs: UI for environment switcher
+|  |  |- chunks.rs: Division of the TUI screen
+|- extra: Configuration and extra files needed
+|  |- config.toml: The default configuration file
+|  |- xsetup.sh: Script used to setup a Xorg session
+|  |- lemurs.service: The systemd service used to start at boot
+```
+
+## License
+
+The project is made available under the MIT and APACHE license. See the
+`LICENSE-MIT` and `LICENSE-APACHE` files, respectively, for more information.
 
 ## Contributions
 
