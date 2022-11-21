@@ -22,6 +22,27 @@ Lemurs uses Linux PAM as its method of authentication.
 
 ## Installation
 
+There are two different ways to install Lemurs. Both require the rust toolchain
+to be installed. I.e. there is currently no precompiled option.
+
+### Arch Linux --- AUR
+
+Lemurs can be installed from the [AUR](https://aur.archlinux.org). This will
+build the package on your local machine. It will automatically pull in rustup,
+but you might have to set the default toolchain with `rustup default stable`.
+
+```bash
+git clone https://aur.archlinux.org/lemurs-git.git
+cd lemurs-git
+makepkg -si
+
+or
+
+paru -S lemurs-git # paru can be replaced by any other AUR helper
+```
+
+### Compiling from source
+
 The `install.sh` script can be used to compile and setup the display manager on
 your Unix machine. This will perform multiple steps:
 
