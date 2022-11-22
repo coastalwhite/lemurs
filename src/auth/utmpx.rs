@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use libc::{utmpx, USER_PROCESS, DEAD_PROCESS};
+use libc::{utmpx, DEAD_PROCESS, USER_PROCESS};
 use log::{error, info};
 
 pub struct UtmpxSession(utmpx);
@@ -76,7 +76,7 @@ impl Drop for UtmpxSession {
         entry.ut_type = DEAD_PROCESS;
 
         entry.ut_line = [0; 32];
-        entry.ut_user = [0; 32]; 
+        entry.ut_user = [0; 32];
 
         entry.ut_tv.tv_usec = 0;
         entry.ut_tv.tv_sec = 0;
@@ -87,5 +87,4 @@ impl Drop for UtmpxSession {
             libc::endutxent();
         }
     }
-    
 }

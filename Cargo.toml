@@ -32,6 +32,9 @@ regex = "1.5"
 rand = "0.8.4"
 nix = "0.23.1"
 
+# UTMPX
+libc = "0.2"
+
 # Switching TTYs
 chvt = "0.2.0"
 
