@@ -28,9 +28,6 @@ nix = "0.23.1"
 # UTMPX
 libc = "0.2"
 
-# Switching TTYs
-chvt = "0.2.0"
-
 # Authentication and Fetching User Data
 pam = "0.7.0"
 pgs-files = "0.0.7"
