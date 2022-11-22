@@ -71,7 +71,7 @@ impl PostLoginEnvironment {
                     .collect();
 
                 info!("Starting Wayland Session");
-                let Ok(child) = unsafe {
+                let child = match unsafe {
                     Command::new("/bin/sh").pre_exec(move || {
                         // NOTE: The order here is very vital, otherwise permission errors occur
                         // This is basically a copy of how the nightly standard library does it.
@@ -84,9 +84,13 @@ impl PostLoginEnvironment {
                 .arg("-c")
                 .arg(script_path)
                 .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-                .spawn() else {
-                    error!("Failed to start Wayland Compositor");
-                    return Err(EnvironmentStartError::WaylandStartError);
+                .spawn()
+                {
+                    Ok(child) => child,
+                    Err(_) => {
+                        error!("Failed to start Wayland Compositor");
+                        return Err(EnvironmentStartError::WaylandStartError);
+                    }
                 };
 
                 info!("Entered Wayland compositor");
@@ -94,17 +98,23 @@ impl PostLoginEnvironment {
 
                 let session = add_utmpx_entry(&user_info.name, config.tty, pid);
 
-                let Ok(output) = child.wait_with_output() else {
-                    error!("Failed to wait on TTY shell, Reason. Returning to Lemurs...");
-                    return Ok(());
+                let output = match child.wait_with_output() {
+                    Ok(output) => output,
+                    Err(_) => {
+                        error!("Failed to wait on TTY shell, Reason. Returning to Lemurs...");
+                        return Ok(());
+                    }
                 };
 
                 drop(session);
 
                 if !output.status.success() {
-                    let Ok(output_stderr) = std::str::from_utf8(&output.stderr) else {
-                        warn!("Failed to read STDERR output as UTF-8");
-                        return Ok(());
+                    let output_stderr = match std::str::from_utf8(&output.stderr) {
+                        Ok(output_stderr) => output_stderr,
+                        Err(_) => {
+                            warn!("Failed to read STDERR output as UTF-8");
+                            return Ok(());
+                        }
                     };
 
                     if !output_stderr.trim().is_empty() {
@@ -126,7 +136,7 @@ impl PostLoginEnvironment {
 
                 info!("Starting TTY shell");
                 let shell = &user_info.shell;
-                let Ok(child) = unsafe {
+                let child = match unsafe {
                     Command::new(shell).pre_exec(move || {
                         // NOTE: The order here is very vital, otherwise permission errors occur
                         // This is basically a copy of how the nightly standard library does it.
@@ -139,11 +149,13 @@ impl PostLoginEnvironment {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .stdin(Stdio::inherit())
-                .spawn() else {
-                    error!(
-                        "Failed to start TTY shell. Returning to Lemurs...",
-                    );
-                    return Ok(());
+                .spawn()
+                {
+                    Ok(child) => child,
+                    Err(_) => {
+                        error!("Failed to start TTY shell. Returning to Lemurs...",);
+                        return Ok(());
+                    }
                 };
 
                 info!("Entered TTY");
@@ -151,17 +163,23 @@ impl PostLoginEnvironment {
 
                 let session = add_utmpx_entry(&user_info.name, config.tty, pid);
 
-                let Ok(output) = child.wait_with_output() else {
-                    error!("Failed to wait on TTY shell, Reason. Returning to Lemurs...");
-                    return Ok(());
+                let output = match child.wait_with_output() {
+                    Ok(output) => output,
+                    Err(_) => {
+                        error!("Failed to wait on TTY shell, Reason. Returning to Lemurs...");
+                        return Ok(());
+                    }
                 };
 
                 drop(session);
 
                 if !output.status.success() {
-                    let Ok(output_stderr) = std::str::from_utf8(&output.stderr) else {
-                        warn!("Failed to read STDERR output as UTF-8");
-                        return Ok(());
+                    let output_stderr = match std::str::from_utf8(&output.stderr) {
+                        Ok(output_stderr) => output_stderr,
+                        Err(_) => {
+                            warn!("Failed to read STDERR output as UTF-8");
+                            return Ok(());
+                        }
                     };
 
                     if !output_stderr.trim().is_empty() {
