@@ -13,6 +13,7 @@ use tui::backend::CrosstermBackend;
 use tui::Terminal;
 
 mod auth;
+mod chvt;
 mod cli;
 mod config;
 mod info_caching;
@@ -139,7 +140,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Switch to the proper tty
         info!("Switching to tty {}", config.tty);
 
-        chvt::chvt(config.tty.into()).unwrap_or_else(|err| {
+        unsafe { chvt::chvt(config.tty.into()) }.unwrap_or_else(|err| {
             error!("Failed to switch tty {}. Reason: {}", config.tty, err);
         });
     }
