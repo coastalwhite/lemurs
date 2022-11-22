@@ -37,9 +37,8 @@ pgs-files = "0.0.7"
 users = "0.11.0"
 
 # Logging
+env_logger = { version = "0.9.0", default-features = false }
 log = "0.4.0"
-fern = "0.5.2"
-chrono = "0.4"
 
 # Configuration File Parsing
 toml = "0.5"
