@@ -21,10 +21,6 @@ tui = { version = "0.16.0", features = [ "crossterm" ] }
 unicode-width = "0.1"
 crossterm = { version = "0.22" }
 
-# Parsing cached information
-lazy_static = "1.4.0"
-regex = "1.5"
-
 # Interacting with the kernel interfaces
 rand = "0.8.4"
 nix = "0.23.1"
