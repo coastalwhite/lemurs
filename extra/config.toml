@@ -65,7 +65,7 @@ shutdown_hint_modifiers = ""
 # The key used to shutdown. Possibilities are F1 to F12.
 shutdown_key = "F1"
 # The command that is executed when the key is pressed
-shutdown_cmd = "shutdown now"
+shutdown_cmd = "systemctl poweroff -l"
 
 # Allow for the reboot option to be used
 allow_reboot = true
@@ -81,7 +81,7 @@ reboot_hint_modifiers = ""
 # The key used to reboot. Possibilities are F1 to F12.
 reboot_key = "F2"
 # The command that is executed when the key is pressed
-reboot_cmd = "reboot"
+reboot_cmd = "systemctl reboot -l"
 
 # The margin between the shutdown and reboot hints
 hint_margin = 2
