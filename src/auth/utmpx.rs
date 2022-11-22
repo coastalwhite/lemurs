@@ -17,7 +17,7 @@ pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> UtmpxSession {
         s.ut_pid = pid as libc::pid_t;
 
         let mut ut_user = [0; 32];
-        for (i, b) in username.as_bytes().into_iter().take(32).enumerate() {
+        for (i, b) in username.as_bytes().iter().take(32).enumerate() {
             ut_user[i] = *b as i8;
         }
         s.ut_user = ut_user;
