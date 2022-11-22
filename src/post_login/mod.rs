@@ -82,7 +82,7 @@ impl PostLoginEnvironment {
                     })
                 }
                 .arg("-c")
-                .arg(&script_path)
+                .arg(script_path)
                 .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
                 .spawn() else {
                     error!("Failed to start Wayland Compositor");

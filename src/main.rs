@@ -144,11 +144,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let environment = cached_info
                     .environment()
                     .map(|s| format!("'{}'", s))
-                    .unwrap_or(String::from("No cached value"));
+                    .unwrap_or_else(|| String::from("No cached value"));
                 let username = cached_info
                     .username()
                     .map(|s| format!("'{}'", s))
-                    .unwrap_or(String::from("No cached value"));
+                    .unwrap_or_else(|| String::from("No cached value"));
 
                 println!(
                     "Information currently cached within '{}'\n",

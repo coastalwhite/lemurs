@@ -504,6 +504,7 @@ impl LoginForm {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn login_form_render<B: Backend>(
     frame: &mut Frame<B>,
     chunks: Chunks,
@@ -553,6 +554,7 @@ fn login_form_render<B: Backend>(
     StatusMessage::render(status_message, frame, chunks.status_message);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn attempt_login<'a, TR, PC, SC, A, S>(
     environment: Option<PostLoginEnvironment>,
     username: String,
