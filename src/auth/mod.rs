@@ -1,4 +1,5 @@
 mod pam;
+pub mod utmpx;
 
 use ::pam::{Authenticator, PasswordConv};
 use log::info;
