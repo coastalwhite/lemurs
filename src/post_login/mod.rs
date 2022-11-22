@@ -6,6 +6,7 @@ use users::get_user_groups;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 
+use crate::auth::utmpx::add_utmpx_entry;
 use crate::auth::AuthUserInfo;
 use crate::config::Config;
 use env_variables::{init_environment, set_xdg_env};
@@ -50,10 +51,15 @@ impl PostLoginEnvironment {
                 let mut gui_environment = x::start_env(user_info, xinitrc_path)
                     .map_err(EnvironmentStartError::XStartEnvError)?;
 
+                let pid = gui_environment.id();
+                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+
                 gui_environment.wait().map_err(|err| {
                     warn!("Failed waiting for GUI Environment. Reason: {}", err);
                     EnvironmentStartError::WaitingForEnv
                 })?;
+
+                drop(session);
             }
             PostLoginEnvironment::Wayland { script_path } => {
                 let uid = user_info.uid;
@@ -65,7 +71,7 @@ impl PostLoginEnvironment {
                     .collect();
 
                 info!("Starting Wayland Session");
-                let wayland_cmd = unsafe {
+                let Ok(child) = unsafe {
                     Command::new("/bin/sh").pre_exec(move || {
                         // NOTE: The order here is very vital, otherwise permission errors occur
                         // This is basically a copy of how the nightly standard library does it.
@@ -78,27 +84,36 @@ impl PostLoginEnvironment {
                 .arg("-c")
                 .arg(&script_path)
                 .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-                .output()
-                .map_err(|err| {
-                    error!("Filling xauth file failed. Reason: {}", err);
-                    EnvironmentStartError::WaylandStartError
-                })?;
+                .spawn() else {
+                    error!("Failed to start Wayland Compositor");
+                    return Err(EnvironmentStartError::WaylandStartError);
+                };
 
-                match std::str::from_utf8(&wayland_cmd.stderr) {
-                    Ok(wl_stderr) => {
-                        if !wl_stderr.trim().is_empty() {
-                            warn!(
-                                "Wayland Start Up script came back with: \"\"\"\n{}\n\"\"\"",
-                                wl_stderr.trim()
-                            );
-                        }
-                    }
-                    Err(_) => {
-                        warn!("Failed to read Wayland Start script stderr as UTF8");
+                info!("Entered Wayland compositor");
+                let pid = child.id();
+
+                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+
+                let Ok(output) = child.wait_with_output() else {
+                    error!("Failed to wait on TTY shell, Reason. Returning to Lemurs...");
+                    return Ok(());
+                };
+
+                drop(session);
+
+                if !output.status.success() {
+                    let Ok(output_stderr) = std::str::from_utf8(&output.stderr) else {
+                        warn!("Failed to read STDERR output as UTF-8");
+                        return Ok(());
+                    };
+
+                    if !output_stderr.trim().is_empty() {
+                        warn!(
+                            "Process came back with: \"\"\"\n{}\n\"\"\"",
+                            output_stderr.trim()
+                        );
                     }
                 }
-
-                info!("Ending Wayland Session");
             }
             PostLoginEnvironment::Shell => {
                 let uid = user_info.uid;
@@ -111,7 +126,7 @@ impl PostLoginEnvironment {
 
                 info!("Starting TTY shell");
                 let shell = &user_info.shell;
-                let status = unsafe {
+                let Ok(child) = unsafe {
                     Command::new(shell).pre_exec(move || {
                         // NOTE: The order here is very vital, otherwise permission errors occur
                         // This is basically a copy of how the nightly standard library does it.
@@ -124,17 +139,38 @@ impl PostLoginEnvironment {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .stdin(Stdio::inherit())
-                .status();
+                .spawn() else {
+                    error!(
+                        "Failed to start TTY shell. Returning to Lemurs...",
+                    );
+                    return Ok(());
+                };
 
-                match status {
-                    Ok(_) => info!("Successfully returned from TTY shell"),
-                    Err(err) => {
-                        error!(
-                            "Failed to start TTY shell, Reason: {}. Returning to Lemurs...",
-                            err
+                info!("Entered TTY");
+                let pid = child.id();
+
+                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+
+                let Ok(output) = child.wait_with_output() else {
+                    error!("Failed to wait on TTY shell, Reason. Returning to Lemurs...");
+                    return Ok(());
+                };
+
+                drop(session);
+
+                if !output.status.success() {
+                    let Ok(output_stderr) = std::str::from_utf8(&output.stderr) else {
+                        warn!("Failed to read STDERR output as UTF-8");
+                        return Ok(());
+                    };
+
+                    if !output_stderr.trim().is_empty() {
+                        warn!(
+                            "Process came back with: \"\"\"\n{}\n\"\"\"",
+                            output_stderr.trim()
                         );
                     }
-                };
+                }
             }
         }
 
