@@ -50,15 +50,13 @@ fn str_to_color(color: &str) -> Option<Color> {
                 return None;
             }
 
-            let r = hex::decode(&c[1..3])
-                .ok()
-                .and_then(|mut bytes| bytes.pop())?;
-            let g = hex::decode(&c[3..5])
-                .ok()
-                .and_then(|mut bytes| bytes.pop())?;
-            let b = hex::decode(&c[5..7])
-                .ok()
-                .and_then(|mut bytes| bytes.pop())?;
+            let r = &c[1..3];
+            let g = &c[3..5];
+            let b = &c[5..7];
+
+            let r = u8::from_str_radix(r, 16).ok()?;
+            let g = u8::from_str_radix(g, 16).ok()?;
+            let b = u8::from_str_radix(b, 16).ok()?;
 
             Rgb(r, g, b)
         }
