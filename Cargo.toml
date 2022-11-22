@@ -16,9 +16,6 @@ readme = "README.md"
 license = "MIT or APACHE"
 
 [dependencies]
-# CLI Argument Parsing
-clap = { version = "3.2", features = ["derive"] }
-
 # UI and TUI interface
 tui = { version = "0.16.0", features = [ "crossterm" ] }
 unicode-width = "0.1"
