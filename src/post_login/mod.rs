@@ -65,7 +65,7 @@ impl PostLoginEnvironment {
                     .collect();
 
                 info!("Starting Wayland Session");
-                unsafe {
+                let wayland_cmd = unsafe {
                     Command::new("/bin/sh").pre_exec(move || {
                         // NOTE: The order here is very vital, otherwise permission errors occur
                         // This is basically a copy of how the nightly standard library does it.
@@ -78,12 +78,27 @@ impl PostLoginEnvironment {
                 .arg("-c")
                 .arg(&script_path)
                 .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-                .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
-                .status()
+                .output()
                 .map_err(|err| {
                     error!("Filling xauth file failed. Reason: {}", err);
                     EnvironmentStartError::WaylandStartError
                 })?;
+
+                match std::str::from_utf8(&wayland_cmd.stderr) {
+                    Ok(wl_stderr) => {
+                        if !wl_stderr.trim().is_empty() {
+                            warn!(
+                                "Wayland Start Up script came back with: \"\"\"\n{}\n\"\"\"",
+                                wl_stderr.trim()
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        warn!("Failed to read Wayland Start script stderr as UTF8");
+                    }
+                }
+
+                info!("Ending Wayland Session");
             }
             PostLoginEnvironment::Shell => {
                 let uid = user_info.uid;
