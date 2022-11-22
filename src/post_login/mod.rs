@@ -98,7 +98,13 @@ impl PostLoginEnvironment {
 pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
     let found_paths = match fs::read_dir(INITRCS_FOLDER_PATH) {
         Ok(paths) => paths,
-        Err(_) => return Vec::new(),
+        Err(_) => {
+            return if with_tty_shell {
+                vec![("TTYSHELL".to_string(), PostLoginEnvironment::Shell)]
+            } else {
+                Vec::new()
+            }
+        }
     };
 
     // NOTE: Maybe we can do something smart with `with_capacity` here.
