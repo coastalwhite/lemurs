@@ -16,15 +16,17 @@ mod env_variables;
 mod x;
 
 const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
+const WAYLAND_FOLDER_PATH: &str = "/etc/lemurs/wayland";
 
 #[derive(Clone)]
 pub enum PostLoginEnvironment {
     X { xinitrc_path: String },
-    // Wayland { script_path: String },
+    Wayland { script_path: String },
     Shell,
 }
 
 pub enum EnvironmentStartError {
+    WaylandStartError,
     XSetupError(x::XSetupError),
     XStartEnvError(x::XStartEnvError),
     WaitingForEnv,
@@ -52,6 +54,51 @@ impl PostLoginEnvironment {
                     warn!("Failed waiting for GUI Environment. Reason: {}", err);
                     EnvironmentStartError::WaitingForEnv
                 })?;
+            }
+            PostLoginEnvironment::Wayland { script_path } => {
+                let uid = user_info.uid;
+                let gid = user_info.gid;
+                let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
+                    .unwrap()
+                    .iter()
+                    .map(|group| Gid::from_raw(group.gid()))
+                    .collect();
+
+                info!("Starting Wayland Session");
+                let wayland_cmd = unsafe {
+                    Command::new("/bin/sh").pre_exec(move || {
+                        // NOTE: The order here is very vital, otherwise permission errors occur
+                        // This is basically a copy of how the nightly standard library does it.
+                        nix::unistd::setgroups(&groups)
+                            .and(nix::unistd::setgid(Gid::from_raw(gid)))
+                            .and(nix::unistd::setuid(Uid::from_raw(uid)))
+                            .map_err(|err| err.into())
+                    })
+                }
+                .arg("-c")
+                .arg(&script_path)
+                .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
+                .output()
+                .map_err(|err| {
+                    error!("Filling xauth file failed. Reason: {}", err);
+                    EnvironmentStartError::WaylandStartError
+                })?;
+
+                match std::str::from_utf8(&wayland_cmd.stderr) {
+                    Ok(wl_stderr) => {
+                        if !wl_stderr.trim().is_empty() {
+                            warn!(
+                                "Wayland Start Up script came back with: \"\"\"\n{}\n\"\"\"",
+                                wl_stderr.trim()
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        warn!("Failed to read Wayland Start script stderr as UTF8");
+                    }
+                }
+
+                info!("Ending Wayland Session");
             }
             PostLoginEnvironment::Shell => {
                 let uid = user_info.uid;
@@ -96,57 +143,99 @@ impl PostLoginEnvironment {
 }
 
 pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
-    let found_paths = match fs::read_dir(INITRCS_FOLDER_PATH) {
-        Ok(paths) => paths,
-        Err(_) => {
-            return if with_tty_shell {
-                vec![("TTYSHELL".to_string(), PostLoginEnvironment::Shell)]
-            } else {
-                Vec::new()
-            }
-        }
-    };
-
     // NOTE: Maybe we can do something smart with `with_capacity` here.
     let mut envs = Vec::new();
 
-    // TODO: Add other post login environment methods
-    for path in found_paths {
-        if let Ok(path) = path {
-            let file_name = path.file_name().into_string();
+    match fs::read_dir(INITRCS_FOLDER_PATH) {
+        Ok(paths) => {
+            for path in paths {
+                if let Ok(path) = path {
+                    let file_name = path.file_name().into_string();
 
-            if let Ok(file_name) = file_name {
-                if let Ok(metadata) = path.metadata() {
-                    if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
-                        warn!(
+                    if let Ok(file_name) = file_name {
+                        if let Ok(metadata) = path.metadata() {
+                            if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
+                                warn!(
                             "'{}' is not executable and therefore not added as an environment",
                             file_name
                         );
 
-                        continue;
-                    }
-                }
-
-                envs.push((
-                    file_name,
-                    PostLoginEnvironment::X {
-                        // TODO: Remove unwrap
-                        xinitrc_path: match path.path().to_str() {
-                            Some(p) => p.to_string(),
-                            None => {
-                                warn!(
-                                    "Skipped item because it was impossible to convert to string"
-                                );
                                 continue;
                             }
-                        },
-                    },
-                ));
-            } else {
-                warn!("Unable to convert OSString to String");
+                        }
+
+                        envs.push((
+                            file_name,
+                            PostLoginEnvironment::X {
+                                xinitrc_path: match path.path().to_str() {
+                                    Some(p) => p.to_string(),
+                                    None => {
+                                        warn!(
+                                    "Skipped item because it was impossible to convert to string"
+                                );
+                                        continue;
+                                    }
+                                },
+                            },
+                        ));
+                    } else {
+                        warn!("Unable to convert OSString to String");
+                    }
+                } else {
+                    warn!("Ignored errorinous path: '{}'", path.unwrap_err());
+                }
             }
-        } else {
-            warn!("Ignored errorinous path: '{}'", path.unwrap_err());
+        }
+        Err(_) => {
+            warn!("Failed to read from the X folder '{}'", INITRCS_FOLDER_PATH);
+        }
+    }
+
+    match fs::read_dir(WAYLAND_FOLDER_PATH) {
+        Ok(paths) => {
+            for path in paths {
+                if let Ok(path) = path {
+                    let file_name = path.file_name().into_string();
+
+                    if let Ok(file_name) = file_name {
+                        if let Ok(metadata) = path.metadata() {
+                            if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
+                                warn!(
+                            "'{}' is not executable and therefore not added as an environment",
+                            file_name
+                        );
+
+                                continue;
+                            }
+                        }
+
+                        envs.push((
+                            file_name,
+                            PostLoginEnvironment::Wayland {
+                                script_path: match path.path().to_str() {
+                                    Some(p) => p.to_string(),
+                                    None => {
+                                        warn!(
+                                    "Skipped item because it was impossible to convert to string"
+                                );
+                                        continue;
+                                    }
+                                },
+                            },
+                        ));
+                    } else {
+                        warn!("Unable to convert OSString to String");
+                    }
+                } else {
+                    warn!("Ignored errorinous path: '{}'", path.unwrap_err());
+                }
+            }
+        }
+        Err(_) => {
+            warn!(
+                "Failed to read from the wayland folder '{}'",
+                WAYLAND_FOLDER_PATH
+            );
         }
     }
 
