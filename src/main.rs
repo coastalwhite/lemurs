@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::fs::File;
 use std::io;
 use std::path::Path;
 use std::process;
@@ -66,35 +67,15 @@ fn setup_logger(is_preview: bool) {
         DEFAULT_LOG_PATH
     };
 
-    let log_file = fern::log_file(log_path).unwrap_or_else(|err| {
-        eprintln!(
-            "Failed to open log file: '{}'. Check that the path is valid or activate `--no-log`. Reason: {}",
-            log_path, err
-        );
-        process::exit(1);
-    });
+    let log_file = Box::new(File::create(log_path).unwrap_or_else(|_| {
+        eprintln!("Failed to open log file: '{}'", log_path);
+        std::process::exit(1);
+    }));
 
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{}[{}][{}] {}",
-                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
-                record.target(),
-                record.level(),
-                message
-            ))
-        })
-        .level(log::LevelFilter::Debug)
-        .level_for("hyper", log::LevelFilter::Info)
-        .chain(log_file)
-        .apply()
-        .unwrap_or_else(|err| {
-            eprintln!(
-                "Failed to setup logger. Fix the error or activate `--no-log`. Reason: {}",
-                err
-            );
-            process::exit(1);
-        });
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .target(env_logger::Target::Pipe(log_file))
+        .init();
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
