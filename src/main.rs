@@ -1,9 +1,8 @@
 use std::error::Error;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process;
 
-use clap::{Parser, Subcommand};
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -13,6 +12,7 @@ use tui::backend::CrosstermBackend;
 use tui::Terminal;
 
 mod auth;
+mod cli;
 mod config;
 mod info_caching;
 mod post_login;
@@ -21,6 +21,8 @@ mod ui;
 use auth::{try_auth, AuthUserInfo};
 use config::Config;
 use post_login::{EnvironmentStartError, PostLoginEnvironment};
+
+use crate::cli::{Cli, Commands};
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
@@ -95,35 +97,12 @@ fn setup_logger(is_preview: bool) {
         });
 }
 
-#[derive(Parser)]
-#[clap(name = "Lemurs", about, author, version)]
-struct Cli {
-    #[clap(long)]
-    preview: bool,
-
-    #[clap(long)]
-    no_log: bool,
-
-    /// Override the configured TTY number
-    #[clap(long, value_name = "N")]
-    tty: Option<u8>,
-
-    /// A file to replace the default configuration
-    #[clap(short, long, value_name = "FILE")]
-    config: Option<PathBuf>,
-
-    #[clap(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    Envs,
-    Cache,
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
-    let cli = Cli::parse();
+    let cli = Cli::parse().unwrap_or_else(|err| {
+        eprintln!("{}\n", err);
+        cli::usage();
+        std::process::exit(2);
+    });
 
     // Load and setup configuration
     let mut config = Config::default();
@@ -141,22 +120,22 @@ fn main() -> Result<(), Box<dyn Error>> {
             Commands::Cache => {
                 let cached_info = info_caching::get_cached_information();
 
-                let environment = cached_info
-                    .environment()
-                    .map(|s| format!("'{}'", s))
-                    .unwrap_or_else(|| String::from("No cached value"));
-                let username = cached_info
-                    .username()
-                    .map(|s| format!("'{}'", s))
-                    .unwrap_or_else(|| String::from("No cached value"));
+                let environment = cached_info.environment().unwrap_or("No cached value");
+                let username = cached_info.username().unwrap_or("No cached value");
 
                 println!(
                     "Information currently cached within '{}'\n",
                     info_caching::CACHE_PATH
                 );
 
-                println!("environment: {}", environment);
-                println!("username: {}", username);
+                println!("environment: '{}'", environment);
+                println!("username: '{}'", username);
+            }
+            Commands::Help => {
+                cli::usage();
+            }
+            Commands::Version => {
+                println!("{}", env!("CARGO_PKG_VERSION"));
             }
         }
 
