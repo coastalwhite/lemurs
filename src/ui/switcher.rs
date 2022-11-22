@@ -1,4 +1,5 @@
 use crossterm::event::KeyCode;
+use log::warn;
 use tui::{
     layout::{Alignment, Rect},
     style::Style,
@@ -44,6 +45,21 @@ impl<T> Switcher<T> {
     #[inline]
     fn len(&self) -> usize {
         self.items.len()
+    }
+
+    pub fn try_select(&mut self, title: &str) {
+        // Only set the selected if we find a matching title
+        if let Some(selected) = self
+            .items
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.title == title)
+            .map(|(index, _)| index)
+        {
+            self.selected = Some(selected);
+        } else {
+            warn!("Failed to find selection with title: '{}'", title);
+        }
     }
 
     fn next_index(&self, index: usize) -> Option<usize> {
@@ -112,6 +128,10 @@ impl<T> SwitcherWidget<T> {
             selector: Switcher::new(items),
             config,
         }
+    }
+
+    pub fn try_select(&mut self, title: &str) {
+        self.selector.try_select(title)
     }
 
     fn do_show_neighbours(&self, area_width: usize) -> bool {
@@ -373,14 +393,14 @@ mod tests {
         fn empty_creation() {
             // On an empty selector the go_next and go_prev should do nothing.
 
-            let mut selector = Switcher::new(vec![]);
+            let mut selector: Switcher<()> = Switcher::new(vec![]);
             assert_eq!(selector.current(), None);
             selector.go_next();
             assert_eq!(selector.current(), None);
             selector.go_prev();
             assert_eq!(selector.current(), None);
 
-            let mut selector = Switcher::new(vec![]);
+            let mut selector: Switcher<()> = Switcher::new(vec![]);
             assert_eq!(selector.current(), None);
             selector.go_prev();
             assert_eq!(selector.current(), None);
@@ -390,7 +410,7 @@ mod tests {
 
         #[test]
         fn single_creation() {
-            let wm = SwitcherItem::new("abc", "/abc".into());
+            let wm: SwitcherItem<String> = SwitcherItem::new("abc", "/abc".into());
 
             let mut selector = Switcher::new(vec![wm.clone()]);
             assert_eq!(selector.current(), Some(&wm));
@@ -423,7 +443,7 @@ mod tests {
 
         #[test]
         fn multiple_creation() {
-            let wm1 = SwitcherItem::new("abc", "/abc".into());
+            let wm1: SwitcherItem<String> = SwitcherItem::new("abc", "/abc".into());
             let wm2 = SwitcherItem::new("def", "/def".into());
 
             let mut selector = Switcher::new(vec![wm1.clone(), wm2.clone()]);

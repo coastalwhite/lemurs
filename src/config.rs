@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{self, BufReader, Read};
+use std::path::Path;
 use std::process;
 
 use crossterm::event::KeyCode;
@@ -181,6 +182,10 @@ toml_config_struct! { PowerControlConfig, PartialPowerControlConfig,
 }
 
 toml_config_struct! { SwitcherConfig, PartialSwitcherConfig,
+    include_tty_shell => bool,
+
+    remember => bool,
+
     show_movers => bool,
     mover_color => String,
     mover_color_focused => String,
@@ -239,7 +244,7 @@ toml_config_struct! { InputFieldStyle, PartialInputFieldStyle,
 }
 
 toml_config_struct! { UsernameFieldConfig, PartialUsernameFieldConfig,
-    remember_username => bool,
+    remember => bool,
     style => InputFieldStyle [PartialInputFieldStyle],
 }
 
@@ -272,7 +277,7 @@ impl Default for Config {
 }
 
 impl PartialConfig {
-    pub fn from_file(path: &str) -> io::Result<PartialConfig> {
+    pub fn from_file(path: &Path) -> io::Result<PartialConfig> {
         let file = File::open(path)?;
         let mut buf_reader = BufReader::new(file);
         let mut contents = String::new();

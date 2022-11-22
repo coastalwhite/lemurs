@@ -65,7 +65,7 @@ shutdown_hint_modifiers = ""
 # The key used to shutdown. Possibilities are F1 to F12.
 shutdown_key = "F1"
 # The command that is executed when the key is pressed
-shutdown_cmd = "shutdown now"
+shutdown_cmd = "systemctl poweroff -l"
 
 # Allow for the reboot option to be used
 allow_reboot = true
@@ -81,7 +81,7 @@ reboot_hint_modifiers = ""
 # The key used to reboot. Possibilities are F1 to F12.
 reboot_key = "F2"
 # The command that is executed when the key is pressed
-reboot_cmd = "reboot"
+reboot_cmd = "systemctl reboot -l"
 
 # The margin between the shutdown and reboot hints
 hint_margin = 2
@@ -106,6 +106,13 @@ hint_margin = 2
 #       neighbour            neighbour
 # ---------
 #
+
+# Show an option for the TTY shell when logging in as one of the environments. 
+# NOTE: it is always shown when no viable options are found. 
+include_tty_shell = false
+
+# Remember the selected environment after logging in for the next time
+remember = true
 
 # Enables showing the movers
 show_movers = true
@@ -171,7 +178,7 @@ no_envs_modifiers_focused = ""
 [username_field]
 
 # Remember the username for the next time after a successful login attempt.
-remember_username = true
+remember = true
 
 [username_field.style]
 # Enables showing a title

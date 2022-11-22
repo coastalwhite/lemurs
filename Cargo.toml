@@ -2,7 +2,7 @@
 name = "lemurs"
 authors = ["Gijs Burghoorn <me@gburghoorn.com>"]
 description = "A TUI Display/Login Manager"
-version = "0.2.0"
+version = "0.3.0"
 
 edition = "2021"
 
@@ -16,21 +16,39 @@ readme = "README.md"
 license = "MIT or APACHE"
 
 [dependencies]
+# CLI Argument Parsing
+clap = { version = "3.2", features = ["derive"] }
+
+# UI and TUI interface
 tui = { version = "0.16.0", features = [ "crossterm" ] }
 unicode-width = "0.1"
 crossterm = { version = "0.22" }
-pam = "0.7.0"
-pgs-files = "0.0.7"
-log = "0.4.0"
-users = "0.11.0"
+
+# Parsing cached information
 lazy_static = "1.4.0"
 regex = "1.5"
-fern = "0.5.2"
-chvt = "0.2.0"
+
+# Interacting with the kernel interfaces
 rand = "0.8.4"
-chrono = "0.4"
 nix = "0.23.1"
-clap = { version = "3.0.0", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"] }
+
+# UTMPX
+libc = "0.2"
+
+# Switching TTYs
+chvt = "0.2.0"
+
+# Authentication and Fetching User Data
+pam = "0.7.0"
+pgs-files = "0.0.7"
+users = "0.11.0"
+
+# Logging
+log = "0.4.0"
+fern = "0.5.2"
+chrono = "0.4"
+
+# Configuration File Parsing
 toml = "0.5"
-hex = "0.4.3"
+serde = { version = "1.0", features = ["derive"] }
+hex = "0.4.3" # Colors
