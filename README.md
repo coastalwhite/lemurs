@@ -145,6 +145,14 @@ want to tweak details for their own installation.
 |  |- lemurs.service: The systemd service used to start at boot
 ```
 
+## Platforms
+
+Tested on
+
+- ArchLinux (Vanilla, ArcoLinux)
+- VoidLinux
+- Ubuntu (make sure to install `libpam-dev`)
+
 ## License
 
 The project is made available under the MIT and APACHE license. See the
