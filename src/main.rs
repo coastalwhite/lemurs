@@ -130,12 +130,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         info!("Lemurs logger is running");
     }
 
-    if let Some(tty) = cli.tty {
-        info!("Overwritten the tty to '{}' with the --tty flag", tty);
-        config.tty = tty;
-    }
-
     if !cli.preview {
+        if std::env::var("XDG_SESSION_TYPE").is_ok() {
+            eprintln!("Lemurs cannot be ran without `--preview` within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
+            error!("Lemurs cannot be started when within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
+            std::process::exit(1);
+        }
+
+        let uid = users::get_current_uid();
+        if users::get_current_uid() != 0 {
+            eprintln!("Lemurs needs to be ran as root. Found user id '{}'", uid);
+            error!("Lemurs not ran as root. Found user id '{}'", uid);
+            std::process::exit(1);
+        }
+
+        if let Some(tty) = cli.tty {
+            info!("Overwritten the tty to '{}' with the --tty flag", tty);
+            config.tty = tty;
+        }
+
         // Switch to the proper tty
         info!("Switching to tty {}", config.tty);
 
