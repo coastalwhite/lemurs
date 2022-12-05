@@ -29,9 +29,9 @@ pub enum PostLoginEnvironment {
 }
 
 pub enum EnvironmentStartError {
-    WaylandStartError,
-    XSetupError(x::XSetupError),
-    XStartEnvError,
+    WaylandStart,
+    XSetup(x::XSetupError),
+    XStartEnv,
 }
 
 fn wait_for_child_and_log(child: Child) {
@@ -110,12 +110,12 @@ impl PostLoginEnvironment {
         init_environment(&user_info.name, &user_info.dir, &user_info.shell);
         info!("Set environment variables");
 
-        set_xdg_env(user_info.uid, &user_info.dir, config.tty, &self);
+        set_xdg_env(user_info.uid, &user_info.dir, config.tty, self);
         info!("Set XDG environment variables");
 
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
-                x::setup_x(user_info).map_err(EnvironmentStartError::XSetupError)?;
+                x::setup_x(user_info).map_err(EnvironmentStartError::XSetup)?;
                 let child =
                     match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
                         .arg("-c")
@@ -127,7 +127,7 @@ impl PostLoginEnvironment {
                         Ok(child) => child,
                         Err(err) => {
                             error!("Failed to start X11 environment. Reason '{}'", err);
-                            return Err(EnvironmentStartError::XStartEnvError);
+                            return Err(EnvironmentStartError::XStartEnv);
                         }
                     };
 
@@ -149,7 +149,7 @@ impl PostLoginEnvironment {
                         Ok(child) => child,
                         Err(err) => {
                             error!("Failed to start Wayland Compositor. Reason '{}'", err);
-                            return Err(EnvironmentStartError::WaylandStartError);
+                            return Err(EnvironmentStartError::WaylandStart);
                         }
                     };
 
