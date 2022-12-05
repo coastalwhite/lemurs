@@ -1,10 +1,7 @@
-use nix::unistd::{Gid, Uid};
 use rand::Rng;
 use std::env;
-use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::{thread, time};
-use users::get_user_groups;
 
 use std::path::PathBuf;
 
@@ -15,7 +12,6 @@ use crate::auth::AuthUserInfo;
 const DISPLAY: &str = ":1";
 const VIRTUAL_TERMINAL: &str = "vt01";
 
-const SYSTEM_SHELL: &str = "/bin/sh";
 
 const XSTART_TIMEOUT_SECS: u64 = 20;
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
@@ -23,10 +19,6 @@ const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 pub enum XSetupError {
     FillingXAuth,
     XServerStart,
-}
-
-pub enum XStartEnvError {
-    StartingEnvironment,
 }
 
 fn mcookie() -> String {
@@ -48,7 +40,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
     env::set_var("DISPLAY", DISPLAY);
 
     info!("Filling Xauthority file");
-    Command::new(SYSTEM_SHELL)
+    Command::new(super::SYSTEM_SHELL)
         .arg("-c")
         .arg(format!("/usr/bin/xauth add {} . {}", DISPLAY, mcookie()))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
@@ -60,7 +52,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
         })?;
 
     info!("Run X server");
-    let child = Command::new(SYSTEM_SHELL)
+    let child = Command::new(super::SYSTEM_SHELL)
         .arg("-c")
         .arg(format!("/usr/bin/X {} {}", DISPLAY, VIRTUAL_TERMINAL))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
@@ -85,7 +77,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
             return Err(XSetupError::XServerStart);
         }
 
-        match Command::new(SYSTEM_SHELL)
+        match Command::new(super::SYSTEM_SHELL)
             .arg("-c")
             .arg("timeout 1s /usr/bin/xset q")
             .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
@@ -106,43 +98,6 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
         thread::sleep(time::Duration::from_millis(XSTART_CHECK_INTERVAL_MILLIS));
     }
     info!("X server is running");
-
-    Ok(child)
-}
-
-pub fn start_env(user_info: &AuthUserInfo, script_path: &str) -> Result<Child, XStartEnvError> {
-    let uid = user_info.uid;
-    let gid = user_info.gid;
-    let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
-        .unwrap()
-        .iter()
-        .map(|group| Gid::from_raw(group.gid()))
-        .collect();
-
-    info!("Starting specified environment");
-    let mut cmd = Command::new(SYSTEM_SHELL);
-    let cmd = cmd
-        .arg("-c")
-        .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", script_path))
-        .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-        .stderr(Stdio::null()); // TODO: Maybe this should be logged or something?
-    let cmd = unsafe {
-        cmd.pre_exec(move || {
-            // NOTE: The order here is very vital, otherwise permission errors occur
-            // This is basically a copy of how the nightly standard library does it.
-            nix::unistd::setgroups(&groups)
-                .and(nix::unistd::setgid(Gid::from_raw(gid)))
-                .and(nix::unistd::setuid(Uid::from_raw(uid)))
-                .map_err(|err| err.into())
-        })
-    };
-
-    let child = cmd.spawn().map_err(|err| {
-        error!("Failed to start specified environment. Reason: {}", err);
-        XStartEnvError::StartingEnvironment
-    })?;
-
-    info!("Started specified environment");
 
     Ok(child)
 }

@@ -4,7 +4,7 @@ use std::fs;
 use users::get_user_groups;
 
 use std::os::unix::process::CommandExt;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 
 use crate::auth::utmpx::add_utmpx_entry;
 use crate::auth::AuthUserInfo;
@@ -15,6 +15,8 @@ use nix::unistd::{Gid, Uid};
 
 mod env_variables;
 mod x;
+
+const SYSTEM_SHELL: &str = "/bin/sh";
 
 const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
 const WAYLAND_FOLDER_PATH: &str = "/etc/lemurs/wayland";
@@ -29,8 +31,74 @@ pub enum PostLoginEnvironment {
 pub enum EnvironmentStartError {
     WaylandStartError,
     XSetupError(x::XSetupError),
-    XStartEnvError(x::XStartEnvError),
-    WaitingForEnv,
+    XStartEnvError,
+}
+
+fn wait_for_child_and_log(child: Child) {
+    let child_output = match child.wait_with_output() {
+        Ok(output) => output,
+        Err(err) => {
+            error!("Failed to wait for environment to exit, Reason: '{}'", err);
+            return;
+        }
+    };
+
+    // Print the stdout if it is at all available
+    match std::str::from_utf8(&child_output.stdout) {
+        Ok(output) => {
+            if !output.trim().is_empty() {
+                info!("Environment's stdout: \"\"\"\n{}\n\"\"\"", output.trim());
+            }
+        }
+        Err(err) => {
+            warn!("Failed to read STDOUT output as UTF-8. Reason: '{}'", err);
+        }
+    };
+
+    // Return the `stderr` if the child process did not exit correctly.
+    if !child_output.status.success() {
+        warn!("Environment came back with non-zero exit code.");
+
+        match std::str::from_utf8(&child_output.stderr) {
+            Ok(output) => {
+                if !output.trim().is_empty() {
+                    warn!("Environment's stderr: \"\"\"\n{}\n\"\"\"", output.trim());
+                }
+            }
+            Err(err) => {
+                warn!("Failed to read STDERR output as UTF-8. Reason: '{}'", err);
+                return;
+            }
+        };
+    }
+
+    info!("Returning to Lemurs...");
+}
+
+fn lower_command_permissions_to_user(
+    mut command: Command,
+    user_info: &AuthUserInfo<'_>,
+) -> Command {
+    let uid = user_info.uid;
+    let gid = user_info.gid;
+    let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
+        .unwrap()
+        .iter()
+        .map(|group| Gid::from_raw(group.gid()))
+        .collect();
+
+    unsafe {
+        command.pre_exec(move || {
+            // NOTE: The order here is very vital, otherwise permission errors occur
+            // This is basically a copy of how the nightly standard library does it.
+            nix::unistd::setgroups(&groups)
+                .and(nix::unistd::setgid(Gid::from_raw(gid)))
+                .and(nix::unistd::setuid(Uid::from_raw(uid)))
+                .map_err(|err| err.into())
+        });
+    }
+
+    command
 }
 
 impl PostLoginEnvironment {
@@ -40,146 +108,76 @@ impl PostLoginEnvironment {
         user_info: &AuthUserInfo<'a>,
     ) -> Result<(), EnvironmentStartError> {
         init_environment(&user_info.name, &user_info.dir, &user_info.shell);
-        info!("Set environment variables.");
+        info!("Set environment variables");
 
-        set_xdg_env(user_info.uid, &user_info.dir, config.tty);
+        set_xdg_env(user_info.uid, &user_info.dir, config.tty, &self);
         info!("Set XDG environment variables");
-
-        let session = add_utmpx_entry(&user_info.name, config.tty, pid);
 
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
                 x::setup_x(user_info).map_err(EnvironmentStartError::XSetupError)?;
-                let mut gui_environment = x::start_env(user_info, xinitrc_path)
-                    .map_err(EnvironmentStartError::XStartEnvError)?;
+                let child =
+                    match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
+                        .arg("-c")
+                        .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .spawn()
+                    {
+                        Ok(child) => child,
+                        Err(err) => {
+                            error!("Failed to start X11 environment. Reason '{}'", err);
+                            return Err(EnvironmentStartError::XStartEnvError);
+                        }
+                    };
 
-                let pid = gui_environment.id();
-
-                gui_environment.wait().map_err(|err| {
-                    warn!("Failed waiting for GUI Environment. Reason: {}", err);
-                    EnvironmentStartError::WaitingForEnv
-                })?;
+                let pid = child.id();
+                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+                wait_for_child_and_log(child);
+                drop(session);
             }
             PostLoginEnvironment::Wayland { script_path } => {
-                let uid = user_info.uid;
-                let gid = user_info.gid;
-                let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
-                    .unwrap()
-                    .iter()
-                    .map(|group| Gid::from_raw(group.gid()))
-                    .collect();
-
                 info!("Starting Wayland Session");
-                let child = match unsafe {
-                    Command::new("/bin/sh").pre_exec(move || {
-                        // NOTE: The order here is very vital, otherwise permission errors occur
-                        // This is basically a copy of how the nightly standard library does it.
-                        nix::unistd::setgroups(&groups)
-                            .and(nix::unistd::setgid(Gid::from_raw(gid)))
-                            .and(nix::unistd::setuid(Uid::from_raw(uid)))
-                            .map_err(|err| err.into())
-                    })
-                }
-                .arg("-c")
-                .arg(script_path)
-                .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-                .spawn()
-                {
-                    Ok(child) => child,
-                    Err(_) => {
-                        error!("Failed to start Wayland Compositor");
-                        return Err(EnvironmentStartError::WaylandStartError);
-                    }
-                };
-
-                info!("Entered Wayland compositor");
-                let pid = child.id();
-
-                let output = match child.wait_with_output() {
-                    Ok(output) => output,
-                    Err(_) => {
-                        error!("Failed to wait on TTY shell, Reason. Returning to Lemurs...");
-                        return Ok(());
-                    }
-                };
-
-                if !output.status.success() {
-                    let output_stderr = match std::str::from_utf8(&output.stderr) {
-                        Ok(output_stderr) => output_stderr,
-                        Err(_) => {
-                            warn!("Failed to read STDERR output as UTF-8");
-                            return Ok(());
+                let child =
+                    match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
+                        .arg("-c")
+                        .arg(script_path)
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .spawn()
+                    {
+                        Ok(child) => child,
+                        Err(err) => {
+                            error!("Failed to start Wayland Compositor. Reason '{}'", err);
+                            return Err(EnvironmentStartError::WaylandStartError);
                         }
                     };
 
-                    if !output_stderr.trim().is_empty() {
-                        warn!(
-                            "Process came back with: \"\"\"\n{}\n\"\"\"",
-                            output_stderr.trim()
-                        );
-                    }
-                }
+                let pid = child.id();
+                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+                wait_for_child_and_log(child);
+                drop(session);
             }
             PostLoginEnvironment::Shell => {
-                let uid = user_info.uid;
-                let gid = user_info.gid;
-                let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
-                    .unwrap()
-                    .iter()
-                    .map(|group| Gid::from_raw(group.gid()))
-                    .collect();
-
                 info!("Starting TTY shell");
                 let shell = &user_info.shell;
-                let child = match unsafe {
-                    Command::new(shell).pre_exec(move || {
-                        // NOTE: The order here is very vital, otherwise permission errors occur
-                        // This is basically a copy of how the nightly standard library does it.
-                        nix::unistd::setgroups(&groups)
-                            .and(nix::unistd::setgid(Gid::from_raw(gid)))
-                            .and(nix::unistd::setuid(Uid::from_raw(uid)))
-                            .map_err(|err| err.into())
-                    })
-                }
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .stdin(Stdio::inherit())
-                .spawn()
+                let child = match lower_command_permissions_to_user(Command::new(shell), user_info)
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .stdin(Stdio::inherit())
+                    .spawn()
                 {
                     Ok(child) => child,
-                    Err(_) => {
-                        error!("Failed to start TTY shell. Returning to Lemurs...",);
+                    Err(err) => {
+                        error!("Failed to start TTY shell. Reason '{}'", err);
                         return Ok(());
                     }
                 };
 
-                info!("Entered TTY");
                 let pid = child.id();
-
-                let output = match child.wait_with_output() {
-                    Ok(output) => output,
-                    Err(_) => {
-                        error!("Failed to wait on TTY shell, Reason. Returning to Lemurs...");
-                        return Ok(());
-                    }
-                };
-
-                if !output.status.success() {
-                    let output_stderr = match std::str::from_utf8(&output.stderr) {
-                        Ok(output_stderr) => output_stderr,
-                        Err(_) => {
-                            warn!("Failed to read STDERR output as UTF-8");
-                            return Ok(());
-                        }
-                    };
-
-                    if !output_stderr.trim().is_empty() {
-                        warn!(
-                            "Process came back with: \"\"\"\n{}\n\"\"\"",
-                            output_stderr.trim()
-                        );
-                    }
-                }
+                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+                wait_for_child_and_log(child);
+                drop(session);
             }
         }
 

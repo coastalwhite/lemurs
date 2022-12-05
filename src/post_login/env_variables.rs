@@ -1,6 +1,8 @@
 use log::{error, info};
 use std::env;
 
+use super::PostLoginEnvironment;
+
 fn env_set_and_announce(key: &str, value: &str) {
     env::set_var(key, value);
     info!("Set environment variable '{}' to '{}'", key, value);
@@ -27,7 +29,7 @@ pub fn init_environment(username: &str, homedir: &str, shell: &str) {
 
 // NOTE: This uid: u32 might be better set to libc::uid_t
 /// Set the XDG environment variables
-pub fn set_xdg_env(uid: u32, homedir: &str, tty: u8) {
+pub fn set_xdg_env(uid: u32, homedir: &str, tty: u8, post_login_env: &PostLoginEnvironment) {
     // This is according to https://wiki.archlinux.org/title/XDG_Base_Directory
 
     env_set_and_announce("XDG_CONFIG_DIR", &format!("{}/.config", homedir));
@@ -42,4 +44,13 @@ pub fn set_xdg_env(uid: u32, homedir: &str, tty: u8) {
     env_set_and_announce("XDG_SESSION_ID", "1");
     env_set_and_announce("XDG_SEAT", "seat0");
     env_set_and_announce("XDG_VTNR", &tty.to_string());
+
+    env_set_and_announce(
+        "XDG_SESSION_TYPE",
+        match post_login_env {
+            PostLoginEnvironment::Shell => "tty",
+            PostLoginEnvironment::X { .. } => "x11",
+            PostLoginEnvironment::Wayland { .. } => "wayland",
+        },
+    );
 }
