@@ -45,6 +45,8 @@ impl PostLoginEnvironment {
         set_xdg_env(user_info.uid, &user_info.dir, config.tty);
         info!("Set XDG environment variables");
 
+        let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
                 x::setup_x(user_info).map_err(EnvironmentStartError::XSetupError)?;
@@ -52,14 +54,11 @@ impl PostLoginEnvironment {
                     .map_err(EnvironmentStartError::XStartEnvError)?;
 
                 let pid = gui_environment.id();
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
 
                 gui_environment.wait().map_err(|err| {
                     warn!("Failed waiting for GUI Environment. Reason: {}", err);
                     EnvironmentStartError::WaitingForEnv
                 })?;
-
-                drop(session);
             }
             PostLoginEnvironment::Wayland { script_path } => {
                 let uid = user_info.uid;
@@ -96,8 +95,6 @@ impl PostLoginEnvironment {
                 info!("Entered Wayland compositor");
                 let pid = child.id();
 
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
-
                 let output = match child.wait_with_output() {
                     Ok(output) => output,
                     Err(_) => {
@@ -105,8 +102,6 @@ impl PostLoginEnvironment {
                         return Ok(());
                     }
                 };
-
-                drop(session);
 
                 if !output.status.success() {
                     let output_stderr = match std::str::from_utf8(&output.stderr) {
@@ -161,8 +156,6 @@ impl PostLoginEnvironment {
                 info!("Entered TTY");
                 let pid = child.id();
 
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
-
                 let output = match child.wait_with_output() {
                     Ok(output) => output,
                     Err(_) => {
@@ -170,8 +163,6 @@ impl PostLoginEnvironment {
                         return Ok(());
                     }
                 };
-
-                drop(session);
 
                 if !output.status.success() {
                     let output_stderr = match std::str::from_utf8(&output.stderr) {
