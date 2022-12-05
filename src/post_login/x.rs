@@ -12,7 +12,6 @@ use crate::auth::AuthUserInfo;
 const DISPLAY: &str = ":1";
 const VIRTUAL_TERMINAL: &str = "vt01";
 
-
 const XSTART_TIMEOUT_SECS: u64 = 20;
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 
