@@ -127,9 +127,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Setup the logger
     if !cli.no_log {
         setup_logger(cli.preview);
+        info!("Lemurs logger is running");
     }
-
-    info!("Lemurs logger is running");
 
     if let Some(tty) = cli.tty {
         info!("Overwritten the tty to '{}' with the --tty flag", tty);
