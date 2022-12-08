@@ -29,6 +29,8 @@ fn mcookie() -> String {
 }
 
 pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
+    use std::os::unix::process::CommandExt;
+
     info!("Start setup of X");
 
     // Setup xauth
@@ -42,6 +44,8 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
     Command::new(super::SYSTEM_SHELL)
         .arg("-c")
         .arg(format!("/usr/bin/xauth add {} . {}", DISPLAY, mcookie()))
+        .uid(user_info.uid)
+        .gid(user_info.gid)
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .status()

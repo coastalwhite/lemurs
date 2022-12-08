@@ -133,6 +133,7 @@ impl PostLoginEnvironment {
 
                 let pid = child.id();
                 let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+
                 wait_for_child_and_log(child);
                 drop(session);
             }
