@@ -77,6 +77,7 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
                 std::process::exit(1);
             }
         } {
+            error!("Starting X timed out!");
             return Err(XSetupError::XServerStart);
         }
 
