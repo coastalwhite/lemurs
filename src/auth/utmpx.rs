@@ -25,7 +25,7 @@ pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> UtmpxSession {
         // ut_tv {    --- Time entry was made
         //     tv_sec     --- Seconds
         //     tv_usec    --- Microseconds
-        // }       
+        // }
         // ut_addr_v6 --- Internet address of remote
 
         s.ut_type = libc::USER_PROCESS;
