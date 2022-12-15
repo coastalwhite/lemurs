@@ -5,10 +5,10 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use crate::auth::{AuthUserInfo, AuthenticationError};
 use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_information, set_cache};
-use crate::post_login::{EnvironmentStartError, PostLoginEnvironment};
+use lemurs::auth::{AuthUserInfo, AuthenticationError};
+use lemurs::session_environment::{EnvironmentStartError, SessionEnvironment};
 use status_message::StatusMessage;
 
 use crossterm::cursor::MoveTo;
@@ -151,13 +151,13 @@ enum UIThreadRequest {
 #[derive(Clone)]
 struct Widgets {
     power_menu: PowerMenuWidget,
-    environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
+    environment: Arc<Mutex<SwitcherWidget<SessionEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
     password: Arc<Mutex<InputFieldWidget>>,
 }
 
 impl Widgets {
-    fn environment_guard(&self) -> MutexGuard<SwitcherWidget<PostLoginEnvironment>> {
+    fn environment_guard(&self) -> MutexGuard<SwitcherWidget<SessionEnvironment>> {
         match self.environment.lock() {
             Ok(guard) => guard,
             Err(err) => {
@@ -185,7 +185,7 @@ impl Widgets {
         }
     }
 
-    fn get_environment(&self) -> Option<(String, PostLoginEnvironment)> {
+    fn get_environment(&self) -> Option<(String, SessionEnvironment)> {
         self.environment_guard()
             .selected()
             .map(|s| (s.title.clone(), s.content.clone()))
@@ -265,14 +265,29 @@ impl LoginForm {
     }
 
     pub fn new(config: Config, preview: bool) -> LoginForm {
+        let mut session_environments =
+            lemurs::session_environment::get_envs(config.environment_switcher.include_tty_shell);
+        if session_environments.is_empty() {
+            session_environments.push(SessionEnvironment::Shell);
+        }
+
         LoginForm {
             preview,
             widgets: Widgets {
                 power_menu: PowerMenuWidget::new(config.power_controls.clone()),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
-                    crate::post_login::get_envs(config.environment_switcher.include_tty_shell)
+                    session_environments
                         .into_iter()
-                        .map(|(title, content)| SwitcherItem::new(title, content))
+                        .map(|env| {
+                            let name = match &env {
+                                SessionEnvironment::Shell => "TTY".to_string(),
+                                SessionEnvironment::X11(session_script)
+                                | SessionEnvironment::Wayland(session_script) => {
+                                    session_script.name.clone()
+                                }
+                            };
+                            SwitcherItem::new(name, env)
+                        })
                         .collect(),
                     config.environment_switcher.clone(),
                 ))),
@@ -306,7 +321,7 @@ impl LoginForm {
         A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>
             + std::marker::Send
             + 'static,
-        S: Fn(&PostLoginEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>
+        S: Fn(&SessionEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>
             + std::marker::Send
             + 'static,
     {
@@ -509,7 +524,7 @@ fn login_form_render<B: Backend>(
     frame: &mut Frame<B>,
     chunks: Chunks,
     power_menu: PowerMenuWidget,
-    environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
+    environment: Arc<Mutex<SwitcherWidget<SessionEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
     password: Arc<Mutex<InputFieldWidget>>,
     input_mode: InputMode,
@@ -556,7 +571,7 @@ fn login_form_render<B: Backend>(
 
 #[allow(clippy::too_many_arguments)]
 fn attempt_login<'a, TR, PC, SC, A, S>(
-    environment: Option<PostLoginEnvironment>,
+    environment: Option<SessionEnvironment>,
     username: String,
     password: String,
     config: Config,
@@ -571,7 +586,7 @@ fn attempt_login<'a, TR, PC, SC, A, S>(
     PC: Fn(),
     SC: Fn(),
     A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>,
-    S: Fn(&PostLoginEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>,
+    S: Fn(&SessionEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>,
 {
     // Fetch the selected post login environment
     let post_login_env = match environment {

@@ -4,7 +4,7 @@ use tui::style::Color;
 use tui::widgets::Paragraph;
 use tui::Frame;
 
-use crate::auth::AuthenticationError;
+use lemurs::auth::AuthenticationError;
 
 #[derive(Clone, Copy)]
 pub enum ErrorStatusMessage {

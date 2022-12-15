@@ -1,5 +1,5 @@
 use log::{error, info, warn};
-use std::fs;
+use std::path::PathBuf;
 
 use users::get_user_groups;
 
@@ -8,29 +8,32 @@ use std::process::{Child, Command, Stdio};
 
 use crate::auth::utmpx::add_utmpx_entry;
 use crate::auth::AuthUserInfo;
-use crate::config::Config;
 use env_variables::{init_environment, set_xdg_env};
 
 use nix::unistd::{Gid, Uid};
 
 mod env_variables;
-mod x;
+mod wayland;
+mod x11;
 
 const SYSTEM_SHELL: &str = "/bin/sh";
 
-const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
-const WAYLAND_FOLDER_PATH: &str = "/etc/lemurs/wayland";
+#[derive(Clone)]
+pub struct SessionScript {
+    pub name: String,
+    pub path: PathBuf,
+}
 
 #[derive(Clone)]
-pub enum PostLoginEnvironment {
-    X { xinitrc_path: String },
-    Wayland { script_path: String },
+pub enum SessionEnvironment {
+    X11(SessionScript),
+    Wayland(SessionScript),
     Shell,
 }
 
 pub enum EnvironmentStartError {
     WaylandStart,
-    XSetup(x::XSetupError),
+    XSetup(x11::XSetupError),
     XStartEnv,
 }
 
@@ -101,25 +104,26 @@ fn lower_command_permissions_to_user(
     command
 }
 
-impl PostLoginEnvironment {
+impl SessionEnvironment {
     pub fn start<'a>(
         &self,
-        config: &Config,
+        session_tty: u8,
         user_info: &AuthUserInfo<'a>,
     ) -> Result<(), EnvironmentStartError> {
         init_environment(&user_info.name, &user_info.dir, &user_info.shell);
         info!("Set environment variables");
 
-        set_xdg_env(user_info.uid, &user_info.dir, config.tty, self);
+        set_xdg_env(user_info.uid, &user_info.dir, session_tty, self);
         info!("Set XDG environment variables");
 
         match self {
-            PostLoginEnvironment::X { xinitrc_path } => {
-                x::setup_x(user_info).map_err(EnvironmentStartError::XSetup)?;
+            SessionEnvironment::X11(SessionScript { name, path }) => {
+                info!("Starting X11 session '{}'", name);
+                x11::setup_x(user_info).map_err(EnvironmentStartError::XSetup)?;
                 let child =
                     match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
                         .arg("-c")
-                        .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))
+                        .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", path.display()))
                         .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
                         .spawn()
@@ -132,17 +136,17 @@ impl PostLoginEnvironment {
                     };
 
                 let pid = child.id();
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+                let session = add_utmpx_entry(&user_info.name, session_tty, pid);
 
                 wait_for_child_and_log(child);
                 drop(session);
             }
-            PostLoginEnvironment::Wayland { script_path } => {
-                info!("Starting Wayland Session");
+            SessionEnvironment::Wayland(SessionScript { name, path }) => {
+                info!("Starting Wayland session '{}'", name);
                 let child =
                     match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
                         .arg("-c")
-                        .arg(script_path)
+                        .arg(path)
                         .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
                         .spawn()
@@ -155,11 +159,11 @@ impl PostLoginEnvironment {
                     };
 
                 let pid = child.id();
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+                let session = add_utmpx_entry(&user_info.name, session_tty, pid);
                 wait_for_child_and_log(child);
                 drop(session);
             }
-            PostLoginEnvironment::Shell => {
+            SessionEnvironment::Shell => {
                 info!("Starting TTY shell");
                 let shell = &user_info.shell;
                 let child = match lower_command_permissions_to_user(Command::new(shell), user_info)
@@ -176,7 +180,7 @@ impl PostLoginEnvironment {
                 };
 
                 let pid = child.id();
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
+                let session = add_utmpx_entry(&user_info.name, session_tty, pid);
                 wait_for_child_and_log(child);
                 drop(session);
             }
@@ -186,105 +190,27 @@ impl PostLoginEnvironment {
     }
 }
 
-pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
-    // NOTE: Maybe we can do something smart with `with_capacity` here.
-    let mut envs = Vec::new();
+pub fn get_envs(with_tty_shell: bool) -> Vec<SessionEnvironment> {
+    let x11_envs = x11::get_envs();
+    let wayland_envs = wayland::get_envs();
 
-    match fs::read_dir(INITRCS_FOLDER_PATH) {
-        Ok(paths) => {
-            for path in paths {
-                if let Ok(path) = path {
-                    let file_name = path.file_name().into_string();
+    let envs_len = 0;
+    let envs_len = envs_len + x11_envs.len();
+    let envs_len = envs_len + wayland_envs.len();
+    let envs_len = envs_len + if with_tty_shell { 1 } else { 0 };
 
-                    if let Ok(file_name) = file_name {
-                        if let Ok(metadata) = path.metadata() {
-                            if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
-                                warn!(
-                            "'{}' is not executable and therefore not added as an environment",
-                            file_name
-                        );
+    let mut envs = Vec::with_capacity(envs_len);
 
-                                continue;
-                            }
-                        }
-
-                        envs.push((
-                            file_name,
-                            PostLoginEnvironment::X {
-                                xinitrc_path: match path.path().to_str() {
-                                    Some(p) => p.to_string(),
-                                    None => {
-                                        warn!(
-                                    "Skipped item because it was impossible to convert to string"
-                                );
-                                        continue;
-                                    }
-                                },
-                            },
-                        ));
-                    } else {
-                        warn!("Unable to convert OSString to String");
-                    }
-                } else {
-                    warn!("Ignored errorinous path: '{}'", path.unwrap_err());
-                }
-            }
-        }
-        Err(_) => {
-            warn!("Failed to read from the X folder '{}'", INITRCS_FOLDER_PATH);
-        }
+    for x11_env in x11_envs.into_iter() {
+        envs.push(SessionEnvironment::X11(x11_env));
     }
 
-    match fs::read_dir(WAYLAND_FOLDER_PATH) {
-        Ok(paths) => {
-            for path in paths {
-                if let Ok(path) = path {
-                    let file_name = path.file_name().into_string();
-
-                    if let Ok(file_name) = file_name {
-                        if let Ok(metadata) = path.metadata() {
-                            if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
-                                warn!(
-                            "'{}' is not executable and therefore not added as an environment",
-                            file_name
-                        );
-
-                                continue;
-                            }
-                        }
-
-                        envs.push((
-                            file_name,
-                            PostLoginEnvironment::Wayland {
-                                script_path: match path.path().to_str() {
-                                    Some(p) => p.to_string(),
-                                    None => {
-                                        warn!(
-                                    "Skipped item because it was impossible to convert to string"
-                                );
-                                        continue;
-                                    }
-                                },
-                            },
-                        ));
-                    } else {
-                        warn!("Unable to convert OSString to String");
-                    }
-                } else {
-                    warn!("Ignored errorinous path: '{}'", path.unwrap_err());
-                }
-            }
-        }
-        Err(_) => {
-            warn!(
-                "Failed to read from the wayland folder '{}'",
-                WAYLAND_FOLDER_PATH
-            );
-        }
+    for wayland_env in wayland_envs.into_iter() {
+        envs.push(SessionEnvironment::Wayland(wayland_env));
     }
 
-    if envs.is_empty() || with_tty_shell {
-        envs.push(("TTYSHELL".to_string(), PostLoginEnvironment::Shell));
+    if with_tty_shell {
+        envs.push(SessionEnvironment::Shell);
     }
 
     envs

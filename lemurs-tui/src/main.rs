@@ -8,21 +8,20 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use lemurs::{
+    can_run,
+    session_environment::{SessionEnvironment, SessionScript, EnvironmentStartError}, auth::{try_auth, AuthUserInfo},
+};
 use log::{error, info, warn};
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 
-mod auth;
-mod chvt;
 mod cli;
 mod config;
 mod info_caching;
-mod post_login;
 mod ui;
 
-use auth::{try_auth, AuthUserInfo};
 use config::Config;
-use post_login::{EnvironmentStartError, PostLoginEnvironment};
 
 use crate::cli::{Cli, Commands};
 
@@ -93,10 +92,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(cmd) = cli.command {
         match cmd {
             Commands::Envs => {
-                let envs = post_login::get_envs(config.environment_switcher.include_tty_shell);
+                let envs = lemurs::session_environment::get_envs(
+                    config.environment_switcher.include_tty_shell,
+                );
 
-                for (env_name, _) in envs.into_iter() {
-                    println!("{}", env_name);
+                // TODO: Improve the readability on the terminal of this printing
+                for env in envs.into_iter() {
+                    match env {
+                        SessionEnvironment::X11(SessionScript { name, path }) => {
+                            println!("X11: '{}' --> '{}'", name, path.display())
+                        }
+                        SessionEnvironment::Wayland(SessionScript { name, path }) => {
+                            println!("Wayland: '{}' --> '{}'", name, path.display())
+                        }
+                        SessionEnvironment::Shell => println!("TTY Shell: true"),
+                    }
                 }
             }
             Commands::Cache => {
@@ -131,17 +141,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if !cli.preview {
-        if std::env::var("XDG_SESSION_TYPE").is_ok() {
-            eprintln!("Lemurs cannot be ran without `--preview` within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
-            error!("Lemurs cannot be started when within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
-            std::process::exit(1);
-        }
-
-        let uid = users::get_current_uid();
-        if users::get_current_uid() != 0 {
-            eprintln!("Lemurs needs to be ran as root. Found user id '{}'", uid);
-            error!("Lemurs not ran as root. Found user id '{}'", uid);
-            std::process::exit(1);
+        match can_run() {
+            Err(err) => {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            }
+            Ok(_) => {}
         }
 
         if let Some(tty) = cli.tty {
@@ -152,7 +157,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Switch to the proper tty
         info!("Switching to tty {}", config.tty);
 
-        unsafe { chvt::chvt(config.tty.into()) }.unwrap_or_else(|err| {
+        unsafe { chvt_rs::chvt(config.tty.into()) }.unwrap_or_else(|err| {
             error!("Failed to switch tty {}. Reason: {}", config.tty, err);
         });
     }
@@ -160,7 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Start application
     let mut terminal = tui_enable()?;
     let login_form = ui::LoginForm::new(config, cli.preview);
-    login_form.run(&mut terminal, try_auth, post_login_env_start)?;
+    login_form.run(&mut terminal, try_auth, session_environment_start)?;
     tui_disable(terminal)?;
 
     info!("Lemurs is booting down");
@@ -190,10 +195,10 @@ pub fn tui_disable(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::
     Ok(())
 }
 
-fn post_login_env_start<'a>(
-    post_login_env: &PostLoginEnvironment,
+fn session_environment_start<'a>(
+    session_environment: &SessionEnvironment,
     config: &Config,
     user_info: &AuthUserInfo<'a>,
 ) -> Result<(), EnvironmentStartError> {
-    post_login_env.start(config, user_info)
+    session_environment.start(config.tty, user_info)
 }
