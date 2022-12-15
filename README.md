@@ -33,6 +33,11 @@ but you might have to set the default toolchain with `rustup default stable`.
 
 ```bash
 paru -S lemurs-git # paru can be replaced by any other AUR helper
+
+# Not needed if do don't have a window manager yet
+sudo systemctl disable display-manager.service 
+
+sudo systemctl enable lemurs.service
 ```
 
 or
@@ -41,6 +46,11 @@ or
 git clone https://aur.archlinux.org/lemurs-git.git
 cd lemurs-git
 makepkg -si
+
+# Not needed if do don't have a window manager yet
+sudo systemctl disable display-manager.service 
+
+sudo systemctl enable lemurs.service
 ```
 
 ### Compiling from source
