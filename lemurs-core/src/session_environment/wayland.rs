@@ -1,12 +1,51 @@
-use log::warn;
+use log::{info, warn};
 
 use std::fs;
+use std::process::{Command, Stdio};
 
-use super::SessionScript;
+use crate::auth::SessionUser;
+
+use super::{SessionInitializer, SYSTEM_SHELL};
 
 const WAYLAND_SESSIONS_DIR: &str = "/etc/lemurs/wayland";
 
-pub fn get_envs() -> Vec<SessionScript> {
+pub enum WaylandStartError {
+    InitializerStartFailed,
+}
+
+pub struct WaylandStartContext<'a> {
+    system_shell: &'a str,
+}
+
+impl Default for WaylandStartContext<'static> {
+    fn default() -> Self {
+        Self {
+            system_shell: SYSTEM_SHELL,
+        }
+    }
+}
+
+impl SessionInitializer {
+    pub fn start_wayland(
+        &self,
+        _session_user: &SessionUser<'_>,
+        context: &WaylandStartContext,
+    ) -> Result<Command, WaylandStartError> {
+        info!("Starting Wayland session '{}'", self.name);
+
+        let mut initializer = Command::new(context.system_shell);
+
+        // Make it run the initializer
+        initializer.arg("-c").arg(&self.path);
+
+        // Pipe the stdout and stderr to us so we can read it.
+        initializer.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        Ok(initializer)
+    }
+}
+
+pub fn get_envs() -> Vec<SessionInitializer> {
     let Ok(dir_entries) = fs::read_dir(WAYLAND_SESSIONS_DIR) else {
         warn!(
             "Failed to read from the wayland sessions folder '{}'",
@@ -52,7 +91,7 @@ pub fn get_envs() -> Vec<SessionScript> {
 
         let name = file_name;
         let path = dir_entry.path();
-        envs.push(SessionScript { name, path });
+        envs.push(SessionInitializer { name, path });
     }
 
     envs

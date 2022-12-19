@@ -1,5 +1,6 @@
 use rand::Rng;
 use std::process::{Child, Command, Stdio};
+use std::time::Duration;
 use std::{env, fs};
 use std::{thread, time};
 
@@ -7,22 +8,15 @@ use std::path::PathBuf;
 
 use log::{error, info, warn};
 
-use crate::auth::AuthUserInfo;
+use crate::auth::SessionUser;
 
-use super::SessionScript;
+use super::{SessionInitializer, SYSTEM_SHELL};
 
-const DISPLAY: &str = ":1";
-const VIRTUAL_TERMINAL: &str = "vt01";
-
-const XSTART_TIMEOUT_SECS: u64 = 20;
-const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
+const SERVER_QUERY_NUM_OF_TRIES: usize = 10;
+const SERVER_QUERY_TIMEOUT: Duration = Duration::from_millis(1000);
+const TIMEOUT_CHECK_INTERVAL: Duration = Duration::from_millis(100);
 
 const X11_SESSIONS_DIR: &str = "/etc/lemurs/wms";
-
-pub enum XSetupError {
-    FillingXAuth,
-    XServerStart,
-}
 
 fn mcookie() -> String {
     // TODO: Verify that this is actually safe. Maybe just use the mcookie binary?? Is that always
@@ -32,85 +26,176 @@ fn mcookie() -> String {
     format!("{:032x}", cookie)
 }
 
-pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
+pub fn setup_x_server(
+    user_info: &SessionUser,
+    context: &X11StartContext,
+) -> Result<Child, X11StartError> {
     use std::os::unix::process::CommandExt;
 
     info!("Start setup of X");
 
     // Setup xauth
-    let xauth_dir =
-        PathBuf::from(env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| user_info.dir.to_string()));
+    let xauth_dir = PathBuf::from(
+        env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| user_info.home_dir().to_string()),
+    );
     let xauth_path = xauth_dir.join(".Xauthority");
     env::set_var("XAUTHORITY", xauth_path);
-    env::set_var("DISPLAY", DISPLAY);
+    env::set_var("DISPLAY", context.display);
 
     info!("Filling Xauthority file");
-    Command::new(super::SYSTEM_SHELL)
+    Command::new(context.system_shell)
         .arg("-c")
-        .arg(format!("/usr/bin/xauth add {} . {}", DISPLAY, mcookie()))
-        .uid(user_info.uid)
-        .gid(user_info.gid)
+        .arg(format!(
+            "/usr/bin/xauth add {} . {}",
+            context.display,
+            mcookie()
+        ))
+        .uid(user_info.user_id().as_raw())
+        .gid(user_info.group_id().as_raw())
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .status()
         .map_err(|err| {
             error!("Filling xauth file failed. Reason: {}", err);
-            XSetupError::FillingXAuth
+            X11StartError::XAuthCommand
         })?;
 
     info!("Run X server");
-    let child = Command::new(super::SYSTEM_SHELL)
+    let child = Command::new(context.system_shell)
         .arg("-c")
-        .arg(format!("/usr/bin/X {} {}", DISPLAY, VIRTUAL_TERMINAL))
+        .arg(format!(
+            "/usr/bin/X {} {}",
+            context.display, context.virtual_terminal
+        ))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .spawn()
         .map_err(|err| {
             error!("Starting X server failed. Reason: {}", err);
-            XSetupError::XServerStart
+            X11StartError::XServerStart
         })?;
 
     // Wait for XServer to boot-up
-    let start_time = time::SystemTime::now();
+    info!("Wait for X server to boot up");
+    let mut num_tries = 0;
     loop {
-        // Timeout
-        if match start_time.elapsed() {
-            Ok(dur) => dur.as_secs() >= XSTART_TIMEOUT_SECS,
-            Err(_) => {
-                error!("Failed to resolve elapsed time");
-                std::process::exit(1);
-            }
-        } {
-            error!("Starting X timed out!");
-            return Err(XSetupError::XServerStart);
-        }
-
-        match Command::new(super::SYSTEM_SHELL)
+        let start_time = time::SystemTime::now();
+        let mut query_command = Command::new(context.system_shell)
             .arg("-c")
-            .arg("timeout 1s /usr/bin/xset q")
+            .arg("/usr/bin/xset q")
             .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
             .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
-            .status()
-        {
-            Ok(status) => {
-                if status.success() {
-                    break;
-                }
-            }
-            Err(_) => {
+            .spawn()
+            .map_err(|_| {
                 error!("Failed to run xset to check X server status");
-                return Err(XSetupError::XServerStart);
-            }
-        }
+                X11StartError::FailedServerStartQuery
+            })?;
 
-        thread::sleep(time::Duration::from_millis(XSTART_CHECK_INTERVAL_MILLIS));
+        // Loop until the querying command is done. This has a timeout at which point it is retried
+        // with a new command.
+        let option_status = loop {
+            if start_time
+                .elapsed()
+                .map(|dur| dur < SERVER_QUERY_TIMEOUT)
+                .map_err(|_| {
+                    error!("Failed to resolve elapsed time");
+                    X11StartError::FailedResolveElapsedTime
+                })?
+            {
+                break None;
+            }
+
+            // Wait for a bit for the query command to finish
+            thread::sleep(TIMEOUT_CHECK_INTERVAL);
+
+            // See if the query command has finished
+            match query_command.try_wait() {
+                Err(_) => {
+                    error!("Failed check status of query command");
+                    return Err(X11StartError::FailedServerStatusCheck);
+                },
+                Ok(None) => continue,
+                Ok(Some(status)) => break Some(status),
+            };
+        };
+
+        match option_status {
+            Some(status) if status.success() => break,
+            Some(status) => warn!(
+                "X Server query command exited with exit status '{:?}'",
+                status.code()
+            ),
+            None => warn!("X Server query command timed out"),
+        };
+
+        // Exceeded the max number of tries
+        if num_tries >= SERVER_QUERY_NUM_OF_TRIES {
+            error!("Checking the X server status has exceeded its maximum number of tries.");
+            return Err(X11StartError::ExceededMaxTries);
+        }
+        num_tries += 1;
     }
     info!("X server is running");
 
     Ok(child)
 }
 
-pub fn get_envs() -> Vec<SessionScript> {
+pub enum X11StartError {
+    XAuthCommand,
+    XServerStart,
+    ServerTimeout,
+    FailedServerStartQuery,
+    FailedServerStatusCheck,
+    FailedResolveElapsedTime,
+    ExceededMaxTries,
+}
+
+pub struct X11StartContext<'a> {
+    system_shell: &'a str,
+    session_tty: u8,
+    display: &'a str,
+    virtual_terminal: &'a str,
+}
+
+impl Default for X11StartContext<'static> {
+    fn default() -> Self {
+        Self {
+            system_shell: SYSTEM_SHELL,
+            session_tty: 1,
+            display: ":1",
+            virtual_terminal: "vt01",
+        }
+    }
+}
+
+impl SessionInitializer {
+    pub fn start_x11(
+        &self,
+        session_user: &SessionUser,
+        context: &X11StartContext,
+    ) -> Result<Command, X11StartError> {
+        info!("Starting X11 session '{}'", self.name);
+
+        // Start the X Server
+        setup_x_server(session_user, context)?;
+
+        let mut initializer = Command::new(context.system_shell);
+
+        // Make it run the initializer
+        initializer.arg("-c").arg(format!(
+            "{} {}",
+            "/etc/lemurs/xsetup.sh",
+            self.path.display()
+        ));
+
+        // Pipe the stdout and stderr to us so we can read it.
+        initializer.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        Ok(initializer)
+    }
+}
+
+pub fn get_envs() -> Vec<SessionInitializer> {
     let Ok(dir_entries) = fs::read_dir(X11_SESSIONS_DIR) else {
         warn!(
             "Failed to read from the x11 sessions folder '{}'",
@@ -156,7 +241,7 @@ pub fn get_envs() -> Vec<SessionScript> {
 
         let name = file_name;
         let path = dir_entry.path();
-        envs.push(SessionScript { name, path });
+        envs.push(SessionInitializer { name, path });
     }
 
     envs

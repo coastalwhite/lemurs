@@ -1,4 +1,5 @@
 use log::{error, info};
+use nix::unistd::Uid;
 use std::env;
 
 use super::SessionEnvironment;
@@ -27,9 +28,8 @@ pub fn init_environment(username: &str, homedir: &str, shell: &str) {
     // env::set_var("MAIL", "..."); TODO: Add
 }
 
-// NOTE: This uid: u32 might be better set to libc::uid_t
 /// Set the XDG environment variables
-pub fn set_xdg_env(uid: u32, homedir: &str, tty: u8, session_environment: &SessionEnvironment) {
+pub fn set_xdg_env(uid: Uid, homedir: &str, tty: u8, session_environment: &SessionEnvironment) {
     // This is according to https://wiki.archlinux.org/title/XDG_Base_Directory
 
     env_set_and_announce("XDG_CONFIG_DIR", &format!("{}/.config", homedir));

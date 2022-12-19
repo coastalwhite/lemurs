@@ -10,7 +10,7 @@ use crossterm::{
 };
 use lemurs::{
     can_run,
-    session_environment::{SessionEnvironment, SessionScript, EnvironmentStartError}, auth::{try_auth, AuthUserInfo},
+    session_environment::{SessionEnvironment, SessionInitializer, EnvironmentStartError}, auth::{try_auth, AuthUserInfo},
 };
 use log::{error, info, warn};
 use tui::backend::CrosstermBackend;
@@ -99,10 +99,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // TODO: Improve the readability on the terminal of this printing
                 for env in envs.into_iter() {
                     match env {
-                        SessionEnvironment::X11(SessionScript { name, path }) => {
+                        SessionEnvironment::X11(SessionInitializer { name, path }) => {
                             println!("X11: '{}' --> '{}'", name, path.display())
                         }
-                        SessionEnvironment::Wayland(SessionScript { name, path }) => {
+                        SessionEnvironment::Wayland(SessionInitializer { name, path }) => {
                             println!("Wayland: '{}' --> '{}'", name, path.display())
                         }
                         SessionEnvironment::Shell => println!("TTY Shell: true"),
