@@ -10,7 +10,7 @@ use crossterm::{
 };
 use lemurs::{
     can_run,
-    session_environment::{SessionEnvironment, SessionInitializer, EnvironmentStartError}, auth::{try_auth, SessionUser},
+    session_environment::{SessionEnvironment, SessionInitializer},
 };
 use log::{error, info, warn};
 use tui::backend::CrosstermBackend;
@@ -165,7 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Start application
     let mut terminal = tui_enable()?;
     let login_form = ui::LoginForm::new(config, cli.preview);
-    login_form.run(&mut terminal, try_auth, session_environment_start)?;
+    login_form.run(&mut terminal)?;
     tui_disable(terminal)?;
 
     info!("Lemurs is booting down");
@@ -193,12 +193,4 @@ pub fn tui_disable(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::
     info!("Reset terminal environment");
 
     Ok(())
-}
-
-fn session_environment_start<'a>(
-    session_environment: &SessionEnvironment,
-    config: &Config,
-    user_info: &SessionUser<'a>,
-) -> Result<(), EnvironmentStartError> {
-    session_environment.start(config.tty, user_info)
 }

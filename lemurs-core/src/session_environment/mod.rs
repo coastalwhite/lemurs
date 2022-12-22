@@ -6,9 +6,9 @@ use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 
 use crate::auth::SessionUser;
-use crate::{can_run, RunError};
 use crate::session_environment::wayland::WaylandStartContext;
 use crate::session_environment::x11::X11StartContext;
+use crate::{can_run, RunError};
 use env_variables::{init_environment, set_xdg_env};
 
 use self::wayland::WaylandStartError;
@@ -78,10 +78,7 @@ pub enum EnvironmentStartError {
 }
 
 impl SessionEnvironment {
-    pub fn start(
-        &self,
-        session_user: &SessionUser,
-    ) -> Result<(), EnvironmentStartError> {
+    pub fn start(&self, session_user: &SessionUser) -> Result<(), EnvironmentStartError> {
         let context = EnvironmentContext::default();
         self.start_with_context(session_user, &context)
     }
@@ -163,7 +160,6 @@ impl SessionEnvironment {
             }
         };
 
-
         // Lower the permissions of the initializer process
         let to_session_user_env = move || {
             use nix::unistd::{setgid, setgroups, setuid};
@@ -225,7 +221,6 @@ impl SessionEnvironment {
                 Ok(_) => {}
             };
         }
-
 
         info!("Ended session");
 

@@ -1,6 +1,6 @@
 use lemurs::auth::{AuthError, SessionUser};
 use lemurs::session_environment::SessionEnvironment;
-use std::io::{self, BufRead, stdout, Write};
+use std::io::{self, stdout, BufRead, Write};
 
 fn main() -> io::Result<()> {
     let mut username = String::new();

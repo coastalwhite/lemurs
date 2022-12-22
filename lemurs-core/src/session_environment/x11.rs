@@ -10,7 +10,7 @@ use log::{error, info, warn};
 
 use crate::auth::SessionUser;
 
-use super::{SessionInitializer, EnvironmentContext};
+use super::{EnvironmentContext, SessionInitializer};
 
 const SERVER_QUERY_NUM_OF_TRIES: usize = 10;
 const SERVER_QUERY_TIMEOUT: Duration = Duration::from_millis(1000);
@@ -27,9 +27,20 @@ pub struct X11StartContext<'a> {
 
 impl<'a> From<&EnvironmentContext<'a>> for X11StartContext<'a> {
     fn from(context: &EnvironmentContext<'a>) -> Self {
-        let EnvironmentContext { system_shell, display, virtual_terminal, x_bin_path, .. } = context;
+        let EnvironmentContext {
+            system_shell,
+            display,
+            virtual_terminal,
+            x_bin_path,
+            ..
+        } = context;
 
-        Self { system_shell, display, virtual_terminal, x_bin_path }
+        Self {
+            system_shell,
+            display,
+            virtual_terminal,
+            x_bin_path,
+        }
     }
 }
 
@@ -128,7 +139,7 @@ pub fn setup_x_server(
                 Err(_) => {
                     error!("Failed check status of query command");
                     return Err(X11StartError::FailedServerStatusCheck);
-                },
+                }
                 Ok(None) => continue,
                 Ok(Some(status)) => break Some(status),
             };
@@ -164,7 +175,6 @@ pub enum X11StartError {
     FailedResolveElapsedTime,
     ExceededMaxTries,
 }
-
 
 impl Default for X11StartContext<'static> {
     fn default() -> Self {
