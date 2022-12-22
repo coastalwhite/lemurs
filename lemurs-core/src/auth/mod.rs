@@ -12,7 +12,9 @@ use nix::unistd::{Gid, Uid};
 use pgs_files::passwd::get_entry_by_name;
 use users::get_user_groups;
 
-use self::pam::PamSession;
+use crate::{can_run, RunError};
+
+use self::pam::{PamError, PamSession};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AuthError {
@@ -20,10 +22,11 @@ pub enum AuthError {
     UsernameNotFound,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SessionOpenError<T: Error> {
+#[derive(Debug, Clone)]
+pub enum SessionOpenError {
+    Run(RunError),
     Authentication(AuthError),
-    BackendSpecific(T),
+    Pam(PamError),
 }
 
 #[derive(Debug, Clone)]
@@ -37,14 +40,14 @@ pub struct AuthContext {
 /// credential.
 type AuthBackend<'a> = PamSession<'a>;
 
-pub trait AuthSession: Sized {
+trait AuthSession: Sized {
     type Err: Error + Sized;
     type Context: Default + Sized;
 
     fn open(
         username: impl AsRef<str>,
         password: impl AsRef<str>,
-    ) -> Result<Self, SessionOpenError<Self::Err>> {
+    ) -> Result<Self, SessionOpenError> {
         Self::open_with_context(username, password, &Self::Context::default())
     }
 
@@ -52,7 +55,7 @@ pub trait AuthSession: Sized {
         username: impl AsRef<str>,
         password: impl AsRef<str>,
         context: &Self::Context,
-    ) -> Result<Self, SessionOpenError<Self::Err>>;
+    ) -> Result<Self, SessionOpenError>;
 }
 
 /// The information of a user currently within a session. If this structure is dropped then the
@@ -104,10 +107,7 @@ impl<'a> SessionUser<'a> {
     }
 
     /// Attempt to create a new authenticated user from their username and password.
-    pub fn authenticate(
-        username: &'_ str,
-        password: &'_ str,
-    ) -> Result<Self, SessionOpenError<<AuthBackend<'a> as AuthSession>::Err>> {
+    pub fn authenticate(username: &'_ str, password: &'_ str) -> Result<Self, SessionOpenError> {
         let auth_context = AuthContext::default();
         Self::authenticate_with_context(username, password, &auth_context)
     }
@@ -118,7 +118,9 @@ impl<'a> SessionUser<'a> {
         username: &'_ str,
         password: &'_ str,
         auth_context: &AuthContext,
-    ) -> Result<Self, SessionOpenError<<AuthBackend<'a> as AuthSession>::Err>> {
+    ) -> Result<Self, SessionOpenError> {
+        can_run()?;
+
         let session =
             AuthBackend::open_with_context(username, password, &auth_context.backend_specific)?;
         let session = session.into();
@@ -218,14 +220,20 @@ impl Display for AuthError {
     }
 }
 
-impl<T: Error> From<AuthError> for SessionOpenError<T> {
+impl From<RunError> for SessionOpenError {
+    fn from(value: RunError) -> Self {
+        SessionOpenError::Run(value)
+    }
+}
+
+impl From<AuthError> for SessionOpenError {
     fn from(value: AuthError) -> Self {
         SessionOpenError::Authentication(value)
     }
 }
 
-impl<T: Error> From<T> for SessionOpenError<T> {
-    fn from(value: T) -> Self {
-        SessionOpenError::BackendSpecific(value)
+impl From<PamError> for SessionOpenError {
+    fn from(value: PamError) -> Self {
+        SessionOpenError::Pam(value)
     }
 }

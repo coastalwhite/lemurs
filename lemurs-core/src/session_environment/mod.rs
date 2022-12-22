@@ -6,6 +6,7 @@ use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 
 use crate::auth::SessionUser;
+use crate::{can_run, RunError};
 use crate::session_environment::wayland::WaylandStartContext;
 use crate::session_environment::x11::X11StartContext;
 use env_variables::{init_environment, set_xdg_env};
@@ -68,6 +69,7 @@ pub enum SessionEnvironment {
 }
 
 pub enum EnvironmentStartError {
+    Run(RunError),
     InitializerFailed,
     InitializerWaitFailed,
     StdErrNonUtf8,
@@ -101,11 +103,13 @@ impl SessionEnvironment {
         result
     }
 
-    pub fn internal_start_with_context<'a>(
+    fn internal_start_with_context<'a>(
         &self,
         session_user: &SessionUser,
         context: &EnvironmentContext<'a>,
     ) -> Result<(), EnvironmentStartError> {
+        can_run()?;
+
         let uid = session_user.user_id();
         let gid = session_user.group_id();
         let groups = session_user.groups().to_owned();
@@ -253,4 +257,10 @@ pub fn get_envs(with_tty_shell: bool) -> Vec<SessionEnvironment> {
     }
 
     envs
+}
+
+impl From<RunError> for EnvironmentStartError {
+    fn from(value: RunError) -> Self {
+        EnvironmentStartError::Run(value)
+    }
 }
