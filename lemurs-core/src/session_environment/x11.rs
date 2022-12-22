@@ -10,13 +10,28 @@ use log::{error, info, warn};
 
 use crate::auth::SessionUser;
 
-use super::{SessionInitializer, SYSTEM_SHELL};
+use super::{SessionInitializer, EnvironmentContext};
 
 const SERVER_QUERY_NUM_OF_TRIES: usize = 10;
 const SERVER_QUERY_TIMEOUT: Duration = Duration::from_millis(1000);
 const TIMEOUT_CHECK_INTERVAL: Duration = Duration::from_millis(100);
 
 const X11_SESSIONS_DIR: &str = "/etc/lemurs/wms";
+
+pub struct X11StartContext<'a> {
+    system_shell: &'a str,
+    display: &'a str,
+    virtual_terminal: &'a str,
+    x_bin_path: &'a str,
+}
+
+impl<'a> From<&EnvironmentContext<'a>> for X11StartContext<'a> {
+    fn from(context: &EnvironmentContext<'a>) -> Self {
+        let EnvironmentContext { system_shell, display, virtual_terminal, x_bin_path, .. } = context;
+
+        Self { system_shell, display, virtual_terminal, x_bin_path }
+    }
+}
 
 fn mcookie() -> String {
     // TODO: Verify that this is actually safe. Maybe just use the mcookie binary?? Is that always
@@ -64,8 +79,8 @@ pub fn setup_x_server(
     let child = Command::new(context.system_shell)
         .arg("-c")
         .arg(format!(
-            "/usr/bin/X {} {}",
-            context.display, context.virtual_terminal
+            "{} {} {}",
+            context.x_bin_path, context.display, context.virtual_terminal
         ))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
@@ -150,21 +165,10 @@ pub enum X11StartError {
     ExceededMaxTries,
 }
 
-pub struct X11StartContext<'a> {
-    system_shell: &'a str,
-    session_tty: u8,
-    display: &'a str,
-    virtual_terminal: &'a str,
-}
 
 impl Default for X11StartContext<'static> {
     fn default() -> Self {
-        Self {
-            system_shell: SYSTEM_SHELL,
-            session_tty: 1,
-            display: ":1",
-            virtual_terminal: "vt01",
-        }
+        (&EnvironmentContext::default()).into()
     }
 }
 
@@ -187,9 +191,6 @@ impl SessionInitializer {
             "/etc/lemurs/xsetup.sh",
             self.path.display()
         ));
-
-        // Pipe the stdout and stderr to us so we can read it.
-        initializer.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         Ok(initializer)
     }

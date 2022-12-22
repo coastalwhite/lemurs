@@ -4,10 +4,11 @@ use std::fmt::Display;
 use log::info;
 use pam::{Authenticator, PasswordConv};
 
-use crate::auth::{AuthError, AuthSession, SessionOpenError, AuthBackend};
+use crate::auth::{AuthError, AuthSession, SessionOpenError};
 
 pub struct PamSession<'a>(Authenticator<'a, PasswordConv>);
 
+#[derive(Debug, Clone)]
 pub struct PamContext {
     service: &'static str,
 }
@@ -66,12 +67,6 @@ impl<'a> AuthSession for PamSession<'a> {
 
         // NOTE: Logout happens automatically here with `drop` of session and context
         Ok(PamSession(authenticator))
-    }
-}
-
-impl<'a> Into<AuthBackend<'a>> for PamSession<'a> {
-    fn into(self) -> AuthBackend<'a> {
-        AuthBackend::Pam(self)
     }
 }
 

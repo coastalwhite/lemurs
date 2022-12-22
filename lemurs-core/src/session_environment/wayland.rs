@@ -1,11 +1,11 @@
 use log::{info, warn};
 
 use std::fs;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use crate::auth::SessionUser;
 
-use super::{SessionInitializer, SYSTEM_SHELL};
+use super::{EnvironmentContext, SessionInitializer};
 
 const WAYLAND_SESSIONS_DIR: &str = "/etc/lemurs/wayland";
 
@@ -19,9 +19,14 @@ pub struct WaylandStartContext<'a> {
 
 impl Default for WaylandStartContext<'static> {
     fn default() -> Self {
-        Self {
-            system_shell: SYSTEM_SHELL,
-        }
+        (&EnvironmentContext::default()).into()
+    }
+}
+
+impl<'a> From<&EnvironmentContext<'a>> for WaylandStartContext<'a> {
+    fn from(context: &EnvironmentContext<'a>) -> Self {
+        let EnvironmentContext { system_shell, .. } = context;
+        Self { system_shell }
     }
 }
 
@@ -37,9 +42,6 @@ impl SessionInitializer {
 
         // Make it run the initializer
         initializer.arg("-c").arg(&self.path);
-
-        // Pipe the stdout and stderr to us so we can read it.
-        initializer.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         Ok(initializer)
     }

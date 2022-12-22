@@ -26,14 +26,16 @@ pub enum SessionOpenError<T: Error> {
     BackendSpecific(T),
 }
 
-pub struct AuthContext<S: AuthSession> {
-    backend_specific: S::Context,
+#[derive(Debug, Clone)]
+pub struct AuthContext {
+    backend_specific: <AuthBackend<'static> as AuthSession>::Context,
     session_tty: u8,
+    use_utmpx: bool,
 }
 
-pub enum AuthBackend<'a> {
-    Pam(PamSession<'a>),
-}
+/// Integrated backends. These all allow to open a session given a username and password
+/// credential.
+type AuthBackend<'a> = PamSession<'a>;
 
 pub trait AuthSession: Sized {
     type Err: Error + Sized;
@@ -68,7 +70,7 @@ pub struct SessionUser<'a> {
     gecos: String,
     home_dir: String,
     shell: String,
-    utmpx: RefCell<Utmpx>,
+    utmpx: Option<RefCell<Utmpx>>,
 }
 
 impl<'a> SessionUser<'a> {
@@ -102,22 +104,23 @@ impl<'a> SessionUser<'a> {
     }
 
     /// Attempt to create a new authenticated user from their username and password.
-    pub fn authenticate<S: AuthSession + Into<AuthBackend<'a>>>(
+    pub fn authenticate(
         username: &'_ str,
         password: &'_ str,
-    ) -> Result<Self, SessionOpenError<S::Err>> {
-        let auth_context = AuthContext::<S>::default();
+    ) -> Result<Self, SessionOpenError<<AuthBackend<'a> as AuthSession>::Err>> {
+        let auth_context = AuthContext::default();
         Self::authenticate_with_context(username, password, &auth_context)
     }
 
     /// Attempt to create a new authenticated user from their username and password with an
     /// arbitrary authentication context.
-    pub fn authenticate_with_context<S: AuthSession + Into<AuthBackend<'a>>>(
+    pub fn authenticate_with_context(
         username: &'_ str,
         password: &'_ str,
-        auth_context: &AuthContext<S>,
-    ) -> Result<Self, SessionOpenError<S::Err>> {
-        let session = S::open_with_context(username, password, &auth_context.backend_specific)?;
+        auth_context: &AuthContext,
+    ) -> Result<Self, SessionOpenError<<AuthBackend<'a> as AuthSession>::Err>> {
+        let session =
+            AuthBackend::open_with_context(username, password, &auth_context.backend_specific)?;
         let session = session.into();
 
         // NOTE: Maybe we should also load all groups here
@@ -129,7 +132,12 @@ impl<'a> SessionUser<'a> {
             .map(|group| Gid::from_raw(group.gid()))
             .collect();
 
-        let utmpx = utmpx::add_utmpx_entry(username, auth_context.session_tty);
+        let utmpx = auth_context
+            .use_utmpx
+            .then_some(RefCell::new(utmpx::add_utmpx_entry(
+                username,
+                auth_context.session_tty,
+            )));
 
         Ok(Self {
             session,
@@ -141,54 +149,58 @@ impl<'a> SessionUser<'a> {
             gecos: String::from(info.gecos),
             home_dir: String::from(info.dir),
             shell: String::from(info.shell),
-            utmpx: RefCell::new(utmpx),
+            utmpx,
         })
     }
 
     pub fn set_pid(&self, pid: u32) {
-        self.utmpx.replace_with(|utmpx| {
-            utmpx.ut_pid = pid as pid_t;
+        if let Some(utmpx) = &self.utmpx {
+            utmpx.replace_with(|utmpx| {
+                utmpx.ut_pid = pid as pid_t;
 
-            unsafe {
-                libc::setutxent();
-                libc::pututxline(utmpx as *const Utmpx);
-            };
+                unsafe {
+                    libc::setutxent();
+                    libc::pututxline(utmpx as *const Utmpx);
+                };
 
-            *utmpx
-        });
+                *utmpx
+            });
+        }
     }
 }
-
 
 impl<'a> Drop for SessionUser<'a> {
     fn drop(&mut self) {
-        info!("Removing UTMPX record");
+        if let Some(utmpx) = &self.utmpx {
+            info!("Removing UTMPX record");
 
-        self.utmpx.replace_with(|utmpx| {
-            utmpx.ut_type = libc::DEAD_PROCESS;
+            utmpx.replace_with(|utmpx| {
+                utmpx.ut_type = libc::DEAD_PROCESS;
 
-            utmpx.ut_line = <[c_char; 32]>::default();
-            utmpx.ut_user = <[c_char; 32]>::default();
+                utmpx.ut_line = <[c_char; 32]>::default();
+                utmpx.ut_user = <[c_char; 32]>::default();
 
-            utmpx.ut_tv.tv_usec = 0;
-            utmpx.ut_tv.tv_sec = 0;
+                utmpx.ut_tv.tv_usec = 0;
+                utmpx.ut_tv.tv_sec = 0;
 
-            unsafe {
-                libc::setutxent();
-                libc::pututxline(utmpx as *const Utmpx);
-                libc::endutxent();
-            }
+                unsafe {
+                    libc::setutxent();
+                    libc::pututxline(utmpx as *const Utmpx);
+                    libc::endutxent();
+                }
 
-            *utmpx
-        });
+                *utmpx
+            });
+        }
     }
 }
 
-impl<S: AuthSession> Default for AuthContext<S> {
+impl Default for AuthContext {
     fn default() -> Self {
         Self {
-            backend_specific: S::Context::default(),
+            backend_specific: <AuthBackend<'static> as AuthSession>::Context::default(),
             session_tty: 1,
+            use_utmpx: true,
         }
     }
 }

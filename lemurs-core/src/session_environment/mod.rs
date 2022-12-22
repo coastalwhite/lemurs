@@ -3,7 +3,7 @@ use log::{error, info, warn};
 use std::path::PathBuf;
 
 use std::os::unix::process::CommandExt;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 
 use crate::auth::SessionUser;
 use crate::session_environment::wayland::WaylandStartContext;
@@ -17,12 +17,33 @@ mod env_variables;
 mod wayland;
 mod x11;
 
-const SYSTEM_SHELL: &str = "/bin/sh";
+const SYSTEM_SHELL: &str = "sh";
 
 #[derive(Clone)]
 pub struct SessionInitializer {
     pub name: String,
     pub path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnvironmentContext<'a> {
+    pub system_shell: &'a str,
+    pub session_tty: u8,
+    pub x_bin_path: &'a str,
+    pub display: &'a str,
+    pub virtual_terminal: &'a str,
+}
+
+impl Default for EnvironmentContext<'static> {
+    fn default() -> Self {
+        Self {
+            session_tty: 2,
+            system_shell: SYSTEM_SHELL,
+            x_bin_path: "X",
+            display: ":1",
+            virtual_terminal: "vt01",
+        }
+    }
 }
 
 impl SessionInitializer {
@@ -48,56 +69,42 @@ pub enum SessionEnvironment {
 
 pub enum EnvironmentStartError {
     InitializerFailed,
+    InitializerWaitFailed,
+    StdErrNonUtf8,
     WaylandStart(WaylandStartError),
     X11Start(X11StartError),
-}
-
-fn wait_for_child_and_log(child: Child) {
-    let child_output = match child.wait_with_output() {
-        Ok(output) => output,
-        Err(err) => {
-            error!("Failed to wait for environment to exit, Reason: '{}'", err);
-            return;
-        }
-    };
-
-    // Print the stdout if it is at all available
-    match std::str::from_utf8(&child_output.stdout) {
-        Ok(output) => {
-            if !output.trim().is_empty() {
-                info!("Environment's stdout: \"\"\"\n{}\n\"\"\"", output.trim());
-            }
-        }
-        Err(err) => {
-            warn!("Failed to read STDOUT output as UTF-8. Reason: '{}'", err);
-        }
-    };
-
-    // Return the `stderr` if the child process did not exit correctly.
-    if !child_output.status.success() {
-        warn!("Environment came back with non-zero exit code.");
-
-        match std::str::from_utf8(&child_output.stderr) {
-            Ok(output) => {
-                if !output.trim().is_empty() {
-                    warn!("Environment's stderr: \"\"\"\n{}\n\"\"\"", output.trim());
-                }
-            }
-            Err(err) => {
-                warn!("Failed to read STDERR output as UTF-8. Reason: '{}'", err);
-                return;
-            }
-        };
-    }
-
-    info!("Returning to Lemurs...");
 }
 
 impl SessionEnvironment {
     pub fn start(
         &self,
-        session_tty: u8,
         session_user: &SessionUser,
+    ) -> Result<(), EnvironmentStartError> {
+        let context = EnvironmentContext::default();
+        self.start_with_context(session_user, &context)
+    }
+
+    pub fn start_with_context<'a>(
+        &self,
+        session_user: &SessionUser,
+        context: &EnvironmentContext<'a>,
+    ) -> Result<(), EnvironmentStartError> {
+        let result = self.internal_start_with_context(session_user, context);
+
+        info!("Switch back to Lemurs virtual terminal");
+
+        // TODO: Make this work with the configuration
+        if unsafe { chvt(2) }.is_err() {
+            warn!("Failed to switch back to Lemurs virtual terminal");
+        }
+
+        result
+    }
+
+    pub fn internal_start_with_context<'a>(
+        &self,
+        session_user: &SessionUser,
+        context: &EnvironmentContext<'a>,
     ) -> Result<(), EnvironmentStartError> {
         let uid = session_user.user_id();
         let gid = session_user.group_id();
@@ -110,21 +117,31 @@ impl SessionEnvironment {
         );
         info!("Set environment variables");
 
-        set_xdg_env(uid, session_user.home_dir(), session_tty, self);
+        set_xdg_env(uid, session_user.home_dir(), context.session_tty, self);
         info!("Set XDG environment variables");
 
         let mut initializer = match self {
             SessionEnvironment::X11(initializer) => {
-                let context = X11StartContext::default();
-                initializer
+                let context = X11StartContext::from(context);
+                let mut initializer = initializer
                     .start_x11(&session_user, &context)
-                    .map_err(EnvironmentStartError::X11Start)?
+                    .map_err(EnvironmentStartError::X11Start)?;
+
+                // Pipe the stdout and stderr to us so we can read it.
+                initializer.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+                initializer
             }
             SessionEnvironment::Wayland(initializer) => {
-                let context = WaylandStartContext::default();
-                initializer
+                let context = WaylandStartContext::from(context);
+                let mut initializer = initializer
                     .start_wayland(&session_user, &context)
-                    .map_err(EnvironmentStartError::WaylandStart)?
+                    .map_err(EnvironmentStartError::WaylandStart)?;
+
+                // Pipe the stdout and stderr to us so we can read it.
+                initializer.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+                initializer
             }
             SessionEnvironment::Shell => {
                 info!("Starting TTY shell");
@@ -141,6 +158,7 @@ impl SessionEnvironment {
                 initializer
             }
         };
+
 
         // Lower the permissions of the initializer process
         let to_session_user_env = move || {
@@ -169,13 +187,41 @@ impl SessionEnvironment {
         session_user.set_pid(initializer.id());
 
         // Wait for the session to end
-        wait_for_child_and_log(initializer);
+        let output = match initializer.wait_with_output() {
+            Ok(output) => output,
+            Err(err) => {
+                error!("Failed to wait for environment to exit, Reason: '{}'", err);
+                return Err(EnvironmentStartError::InitializerWaitFailed);
+            }
+        };
 
-        info!("Switch back to Lemurs virtual terminal");
-        // TODO: Make this work with the configuration
-        if unsafe { chvt(2) }.is_err() {
-            warn!("Failed to switch back to Lemurs virtual terminal");
+        // Print the stdout if it is at all available
+        match std::str::from_utf8(&output.stdout) {
+            Ok(output) if !output.trim().is_empty() => {
+                info!("Environment's stdout: \"\"\"\n{}\n\"\"\"", output.trim());
+            }
+            Err(err) => {
+                warn!("Failed to read STDOUT output as UTF-8. Reason: '{}'", err);
+            }
+            Ok(_) => {}
+        };
+
+        // Return the `stderr` if the child process did not exit correctly.
+        if !output.status.success() {
+            warn!("Environment came back with non-zero exit code.");
+
+            match std::str::from_utf8(&output.stderr) {
+                Ok(output) if !output.trim().is_empty() => {
+                    warn!("Environment's stderr: \"\"\"\n{}\n\"\"\"", output.trim());
+                }
+                Err(err) => {
+                    warn!("Failed to read STDERR output as UTF-8. Reason: '{}'", err);
+                    return Err(EnvironmentStartError::StdErrNonUtf8);
+                }
+                Ok(_) => {}
+            };
         }
+
 
         info!("Ended session");
 
