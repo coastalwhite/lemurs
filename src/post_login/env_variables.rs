@@ -39,7 +39,8 @@ pub fn set_xdg_env(uid: u32, homedir: &str, tty: u8) {
 
     env_set_and_announce("XDG_RUNTIME_DIR", &format!("/run/user/{}", uid));
     env_set_and_announce("XDG_SESSION_DIR", "user");
-    env_set_and_announce("XDG_SESSION_ID", "1");
+    // env_set_and_announce("XDG_SESSION_ID", "1");
+    // pam_systemd.so will set this for us
     env_set_and_announce("XDG_SEAT", "seat0");
     env_set_and_announce("XDG_VTNR", &tty.to_string());
 }
