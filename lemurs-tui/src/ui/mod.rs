@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_information, set_cache};
-use lemurs::auth::{AuthUserInfo, AuthenticationError};
+use lemurs::auth::{SessionUser, AuthenticationError};
 use lemurs::session_environment::{EnvironmentStartError, SessionEnvironment};
 use status_message::StatusMessage;
 
@@ -318,10 +318,10 @@ impl LoginForm {
         start_env_fn: S,
     ) -> io::Result<()>
     where
-        A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>
+        A: Fn(String, String) -> Result<SessionUser<'a>, AuthenticationError>
             + std::marker::Send
             + 'static,
-        S: Fn(&SessionEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>
+        S: Fn(&SessionEnvironment, &Config, &SessionUser) -> Result<(), EnvironmentStartError>
             + std::marker::Send
             + 'static,
     {
@@ -585,8 +585,8 @@ fn attempt_login<'a, TR, PC, SC, A, S>(
     TR: Fn(UIThreadRequest),
     PC: Fn(),
     SC: Fn(),
-    A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>,
-    S: Fn(&SessionEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>,
+    A: Fn(String, String) -> Result<SessionUser<'a>, AuthenticationError>,
+    S: Fn(&SessionEnvironment, &Config, &SessionUser) -> Result<(), EnvironmentStartError>,
 {
     // Fetch the selected post login environment
     let post_login_env = match environment {

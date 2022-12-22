@@ -10,7 +10,7 @@ use crossterm::{
 };
 use lemurs::{
     can_run,
-    session_environment::{SessionEnvironment, SessionInitializer, EnvironmentStartError}, auth::{try_auth, AuthUserInfo},
+    session_environment::{SessionEnvironment, SessionInitializer, EnvironmentStartError}, auth::{try_auth, SessionUser},
 };
 use log::{error, info, warn};
 use tui::backend::CrosstermBackend;
@@ -198,7 +198,7 @@ pub fn tui_disable(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::
 fn session_environment_start<'a>(
     session_environment: &SessionEnvironment,
     config: &Config,
-    user_info: &AuthUserInfo<'a>,
+    user_info: &SessionUser<'a>,
 ) -> Result<(), EnvironmentStartError> {
     session_environment.start(config.tty, user_info)
 }

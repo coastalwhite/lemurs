@@ -97,7 +97,7 @@ impl SessionEnvironment {
     pub fn start(
         &self,
         session_tty: u8,
-        session_user: SessionUser,
+        session_user: &SessionUser,
     ) -> Result<(), EnvironmentStartError> {
         let uid = session_user.user_id();
         let gid = session_user.group_id();
