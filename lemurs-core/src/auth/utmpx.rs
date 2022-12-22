@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use libc::{c_char, utmpx as Utmpx};
 use log::{error, info};
 
-pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> Utmpx {
+pub fn add_utmpx_entry(username: &str, tty: u8) -> Utmpx {
     info!("Adding UTMPX record");
 
     // Check the MAN page for utmp for more information
@@ -27,7 +27,6 @@ pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> Utmpx {
         // ut_addr_v6 --- Internet address of remote
 
         s.ut_type = libc::USER_PROCESS;
-        s.ut_pid = pid as libc::pid_t;
 
         for (i, b) in username.as_bytes().iter().take(32).enumerate() {
             s.ut_user[i] = *b as c_char;

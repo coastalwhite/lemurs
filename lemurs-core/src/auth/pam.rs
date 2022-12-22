@@ -1,69 +1,93 @@
-use log::info;
+use std::error::Error;
+use std::fmt::Display;
 
+use log::info;
 use pam::{Authenticator, PasswordConv};
 
-const PAM_SERVICE: &str = "system-login";
+use crate::auth::{AuthError, AuthSession, SessionOpenError, AuthBackend};
 
-use pgs_files::passwd::{get_entry_by_name, PasswdEntry};
+pub struct PamSession<'a>(Authenticator<'a, PasswordConv>);
+
+pub struct PamContext {
+    service: &'static str,
+}
 
 /// All the different errors that can occur during PAM opening an authenticated session
-#[derive(Clone, Copy)]
-pub enum AuthenticationError {
-    PamService,
-    AccountValidation,
-    UsernameNotFound,
+#[derive(Debug, Clone)]
+pub enum PamError {
+    InvalidPamService(String),
     SessionOpen,
 }
 
-impl ToString for AuthenticationError {
-    fn to_string(&self) -> String {
+impl Default for PamContext {
+    fn default() -> Self {
+        Self { service: "login" }
+    }
+}
+
+impl<'a> AuthSession for PamSession<'a> {
+    type Err = PamError;
+    type Context = PamContext;
+
+    fn open_with_context(
+        username: impl AsRef<str>,
+        password: impl AsRef<str>,
+        context: &Self::Context,
+    ) -> Result<Self, SessionOpenError<Self::Err>> {
+        let username = username.as_ref();
+        let password = password.as_ref();
+
+        info!("Started opening session");
+
+        let mut authenticator = Authenticator::with_password(context.service)
+            .map_err(|_| PamError::InvalidPamService(context.service.to_string()))?;
+
+        info!("Gotten Authenticator");
+
+        // Authenticate the user
+        authenticator
+            .get_handler()
+            .set_credentials(username, password);
+
+        info!("Got handler");
+
+        // Validate the account
+        authenticator
+            .authenticate()
+            .map_err(|_| AuthError::InvalidCredentials)?;
+
+        info!("Validated account");
+
+        authenticator
+            .open_session()
+            .map_err(|_| PamError::SessionOpen)?;
+
+        info!("Opened session");
+
+        // NOTE: Logout happens automatically here with `drop` of session and context
+        Ok(PamSession(authenticator))
+    }
+}
+
+impl<'a> Into<AuthBackend<'a>> for PamSession<'a> {
+    fn into(self) -> AuthBackend<'a> {
+        AuthBackend::Pam(self)
+    }
+}
+
+impl Display for PamError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use PamError::*;
+
         match self {
-            AuthenticationError::PamService => format!("Failed to create authenticator with PAM service '{}'", PAM_SERVICE),
-            AuthenticationError::AccountValidation => "Invalid login credentials".to_string(),
-            AuthenticationError::UsernameNotFound => "Login creditionals are valid, but username is not found. This should not be possible :(".to_string(),
-            AuthenticationError::SessionOpen => "Failed to open a PAM session".to_string(),
+            InvalidPamService(service) => write!(
+                f,
+                "Failed to create authenticator with PAM service '{}'",
+                service
+            ),
+            SessionOpen => f.write_str("Failed to open a PAM session"),
         }
     }
 }
 
-/// Open a PAM authenticated session
-pub fn open_session<'a>(
-    username: impl ToString,
-    password: impl ToString,
-) -> Result<(Authenticator<'a, PasswordConv>, PasswdEntry), AuthenticationError> {
-    let username = username.to_string();
-    let password = password.to_string();
-
-    info!("Started opening session");
-
-    let mut authenticator =
-        Authenticator::with_password(PAM_SERVICE).map_err(|_| AuthenticationError::PamService)?;
-
-    info!("Gotten Authenticator");
-
-    // Authenticate the user
-    authenticator
-        .get_handler()
-        .set_credentials(&username, &password);
-
-    info!("Got handler");
-
-    // Validate the account
-    authenticator
-        .authenticate()
-        .map_err(|_| AuthenticationError::AccountValidation)?;
-
-    info!("Validated account");
-
-    // NOTE: Maybe we should also load all groups here
-    let passwd_entry = get_entry_by_name(&username).ok_or(AuthenticationError::UsernameNotFound)?;
-
-    authenticator
-        .open_session()
-        .map_err(|_| AuthenticationError::SessionOpen)?;
-
-    info!("Opened session");
-
-    // NOTE: Logout happens automatically here with `drop` of session and context
-    Ok((authenticator, passwd_entry))
-}
+impl Error for PamError {}
