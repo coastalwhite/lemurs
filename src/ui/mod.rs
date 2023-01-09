@@ -586,12 +586,13 @@ fn attempt_login<'a, TR, PC, SC, A, S>(
     status_message.set(InfoStatusMessage::Authenticating);
     send_ui_request(UIThreadRequest::Redraw);
 
+    // Clear the password field
+    password_clear();
+
     let user_info = match auth_fn(username, password) {
         Err(err) => {
             status_message.set(ErrorStatusMessage::AuthenticationError(err));
 
-            // Clear the password field
-            password_clear();
             send_ui_request(UIThreadRequest::Redraw);
 
             return;
