@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::env;
 
-use log::info;
+use log::{info, error};
 
 /// The `EnvironmentContainer` is abstract the process environment and allows for restoring to an
 /// earlier state
 #[derive(Debug)]
 pub struct EnvironmentContainer {
     snapshot: HashMap<String, String>,
+    snapshot_pwd: String,
     owned: HashMap<&'static str, String>,
 }
 
@@ -16,6 +17,10 @@ impl EnvironmentContainer {
         Self {
             snapshot: env::vars().collect::<HashMap<String, String>>(),
             owned: HashMap::default(),
+            snapshot_pwd: env::var("PWD").unwrap_or_else(|_| {
+                error!("Could not find the working directory when taking snapshot");
+                String::new()
+            }),
         }
     }
 
@@ -45,19 +50,38 @@ impl EnvironmentContainer {
         }
     }
 
-    pub fn restore(self) {
+    /// Sets the working directory
+    pub fn set_current_dir(&mut self, value: impl Into<String>) {
+        let value = value.into();
+
+        if env::set_current_dir(&value).is_ok() {
+            info!("Successfully changed working directory to {}!", value);
+        } else {
+            error!("Failed to change the working directory to {}", value);
+        }
+    }
+}
+
+impl Drop for EnvironmentContainer {
+    fn drop(&mut self) {
         // Remove all owned variables for which we have an accurate environment value
-        for (key, value) in self.owned.into_iter() {
-            if env::var(key) == Ok(value) {
+        info!("Removing session environment variables");
+        for (key, value) in self.owned.iter() {
+            if env::var(key).as_ref() == Ok(value) {
                 env::remove_var(key);
             }
         }
 
         // Restore all snapshot values for which disappeared
-        for (key, value) in self.snapshot.into_iter() {
+        info!("Reverting to environment before session");
+        for (key, value) in self.snapshot.iter() {
             if env::var(&key).is_err() {
                 env::set_var(key, value);
             }
+        }
+
+        if env::set_current_dir(&self.snapshot_pwd).is_err() {
+            error!("Failed to change the working directory back to {}", &self.snapshot_pwd);
         }
     }
 }

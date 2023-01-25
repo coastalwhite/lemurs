@@ -16,16 +16,28 @@ mod auth;
 mod chvt;
 mod cli;
 mod config;
+mod env_container;
 mod info_caching;
 mod post_login;
 mod ui;
-mod env_container;
 
-use auth::{try_auth, AuthUserInfo};
+use auth::try_auth;
 use config::Config;
 use post_login::{EnvironmentStartError, PostLoginEnvironment};
 
-use crate::cli::{Cli, Commands};
+use crate::{
+    auth::utmpx::add_utmpx_entry,
+    cli::{Cli, Commands},
+};
+
+use self::{
+    auth::AuthenticationError,
+    env_container::EnvironmentContainer,
+    post_login::env_variables::{
+        set_basic_variables, set_display, set_seat_vars, set_session_params, set_session_vars,
+        set_xdg_common_paths,
+    },
+};
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
@@ -161,7 +173,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Start application
     let mut terminal = tui_enable()?;
     let login_form = ui::LoginForm::new(config, cli.preview);
-    login_form.run(&mut terminal, try_auth, post_login_env_start)?;
+    login_form.run(&mut terminal)?;
     tui_disable(terminal)?;
 
     info!("Lemurs is booting down");
@@ -191,10 +203,92 @@ pub fn tui_disable(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::
     Ok(())
 }
 
-fn post_login_env_start<'a>(
+struct Hooks<'a> {
+    pre_validate: Option<&'a dyn Fn()>,
+    pre_auth: Option<&'a dyn Fn()>,
+    pre_environment: Option<&'a dyn Fn()>,
+    pre_wait: Option<&'a dyn Fn()>,
+    pre_return: Option<&'a dyn Fn()>,
+}
+
+pub enum StartSessionError {
+    AuthenticationError(AuthenticationError),
+    EnvironmentStartError(EnvironmentStartError),
+}
+
+impl From<EnvironmentStartError> for StartSessionError {
+    fn from(value: EnvironmentStartError) -> Self {
+        Self::EnvironmentStartError(value)
+    }
+}
+
+impl From<AuthenticationError> for StartSessionError {
+    fn from(value: AuthenticationError) -> Self {
+        Self::AuthenticationError(value)
+    }
+}
+
+fn start_session<'a>(
+    username: &str,
+    password: &str,
     post_login_env: &PostLoginEnvironment,
+    hooks: &Hooks<'a>,
     config: &Config,
-    user_info: &AuthUserInfo<'a>,
-) -> Result<(), EnvironmentStartError> {
-    post_login_env.start(config, user_info)
+) -> Result<(), StartSessionError> {
+    info!("Starting new session for '{}' in environment '{:?}'", username, post_login_env);
+
+    if let Some(pre_validate_hook) = hooks.pre_validate {
+        pre_validate_hook();
+    }
+
+    let mut process_env = EnvironmentContainer::take_snapshot();
+
+    if let Some(pre_auth_hook) = hooks.pre_auth {
+        pre_auth_hook();
+    }
+
+    set_display(&mut process_env);
+    set_session_params(&mut process_env, post_login_env);
+
+    let auth_session = try_auth(username, password)?;
+
+    if let Some(pre_environment_hook) = hooks.pre_environment {
+        pre_environment_hook();
+    }
+
+    let tty = config.tty;
+    let uid = auth_session.uid;
+    let homedir = &auth_session.dir;
+    let shell = &auth_session.shell;
+
+    set_seat_vars(&mut process_env, tty);
+    set_session_vars(&mut process_env, uid);
+    set_basic_variables(&mut process_env, username, homedir, shell);
+    set_xdg_common_paths(&mut process_env, homedir);
+
+    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, config)?;
+
+    let pid = spawned_environment.pid();
+
+    let utmpx_session = add_utmpx_entry(&username, tty, pid);
+    drop(process_env);
+
+    info!("Waiting for environment to terminate");
+
+    if let Some(pre_wait_hook) = hooks.pre_wait {
+        pre_wait_hook();
+    }
+
+    spawned_environment.wait();
+
+    info!("Environment terminated. Returning to Lemurs...");
+
+    if let Some(pre_return_hook) = hooks.pre_return {
+        pre_return_hook();
+    }
+
+    drop(utmpx_session);
+    drop(auth_session);
+
+    Ok(())
 }

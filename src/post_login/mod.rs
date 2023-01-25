@@ -1,4 +1,6 @@
 use log::{error, info, warn};
+use std::error::Error;
+use std::fmt::Display;
 use std::fs;
 
 use users::get_user_groups;
@@ -6,14 +8,16 @@ use users::get_user_groups;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
-use crate::auth::utmpx::add_utmpx_entry;
 use crate::auth::AuthUserInfo;
 use crate::config::Config;
-use env_variables::{init_environment, set_xdg_env};
+use crate::env_container::EnvironmentContainer;
+use crate::post_login::x::setup_x;
 
 use nix::unistd::{Gid, Uid};
 
-mod env_variables;
+use self::x::XSetupError;
+
+pub(crate) mod env_variables;
 mod x;
 
 const SYSTEM_SHELL: &str = "/bin/sh";
@@ -21,58 +25,52 @@ const SYSTEM_SHELL: &str = "/bin/sh";
 const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
 const WAYLAND_FOLDER_PATH: &str = "/etc/lemurs/wayland";
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum PostLoginEnvironment {
     X { xinitrc_path: String },
     Wayland { script_path: String },
     Shell,
 }
 
-pub enum EnvironmentStartError {
-    WaylandStart,
-    XSetup(x::XSetupError),
-    XStartEnv,
-}
-
-fn wait_for_child_and_log(child: Child) {
-    let child_output = match child.wait_with_output() {
-        Ok(output) => output,
-        Err(err) => {
-            error!("Failed to wait for environment to exit, Reason: '{}'", err);
-            return;
+impl PostLoginEnvironment {
+    pub fn to_xdg_type(&self) -> &'static str {
+        match self {
+            Self::Shell => "tty",
+            Self::X { .. } => "x11",
+            Self::Wayland { .. } => "wayland",
         }
-    };
-
-    // Print the stdout if it is at all available
-    match std::str::from_utf8(&child_output.stdout) {
-        Ok(output) => {
-            if !output.trim().is_empty() {
-                info!("Environment's stdout: \"\"\"\n{}\n\"\"\"", output.trim());
-            }
-        }
-        Err(err) => {
-            warn!("Failed to read STDOUT output as UTF-8. Reason: '{}'", err);
-        }
-    };
-
-    // Return the `stderr` if the child process did not exit correctly.
-    if !child_output.status.success() {
-        warn!("Environment came back with non-zero exit code.");
-
-        match std::str::from_utf8(&child_output.stderr) {
-            Ok(output) => {
-                if !output.trim().is_empty() {
-                    warn!("Environment's stderr: \"\"\"\n{}\n\"\"\"", output.trim());
-                }
-            }
-            Err(err) => {
-                warn!("Failed to read STDERR output as UTF-8. Reason: '{}'", err);
-                return;
-            }
-        };
     }
 
-    info!("Returning to Lemurs...");
+    // pub fn to_xdg_desktop(&self) -> &str {
+    //     // TODO: Implement properly
+    //     ""
+    // }
+}
+
+#[derive(Debug, Clone)]
+pub enum EnvironmentStartError {
+    WaylandStart,
+    XSetup(XSetupError),
+    XStartEnv,
+    TTYStart,
+}
+
+impl Display for EnvironmentStartError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WaylandStart => f.write_str("Failed to start Wayland compositor"),
+            Self::XSetup(err) => write!(f, "Failed to setup X11 server. Reason: '{}'", err),
+            Self::XStartEnv => f.write_str("Failed to start X11 client"),
+            Self::TTYStart => f.write_str("Failed to start TTY"),
+        }
+    }
+}
+
+impl Error for EnvironmentStartError {}
+impl From<XSetupError> for EnvironmentStartError {
+    fn from(value: XSetupError) -> Self {
+        Self::XSetup(value)
+    }
 }
 
 fn lower_command_permissions_to_user(
@@ -101,22 +99,79 @@ fn lower_command_permissions_to_user(
     command
 }
 
+pub enum SpawnedEnvironment {
+    X11 { server: Child, client: Child },
+    Wayland(Child),
+    TTY(Child),
+}
+
+impl SpawnedEnvironment {
+    pub fn pid(&self) -> u32 {
+        match self {
+            Self::X11 { client, .. } | Self::Wayland(client) | Self::TTY(client) => {
+                client.id()
+            }
+        }
+    }
+
+    pub fn wait(self) {
+        let child = match self {
+            Self::X11 { client, .. } | Self::Wayland(client) | Self::TTY(client) => {
+                client
+            }
+        };
+        
+        let child_output = match child.wait_with_output() {
+            Ok(output) => output,
+            Err(err) => {
+                error!("Failed to wait for environment to exit, Reason: '{}'", err);
+                return;
+            }
+        };
+
+        // Print the stdout if it is at all available
+        match std::str::from_utf8(&child_output.stdout) {
+            Ok(output) => {
+                if !output.trim().is_empty() {
+                    info!("Environment's stdout: \"\"\"\n{}\n\"\"\"", output.trim());
+                }
+            }
+            Err(err) => {
+                warn!("Failed to read STDOUT output as UTF-8. Reason: '{}'", err);
+            }
+        };
+
+        // Return the `stderr` if the child process did not exit correctly.
+        if !child_output.status.success() {
+            warn!("Environment came back with non-zero exit code.");
+
+            match std::str::from_utf8(&child_output.stderr) {
+                Ok(output) => {
+                    if !output.trim().is_empty() {
+                        warn!("Environment's stderr: \"\"\"\n{}\n\"\"\"", output.trim());
+                    }
+                }
+                Err(err) => {
+                    warn!("Failed to read STDERR output as UTF-8. Reason: '{}'", err);
+                    return;
+                }
+            };
+        }
+    }
+}
+
 impl PostLoginEnvironment {
-    pub fn start<'a>(
+    pub fn spawn<'a>(
         &self,
-        config: &Config,
         user_info: &AuthUserInfo<'a>,
-    ) -> Result<(), EnvironmentStartError> {
-        init_environment(&user_info.name, &user_info.dir, &user_info.shell);
-        info!("Set environment variables");
-
-        set_xdg_env(user_info.uid, &user_info.dir, config.tty, self);
-        info!("Set XDG environment variables");
-
+        process_env: &mut EnvironmentContainer,
+        config: &Config,
+    ) -> Result<SpawnedEnvironment, EnvironmentStartError> {
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
-                x::setup_x(user_info).map_err(EnvironmentStartError::XSetup)?;
-                let child =
+                info!("Starting X11 session");
+                let server = setup_x(process_env, user_info).map_err(EnvironmentStartError::XSetup)?;
+                let client =
                     match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
                         .arg("-c")
                         .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))
@@ -131,14 +186,10 @@ impl PostLoginEnvironment {
                         }
                     };
 
-                let pid = child.id();
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
-
-                wait_for_child_and_log(child);
-                drop(session);
+                Ok(SpawnedEnvironment::X11 { server, client })
             }
             PostLoginEnvironment::Wayland { script_path } => {
-                info!("Starting Wayland Session");
+                info!("Starting Wayland session");
                 let child =
                     match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
                         .arg("-c")
@@ -154,14 +205,14 @@ impl PostLoginEnvironment {
                         }
                     };
 
-                let pid = child.id();
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
-                wait_for_child_and_log(child);
-                drop(session);
+                Ok(SpawnedEnvironment::Wayland(child))
             }
             PostLoginEnvironment::Shell => {
                 info!("Starting TTY shell");
+
                 let shell = &user_info.shell;
+                // TODO: Instead of calling the shell directly we should be calling it through
+                // `/bin/bash --login`
                 let child = match lower_command_permissions_to_user(Command::new(shell), user_info)
                     .stdout(Stdio::inherit())
                     .stderr(Stdio::inherit())
@@ -171,18 +222,13 @@ impl PostLoginEnvironment {
                     Ok(child) => child,
                     Err(err) => {
                         error!("Failed to start TTY shell. Reason '{}'", err);
-                        return Ok(());
+                        return Err(EnvironmentStartError::TTYStart);
                     }
                 };
 
-                let pid = child.id();
-                let session = add_utmpx_entry(&user_info.name, config.tty, pid);
-                wait_for_child_and_log(child);
-                drop(session);
+                Ok(SpawnedEnvironment::TTY(child))
             }
         }
-
-        Ok(())
     }
 }
 

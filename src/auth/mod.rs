@@ -22,8 +22,8 @@ pub struct AuthUserInfo<'a> {
 }
 
 pub fn try_auth<'a>(
-    username: String,
-    password: String,
+    username: &str,
+    password: &str,
 ) -> Result<AuthUserInfo<'a>, AuthenticationError> {
     info!("Login attempt for '{}'", username);
 
@@ -45,4 +45,5 @@ pub fn try_auth<'a>(
             );
             err
         })
+
 }
