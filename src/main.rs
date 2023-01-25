@@ -235,7 +235,10 @@ fn start_session<'a>(
     hooks: &Hooks<'a>,
     config: &Config,
 ) -> Result<(), StartSessionError> {
-    info!("Starting new session for '{}' in environment '{:?}'", username, post_login_env);
+    info!(
+        "Starting new session for '{}' in environment '{:?}'",
+        username, post_login_env
+    );
 
     if let Some(pre_validate_hook) = hooks.pre_validate {
         pre_validate_hook();
@@ -270,7 +273,7 @@ fn start_session<'a>(
 
     let pid = spawned_environment.pid();
 
-    let utmpx_session = add_utmpx_entry(&username, tty, pid);
+    let utmpx_session = add_utmpx_entry(username, tty, pid);
     drop(process_env);
 
     info!("Waiting for environment to terminate");

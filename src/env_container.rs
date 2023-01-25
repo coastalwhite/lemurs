@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 
-use log::{info, error};
+use log::{error, info};
 
 /// The `EnvironmentContainer` is abstract the process environment and allows for restoring to an
 /// earlier state
@@ -75,13 +75,16 @@ impl Drop for EnvironmentContainer {
         // Restore all snapshot values for which disappeared
         info!("Reverting to environment before session");
         for (key, value) in self.snapshot.iter() {
-            if env::var(&key).is_err() {
+            if env::var(key).is_err() {
                 env::set_var(key, value);
             }
         }
 
         if env::set_current_dir(&self.snapshot_pwd).is_err() {
-            error!("Failed to change the working directory back to {}", &self.snapshot_pwd);
+            error!(
+                "Failed to change the working directory back to {}",
+                &self.snapshot_pwd
+            );
         }
     }
 }

@@ -27,7 +27,7 @@ pub fn try_auth<'a>(
 ) -> Result<AuthUserInfo<'a>, AuthenticationError> {
     info!("Login attempt for '{}'", username);
 
-    open_session(username.clone(), password)
+    open_session(username, password)
         .map(|(authenticator, entry)| AuthUserInfo {
             authenticator,
             name: entry.name,
@@ -45,5 +45,4 @@ pub fn try_auth<'a>(
             );
             err
         })
-
 }

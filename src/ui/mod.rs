@@ -296,7 +296,7 @@ impl LoginForm {
         }
     }
 
-    pub fn run<'a>(self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
+    pub fn run(self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
         self.load_cache();
         let input_mode = LoginFormInputMode::new(match self.config.focus_behaviour {
             FocusBehaviour::FirstNonCached => match (

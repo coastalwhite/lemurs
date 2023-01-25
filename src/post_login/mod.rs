@@ -102,25 +102,21 @@ fn lower_command_permissions_to_user(
 pub enum SpawnedEnvironment {
     X11 { server: Child, client: Child },
     Wayland(Child),
-    TTY(Child),
+    Tty(Child),
 }
 
 impl SpawnedEnvironment {
     pub fn pid(&self) -> u32 {
         match self {
-            Self::X11 { client, .. } | Self::Wayland(client) | Self::TTY(client) => {
-                client.id()
-            }
+            Self::X11 { client, .. } | Self::Wayland(client) | Self::Tty(client) => client.id(),
         }
     }
 
     pub fn wait(self) {
         let child = match self {
-            Self::X11 { client, .. } | Self::Wayland(client) | Self::TTY(client) => {
-                client
-            }
+            Self::X11 { client, .. } | Self::Wayland(client) | Self::Tty(client) => client,
         };
-        
+
         let child_output = match child.wait_with_output() {
             Ok(output) => output,
             Err(err) => {
@@ -153,7 +149,6 @@ impl SpawnedEnvironment {
                 }
                 Err(err) => {
                     warn!("Failed to read STDERR output as UTF-8. Reason: '{}'", err);
-                    return;
                 }
             };
         }
@@ -165,12 +160,13 @@ impl PostLoginEnvironment {
         &self,
         user_info: &AuthUserInfo<'a>,
         process_env: &mut EnvironmentContainer,
-        config: &Config,
+        _config: &Config,
     ) -> Result<SpawnedEnvironment, EnvironmentStartError> {
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
                 info!("Starting X11 session");
-                let server = setup_x(process_env, user_info).map_err(EnvironmentStartError::XSetup)?;
+                let server =
+                    setup_x(process_env, user_info).map_err(EnvironmentStartError::XSetup)?;
                 let client =
                     match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
                         .arg("-c")
@@ -226,7 +222,7 @@ impl PostLoginEnvironment {
                     }
                 };
 
-                Ok(SpawnedEnvironment::TTY(child))
+                Ok(SpawnedEnvironment::Tty(child))
             }
         }
     }
