@@ -169,6 +169,7 @@ impl PostLoginEnvironment {
                     setup_x(process_env, user_info).map_err(EnvironmentStartError::XSetup)?;
                 let client =
                     match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
+                        .arg("--login")
                         .arg("-c")
                         .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))
                         .stdout(Stdio::piped())
@@ -188,6 +189,7 @@ impl PostLoginEnvironment {
                 info!("Starting Wayland session");
                 let child =
                     match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
+                        .arg("--login")
                         .arg("-c")
                         .arg(script_path)
                         .stdout(Stdio::piped())
@@ -210,6 +212,7 @@ impl PostLoginEnvironment {
                 // TODO: Instead of calling the shell directly we should be calling it through
                 // `/bin/bash --login`
                 let child = match lower_command_permissions_to_user(Command::new(shell), user_info)
+                    .arg("--login")
                     .stdout(Stdio::inherit())
                     .stderr(Stdio::inherit())
                     .stdin(Stdio::inherit())
