@@ -22,12 +22,12 @@ pub struct AuthUserInfo<'a> {
 }
 
 pub fn try_auth<'a>(
-    username: String,
-    password: String,
+    username: &str,
+    password: &str,
 ) -> Result<AuthUserInfo<'a>, AuthenticationError> {
     info!("Login attempt for '{}'", username);
 
-    open_session(username.clone(), password)
+    open_session(username, password)
         .map(|(authenticator, entry)| AuthUserInfo {
             authenticator,
             name: entry.name,
