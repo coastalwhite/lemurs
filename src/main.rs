@@ -19,6 +19,7 @@ mod config;
 mod info_caching;
 mod post_login;
 mod ui;
+mod env_container;
 
 use auth::{try_auth, AuthUserInfo};
 use config::Config;
