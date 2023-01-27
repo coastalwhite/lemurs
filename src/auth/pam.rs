@@ -15,7 +15,7 @@ pub enum AuthenticationError {
 impl ToString for AuthenticationError {
     fn to_string(&self) -> String {
         match self {
-            AuthenticationError::PamService(service) => format!("Failed to create authenticator with PAM service '{}'", service),
+            AuthenticationError::PamService(service) => format!("Failed to create authenticator with PAM service '{service}'"),
             AuthenticationError::AccountValidation => "Invalid login credentials".to_string(),
             AuthenticationError::UsernameNotFound => "Login creditionals are valid, but username is not found. This should not be possible :(".to_string(),
             AuthenticationError::SessionOpen => "Failed to open a PAM session".to_string(),

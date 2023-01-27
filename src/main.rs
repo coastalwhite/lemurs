@@ -82,7 +82,7 @@ fn setup_logger(is_preview: bool) {
     };
 
     let log_file = Box::new(File::create(log_path).unwrap_or_else(|_| {
-        eprintln!("Failed to open log file: '{}'", log_path);
+        eprintln!("Failed to open log file: '{log_path}'");
         std::process::exit(1);
     }));
 
@@ -94,7 +94,7 @@ fn setup_logger(is_preview: bool) {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse().unwrap_or_else(|err| {
-        eprintln!("{}\n", err);
+        eprintln!("{err}\n");
         cli::usage();
         std::process::exit(2);
     });
@@ -109,7 +109,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let envs = post_login::get_envs(config.environment_switcher.include_tty_shell);
 
                 for (env_name, _) in envs.into_iter() {
-                    println!("{}", env_name);
+                    println!("{env_name}");
                 }
             }
             Commands::Cache => {
@@ -123,8 +123,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     info_caching::CACHE_PATH
                 );
 
-                println!("environment: '{}'", environment);
-                println!("username: '{}'", username);
+                println!("environment: '{environment}'");
+                println!("username: '{username}'");
             }
             Commands::Help => {
                 cli::usage();
@@ -152,13 +152,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let uid = users::get_current_uid();
         if users::get_current_uid() != 0 {
-            eprintln!("Lemurs needs to be ran as root. Found user id '{}'", uid);
-            error!("Lemurs not ran as root. Found user id '{}'", uid);
+            eprintln!("Lemurs needs to be ran as root. Found user id '{uid}'");
+            error!("Lemurs not ran as root. Found user id '{uid}'");
             std::process::exit(1);
         }
 
         if let Some(tty) = cli.tty {
-            info!("Overwritten the tty to '{}' with the --tty flag", tty);
+            info!("Overwritten the tty to '{tty}' with the --tty flag");
             config.tty = tty;
         }
 
@@ -166,7 +166,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         info!("Switching to tty {}", config.tty);
 
         unsafe { chvt::chvt(config.tty.into()) }.unwrap_or_else(|err| {
-            error!("Failed to switch tty {}. Reason: {}", config.tty, err);
+            error!("Failed to switch tty {}. Reason: {err}", config.tty);
         });
     }
 
@@ -228,11 +228,11 @@ impl From<AuthenticationError> for StartSessionError {
     }
 }
 
-fn start_session<'a>(
+fn start_session(
     username: &str,
     password: &str,
     post_login_env: &PostLoginEnvironment,
-    hooks: &Hooks<'a>,
+    hooks: &Hooks<'_>,
     config: &Config,
 ) -> Result<(), StartSessionError> {
     info!(

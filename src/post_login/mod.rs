@@ -59,7 +59,7 @@ impl Display for EnvironmentStartError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::WaylandStart => f.write_str("Failed to start Wayland compositor"),
-            Self::XSetup(err) => write!(f, "Failed to setup X11 server. Reason: '{}'", err),
+            Self::XSetup(err) => write!(f, "Failed to setup X11 server. Reason: '{err}'"),
             Self::XStartEnv => f.write_str("Failed to start X11 client"),
             Self::TTYStart => f.write_str("Failed to start TTY"),
         }
@@ -156,9 +156,9 @@ impl SpawnedEnvironment {
 }
 
 impl PostLoginEnvironment {
-    pub fn spawn<'a>(
+    pub fn spawn(
         &self,
-        user_info: &AuthUserInfo<'a>,
+        user_info: &AuthUserInfo<'_>,
         process_env: &mut EnvironmentContainer,
         _config: &Config,
     ) -> Result<SpawnedEnvironment, EnvironmentStartError> {
@@ -198,7 +198,7 @@ impl PostLoginEnvironment {
                     {
                         Ok(child) => child,
                         Err(err) => {
-                            error!("Failed to start Wayland Compositor. Reason '{}'", err);
+                            error!("Failed to start Wayland Compositor. Reason '{err}'");
                             return Err(EnvironmentStartError::WaylandStart);
                         }
                     };
@@ -220,7 +220,7 @@ impl PostLoginEnvironment {
                 {
                     Ok(child) => child,
                     Err(err) => {
-                        error!("Failed to start TTY shell. Reason '{}'", err);
+                        error!("Failed to start TTY shell. Reason '{err}'");
                         return Err(EnvironmentStartError::TTYStart);
                     }
                 };
@@ -245,8 +245,7 @@ pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
                         if let Ok(metadata) = path.metadata() {
                             if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
                                 warn!(
-                            "'{}' is not executable and therefore not added as an environment",
-                            file_name
+                            "'{file_name}' is not executable and therefore not added as an environment",
                         );
 
                                 continue;

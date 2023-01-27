@@ -36,7 +36,7 @@ pub fn set_seat_vars(process_env: &mut EnvironmentContainer, tty: u8) {
 pub fn set_session_vars(process_env: &mut EnvironmentContainer, uid: u32) {
     info!("Setting XDG Session Variables");
 
-    process_env.set_or_own("XDG_RUNTIME_DIR", &format!("/run/user/{}", uid));
+    process_env.set_or_own("XDG_RUNTIME_DIR", &format!("/run/user/{uid}"));
     process_env.set_or_own("XDG_SESSION_ID", "1");
 }
 
@@ -65,10 +65,10 @@ pub fn set_xdg_common_paths(process_env: &mut EnvironmentContainer, homedir: &st
     info!("Setting XDG Common Paths");
 
     // This is according to https://wiki.archlinux.org/title/XDG_Base_Directory
-    process_env.set("XDG_CONFIG_DIR", &format!("{}/.config", homedir));
-    process_env.set("XDG_CACHE_HOME", &format!("{}/.cache", homedir));
-    process_env.set("XDG_DATA_HOME", &format!("{}/.local/share", homedir));
-    process_env.set("XDG_STATE_HOME", &format!("{}/.local/state", homedir));
+    process_env.set("XDG_CONFIG_DIR", &format!("{homedir}/.config"));
+    process_env.set("XDG_CACHE_HOME", &format!("{homedir}/.cache"));
+    process_env.set("XDG_DATA_HOME", &format!("{homedir}/.local/share"));
+    process_env.set("XDG_STATE_HOME", &format!("{homedir}/.local/state"));
     process_env.set("XDG_DATA_DIRS", "/usr/local/share:/usr/share");
     process_env.set("XDG_CONFIG_DIRS", "/etc/xdg");
 }

@@ -55,13 +55,13 @@ impl Display for CliError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CliError::MissingArgument(flag) => {
-                write!(f, "Missing an argument for the given flag '{}'", flag)
+                write!(f, "Missing an argument for the given flag '{flag}'")
             }
             CliError::InvalidTTY => {
                 write!(f, "Given an invalid TTY number (only 1-12 are allowed)")
             }
             CliError::InvalidArgument(arg) => {
-                write!(f, "Given an invalid flag or command '{}'", arg)
+                write!(f, "Given an invalid flag or command '{arg}'")
             }
         }
     }

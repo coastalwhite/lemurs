@@ -48,7 +48,7 @@ fn mcookie() -> String {
     // available?
     let mut rng = rand::thread_rng();
     let cookie: u128 = rng.gen();
-    format!("{:032x}", cookie)
+    format!("{cookie:032x}")
 }
 
 pub fn setup_x(
@@ -94,7 +94,7 @@ pub fn setup_x(
     process_env.set("XAUTHORITY", xauth_path);
 
     let doubledigit_vtnr = if vtnr_value.len() == 1 {
-        format!("0{}", vtnr_value)
+        format!("0{vtnr_value}")
     } else {
         vtnr_value
     };
@@ -102,10 +102,7 @@ pub fn setup_x(
     info!("Run X server");
     let child = Command::new(super::SYSTEM_SHELL)
         .arg("-c")
-        .arg(format!(
-            "/usr/bin/X {} vt{}",
-            display_value, doubledigit_vtnr
-        ))
+        .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}",))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .spawn()

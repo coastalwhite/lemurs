@@ -26,7 +26,7 @@ pub fn try_auth<'a>(
     password: &str,
     pam_service: &str,
 ) -> Result<AuthUserInfo<'a>, AuthenticationError> {
-    info!("Login attempt for '{}'", username);
+    info!("Login attempt for '{username}'");
 
     open_session(username, password, pam_service)
         .map(|(authenticator, entry)| AuthUserInfo {
