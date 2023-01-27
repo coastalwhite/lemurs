@@ -6,7 +6,7 @@ use tui::Frame;
 
 use crate::auth::AuthenticationError;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum ErrorStatusMessage {
     AuthenticationError(AuthenticationError),
     NoGraphicalEnvironment,
@@ -60,7 +60,7 @@ impl From<InfoStatusMessage> for StatusMessage {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum StatusMessage {
     Error(ErrorStatusMessage),
     Info(InfoStatusMessage),
@@ -85,7 +85,7 @@ impl StatusMessage {
 
     pub fn render<B: Backend>(status: Option<Self>, frame: &mut Frame<B>, area: Rect) {
         if let Some(status_message) = status {
-            let widget = Paragraph::new(<&'static str>::from(status_message)).style(
+            let widget = Paragraph::new(<&'static str>::from(status_message.clone())).style(
                 tui::style::Style::default().fg(if status_message.is_error() {
                     Color::Red
                 } else {

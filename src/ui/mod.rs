@@ -88,7 +88,7 @@ impl LoginFormStatusMessage {
     }
 
     fn get(&self) -> Option<StatusMessage> {
-        *self.get_guard()
+        self.get_guard().clone()
     }
 
     fn clear(&self) {

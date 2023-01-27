@@ -153,6 +153,8 @@ macro_rules! toml_config_struct {
 toml_config_struct! { Config, PartialConfig,
     tty => u8,
 
+    pam_service => String,
+
     focus_behaviour => FocusBehaviour,
 
     power_controls => PowerControlConfig [PartialPowerControlConfig],

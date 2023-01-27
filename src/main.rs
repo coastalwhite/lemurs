@@ -253,7 +253,7 @@ fn start_session<'a>(
     set_display(&mut process_env);
     set_session_params(&mut process_env, post_login_env);
 
-    let auth_session = try_auth(username, password)?;
+    let auth_session = try_auth(username, password, &config.pam_service)?;
 
     if let Some(pre_environment_hook) = hooks.pre_environment {
         pre_environment_hook();

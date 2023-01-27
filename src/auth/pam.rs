@@ -1,15 +1,12 @@
 use log::info;
 
 use pam::{Authenticator, PasswordConv};
-
-const PAM_SERVICE: &str = "system-login";
-
 use pgs_files::passwd::{get_entry_by_name, PasswdEntry};
 
 /// All the different errors that can occur during PAM opening an authenticated session
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum AuthenticationError {
-    PamService,
+    PamService(String),
     AccountValidation,
     UsernameNotFound,
     SessionOpen,
@@ -18,7 +15,7 @@ pub enum AuthenticationError {
 impl ToString for AuthenticationError {
     fn to_string(&self) -> String {
         match self {
-            AuthenticationError::PamService => format!("Failed to create authenticator with PAM service '{}'", PAM_SERVICE),
+            AuthenticationError::PamService(service) => format!("Failed to create authenticator with PAM service '{}'", service),
             AuthenticationError::AccountValidation => "Invalid login credentials".to_string(),
             AuthenticationError::UsernameNotFound => "Login creditionals are valid, but username is not found. This should not be possible :(".to_string(),
             AuthenticationError::SessionOpen => "Failed to open a PAM session".to_string(),
@@ -28,16 +25,17 @@ impl ToString for AuthenticationError {
 
 /// Open a PAM authenticated session
 pub fn open_session<'a>(
-    username: impl ToString,
-    password: impl ToString,
+    username: &str,
+    password: &str,
+    pam_service: &str,
 ) -> Result<(Authenticator<'a, PasswordConv>, PasswdEntry), AuthenticationError> {
     let username = username.to_string();
     let password = password.to_string();
 
     info!("Started opening session");
 
-    let mut authenticator =
-        Authenticator::with_password(PAM_SERVICE).map_err(|_| AuthenticationError::PamService)?;
+    let mut authenticator = Authenticator::with_password(pam_service)
+        .map_err(|_| AuthenticationError::PamService(pam_service.to_string()))?;
 
     info!("Gotten Authenticator");
 
