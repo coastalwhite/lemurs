@@ -91,6 +91,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "env-container"
+version = "0.3.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "env_logger"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -124,6 +131,7 @@ name = "lemurs"
 version = "0.3.0"
 dependencies = [
  "chvt-rs",
+ "env-container",
  "libc 0.2.112",
  "log",
  "nix",

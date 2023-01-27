@@ -4,4 +4,8 @@ members = [
     "chvt",
     "lemurs-core",
     "lemurs-tui",
+	"env-container"
 ]
+
+[workspace.dependencies]
+log = "0.4.0"

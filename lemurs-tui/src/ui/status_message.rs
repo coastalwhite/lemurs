@@ -4,11 +4,11 @@ use tui::style::Color;
 use tui::widgets::Paragraph;
 use tui::Frame;
 
-use lemurs::auth::SessionOpenError;
+use lemurs::auth::SessionAuthError;
 
 #[derive(Clone)]
 pub enum ErrorStatusMessage {
-    Session(SessionOpenError),
+    Session(SessionAuthError),
     NoGraphicalEnvironment,
     FailedGraphicalEnvironment,
     FailedDesktop,

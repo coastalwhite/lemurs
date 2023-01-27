@@ -4,7 +4,7 @@ use std::fmt::Display;
 use log::info;
 use pam::{Authenticator, PasswordConv};
 
-use crate::auth::{AuthError, AuthSession, SessionOpenError};
+use crate::auth::{AuthError, AuthSession, SessionAuthError};
 
 pub struct PamSession<'a>(Authenticator<'a, PasswordConv>);
 
@@ -34,7 +34,7 @@ impl<'a> AuthSession for PamSession<'a> {
         username: impl AsRef<str>,
         password: impl AsRef<str>,
         context: &Self::Context,
-    ) -> Result<Self, SessionOpenError> {
+    ) -> Result<Self, SessionAuthError> {
         let username = username.as_ref();
         let password = password.as_ref();
 

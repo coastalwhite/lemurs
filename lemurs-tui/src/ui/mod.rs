@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_information, set_cache};
-use lemurs::auth::{SessionOpenError, SessionUser};
+use lemurs::auth::{SessionAuthError, SessionUser};
 use lemurs::session_environment::{EnvironmentContext, EnvironmentStartError, SessionEnvironment};
 use status_message::StatusMessage;
 

@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::error::Error;
 use std::fmt::Display;
 
+use env_container::EnvironmentContainer;
 use libc::{c_char, pid_t, utmpx as Utmpx};
 use log::info;
 use nix::unistd::{Gid, Uid};
@@ -23,7 +24,7 @@ pub enum AuthError {
 }
 
 #[derive(Debug, Clone)]
-pub enum SessionOpenError {
+pub enum SessionAuthError {
     Run(RunError),
     Authentication(AuthError),
     Pam(PamError),
@@ -47,7 +48,7 @@ trait AuthSession: Sized {
     fn open(
         username: impl AsRef<str>,
         password: impl AsRef<str>,
-    ) -> Result<Self, SessionOpenError> {
+    ) -> Result<Self, SessionAuthError> {
         Self::open_with_context(username, password, &Self::Context::default())
     }
 
@@ -55,7 +56,7 @@ trait AuthSession: Sized {
         username: impl AsRef<str>,
         password: impl AsRef<str>,
         context: &Self::Context,
-    ) -> Result<Self, SessionOpenError>;
+    ) -> Result<Self, SessionAuthError>;
 }
 
 /// The information of a user currently within a session. If this structure is dropped then the
@@ -65,6 +66,8 @@ pub struct SessionUser<'a> {
     // also automatically dropped.
     #[allow(dead_code)]
     session: AuthBackend<'a>,
+
+    environment_container: Option<EnvironmentContainer>,
 
     username: String,
     user_id: Uid,
@@ -106,10 +109,14 @@ impl<'a> SessionUser<'a> {
         &self.shell
     }
 
+    pub(crate) fn take_env_container(&mut self) -> Option<EnvironmentContainer> {
+        self.environment_container.take()
+    }
+
     /// Attempt to create a new authenticated user from their username and password.
-    pub fn authenticate(username: &'_ str, password: &'_ str) -> Result<Self, SessionOpenError> {
+    pub fn authenticate(username: &'_ str, password: &'_ str, env_container: EnvironmentContainer) -> Result<Self, SessionAuthError> {
         let auth_context = AuthContext::default();
-        Self::authenticate_with_context(username, password, &auth_context)
+        Self::authenticate_with_context(username, password, env_container, &auth_context)
     }
 
     /// Attempt to create a new authenticated user from their username and password with an
@@ -117,8 +124,9 @@ impl<'a> SessionUser<'a> {
     pub fn authenticate_with_context(
         username: &'_ str,
         password: &'_ str,
+        env_container: EnvironmentContainer,
         auth_context: &AuthContext,
-    ) -> Result<Self, SessionOpenError> {
+    ) -> Result<Self, SessionAuthError> {
         can_run()?;
 
         let session =
@@ -143,6 +151,8 @@ impl<'a> SessionUser<'a> {
 
         Ok(Self {
             session,
+
+            environment_container: Some(env_container),
 
             username: String::from(username),
             user_id: Uid::from_raw(info.uid),
@@ -220,20 +230,20 @@ impl Display for AuthError {
     }
 }
 
-impl From<RunError> for SessionOpenError {
+impl From<RunError> for SessionAuthError {
     fn from(value: RunError) -> Self {
-        SessionOpenError::Run(value)
+        SessionAuthError::Run(value)
     }
 }
 
-impl From<AuthError> for SessionOpenError {
+impl From<AuthError> for SessionAuthError {
     fn from(value: AuthError) -> Self {
-        SessionOpenError::Authentication(value)
+        SessionAuthError::Authentication(value)
     }
 }
 
-impl From<PamError> for SessionOpenError {
+impl From<PamError> for SessionAuthError {
     fn from(value: PamError) -> Self {
-        SessionOpenError::Pam(value)
+        SessionAuthError::Pam(value)
     }
 }

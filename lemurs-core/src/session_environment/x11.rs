@@ -10,7 +10,7 @@ use log::{error, info, warn};
 
 use crate::auth::SessionUser;
 
-use super::{EnvironmentContext, SessionInitializer};
+use super::{EnvironmentContext, SessionInitializer, SessionProcess};
 
 const SERVER_QUERY_NUM_OF_TRIES: usize = 10;
 const SERVER_QUERY_TIMEOUT: Duration = Duration::from_millis(1000);
@@ -187,11 +187,11 @@ impl SessionInitializer {
         &self,
         session_user: &SessionUser,
         context: &X11StartContext,
-    ) -> Result<Command, X11StartError> {
+    ) -> Result<SessionProcess<Command>, X11StartError> {
         info!("Starting X11 session '{}'", self.name);
 
         // Start the X Server
-        setup_x_server(session_user, context)?;
+        let server = setup_x_server(session_user, context)?;
 
         let mut initializer = Command::new(context.system_shell);
 
@@ -202,7 +202,7 @@ impl SessionInitializer {
             self.path.display()
         ));
 
-        Ok(initializer)
+        Ok(SessionProcess::X11 { server, client: initializer })
     }
 }
 

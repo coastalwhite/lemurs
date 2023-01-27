@@ -1,9 +1,72 @@
+use env_container::EnvironmentContainer;
 use libc::uid_t;
+use log::info;
 use std::env;
 use std::fmt::Display;
 
+use crate::session_environment::env_variables::{
+    set_basic_variables, set_display, set_seat_vars, set_session_params, set_session_vars,
+    set_xdg_common_paths,
+};
+
+use self::auth::{SessionAuthError, SessionUser};
+use self::session_environment::{EnvironmentStartError, SessionEnvironment, SessionType};
+
 pub mod auth;
 pub mod session_environment;
+
+struct Config {
+    tty: u8,
+}
+
+pub fn authenticate<'a>(
+    username: &'_ str,
+    password: &'_ str,
+    session_type: Option<SessionType>,
+) -> Result<SessionUser<'a>, SessionAuthError> {
+    let mut env_container = EnvironmentContainer::take_snapshot();
+
+    set_display(&mut env_container);
+    set_session_params(&mut env_container, session_type);
+
+    SessionUser::authenticate(username, password, env_container)
+}
+
+fn start_session<'a>(
+    mut session_user: SessionUser<'a>,
+    session_environment: &SessionEnvironment,
+    config: &Config,
+) -> Result<(), EnvironmentStartError> {
+    let tty = config.tty;
+
+    let mut env_container = session_user
+        .take_env_container()
+        .ok_or(EnvironmentStartError::ReusedSessionUser)?;
+
+    let username = session_user.username();
+    let uid = session_user.user_id();
+    let homedir = &session_user.home_dir();
+    let shell = &session_user.shell();
+
+    set_seat_vars(&mut env_container, tty);
+    set_session_vars(&mut env_container, uid);
+    set_basic_variables(&mut env_container, username, homedir, shell);
+    set_xdg_common_paths(&mut env_container, homedir);
+
+    let spawned_environment = session_environment.spawn(&mut session_user)?;
+
+    drop(env_container);
+
+    info!("Waiting for environment to terminate");
+
+    spawned_environment.wait()?;
+
+    info!("Environment terminated. Returning to Lemurs...");
+
+    drop(session_user);
+
+    Ok(())
+}
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum RunError {
