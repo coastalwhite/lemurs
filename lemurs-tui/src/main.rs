@@ -8,10 +8,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use lemurs::{
-    can_run,
-    session_environment::{SessionEnvironment, SessionInitializer},
-};
+use lemurs::can_run;
 use log::{error, info, warn};
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
@@ -68,7 +65,7 @@ fn setup_logger(is_preview: bool) {
     };
 
     let log_file = Box::new(File::create(log_path).unwrap_or_else(|_| {
-        eprintln!("Failed to open log file: '{}'", log_path);
+        eprintln!("Failed to open log file: '{log_path}'");
         std::process::exit(1);
     }));
 
@@ -80,7 +77,7 @@ fn setup_logger(is_preview: bool) {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse().unwrap_or_else(|err| {
-        eprintln!("{}\n", err);
+        eprintln!("{err}\n");
         cli::usage();
         std::process::exit(2);
     });
@@ -96,17 +93,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     config.environment_switcher.include_tty_shell,
                 );
 
-                // TODO: Improve the readability on the terminal of this printing
-                for env in envs.into_iter() {
-                    match env {
-                        SessionEnvironment::X11(SessionInitializer { name, path }) => {
-                            println!("X11: '{}' --> '{}'", name, path.display())
-                        }
-                        SessionEnvironment::Wayland(SessionInitializer { name, path }) => {
-                            println!("Wayland: '{}' --> '{}'", name, path.display())
-                        }
-                        SessionEnvironment::Shell => println!("TTY Shell: true"),
-                    }
+                for session_env in envs.into_iter() {
+                    println!("{session_env}");
                 }
             }
             Commands::Cache => {
@@ -120,8 +108,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     info_caching::CACHE_PATH
                 );
 
-                println!("environment: '{}'", environment);
-                println!("username: '{}'", username);
+                println!("environment: '{environment}'");
+                println!("username: '{username}'");
             }
             Commands::Help => {
                 cli::usage();
@@ -149,8 +137,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             Ok(_) => {}
         }
 
+        if std::env::var("XDG_SESSION_TYPE").is_ok() {
+            eprintln!("Lemurs cannot be ran without `--preview` within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
+            error!("Lemurs cannot be started when within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
+            std::process::exit(1);
+        }
+
         if let Some(tty) = cli.tty {
-            info!("Overwritten the tty to '{}' with the --tty flag", tty);
+            info!("Overwritten the tty to '{tty}' with the --tty flag");
             config.tty = tty;
         }
 
@@ -158,7 +152,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         info!("Switching to tty {}", config.tty);
 
         unsafe { chvt_rs::chvt(config.tty.into()) }.unwrap_or_else(|err| {
-            error!("Failed to switch tty {}. Reason: {}", config.tty, err);
+            error!("Failed to switch tty {}. Reason: {err}", config.tty);
         });
     }
 

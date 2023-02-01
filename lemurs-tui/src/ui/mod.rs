@@ -1,3 +1,4 @@
+use lemurs::{authenticate, StartSessionContext};
 use log::{error, info, warn};
 
 use std::io;
@@ -7,8 +8,9 @@ use std::time::Duration;
 
 use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_information, set_cache};
-use lemurs::auth::{SessionAuthError, SessionUser};
-use lemurs::session_environment::{EnvironmentContext, EnvironmentStartError, SessionEnvironment};
+use lemurs::session_environment::SessionEnvironment;
+use lemurs::start_session;
+
 use status_message::StatusMessage;
 
 use crossterm::cursor::MoveTo;
@@ -311,8 +313,7 @@ impl LoginForm {
         }
     }
 
-    pub fn run(self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()>
-where {
+    pub fn run(self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
         self.load_cache();
         let input_mode = LoginFormInputMode::new(match self.config.focus_behaviour {
             FocusBehaviour::FirstNonCached => match (
@@ -394,18 +395,64 @@ where {
                                     self.widgets.get_environment().map(|(_, content)| content);
                                 let username = self.widgets.get_username();
                                 let password = self.widgets.get_password();
-                                let config = self.config.clone();
 
-                                attempt_login(
-                                    environment,
-                                    username,
-                                    password,
-                                    config,
-                                    status_message.clone(),
-                                    send_ui_request,
-                                    || self.widgets.clear_password(),
-                                    || self.set_cache(),
-                                );
+                                let Some(environment) = environment else {
+                                    status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
+                                    send_ui_request(UIThreadRequest::Redraw);
+                                    continue
+                                };
+
+                                let session_type = environment.session_type();
+
+                                status_message.set(InfoStatusMessage::Authenticating);
+                                send_ui_request(UIThreadRequest::Redraw);
+                                self.widgets.clear_password();
+
+                                let session_user =
+                                    match authenticate(&username, &password, Some(session_type)) {
+                                        Ok(u) => u,
+                                        Err(err) => {
+                                            status_message
+                                                .set(ErrorStatusMessage::Authentication(err));
+                                            send_ui_request(UIThreadRequest::Redraw);
+                                            continue;
+                                        }
+                                    };
+
+                                // Remember username and environment for next time
+                                self.set_cache();
+
+                                status_message.set(InfoStatusMessage::LoggingIn);
+                                send_ui_request(UIThreadRequest::Redraw);
+
+                                // Disable the rendering of the login manager
+                                send_ui_request(UIThreadRequest::DisableTui);
+
+                                // TODO: Make changable with config
+                                let context = StartSessionContext {
+                                    tty: self.config.tty,
+                                };
+                                match start_session(session_user, &environment, &context) {
+                                    Ok(_) => {}
+                                    Err(err) => {
+                                        error!(
+                                            "Failed to start session environment. Reason: '{}'",
+                                            err
+                                        );
+                                        send_ui_request(UIThreadRequest::EnableTui);
+
+                                        status_message
+                                            .set(ErrorStatusMessage::FailedGraphicalEnvironment);
+                                        send_ui_request(UIThreadRequest::Redraw);
+                                        continue;
+                                    }
+                                }
+
+                                // Enable the rendering of the login manager
+                                send_ui_request(UIThreadRequest::EnableTui);
+
+                                status_message.clear();
+                                send_ui_request(UIThreadRequest::Redraw);
                             }
                         }
                         (KeyCode::Char('s'), InputMode::Normal) => self.set_cache(),
@@ -553,73 +600,4 @@ fn login_form_render<B: Backend>(
 
     // Display Status Message
     StatusMessage::render(status_message, frame, chunks.status_message);
-}
-
-fn attempt_login<'a, TR, PC, SC>(
-    session_environment: Option<SessionEnvironment>,
-    username: String,
-    password: String,
-    config: Config,
-    status_message: LoginFormStatusMessage,
-    send_ui_request: TR,
-    password_clear: PC,
-    set_cache: SC,
-) where
-    TR: Fn(UIThreadRequest),
-    PC: Fn(),
-    SC: Fn(),
-{
-    // Fetch the selected post login environment
-    let Some(session_environment) = session_environment else {
-        status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
-        send_ui_request(UIThreadRequest::Redraw);
-        return;
-    };
-
-    status_message.set(InfoStatusMessage::Authenticating);
-    send_ui_request(UIThreadRequest::Redraw);
-
-    let session_user = match SessionUser::authenticate(&username, &password) {
-        Err(err) => {
-            status_message.set(ErrorStatusMessage::Session(err));
-
-            // Clear the password field
-            password_clear();
-            send_ui_request(UIThreadRequest::Redraw);
-
-            return;
-        }
-        Ok(res) => res,
-    };
-
-    // Remember username for next time
-    set_cache();
-
-    status_message.set(InfoStatusMessage::LoggingIn);
-    send_ui_request(UIThreadRequest::Redraw);
-
-    // Disable the rendering of the login manager
-    send_ui_request(UIThreadRequest::DisableTui);
-
-    // TODO: update the context from the configuration
-    let context = EnvironmentContext::default();
-
-    // NOTE: if this call is succesful, it blocks the thread until the environment is
-    // terminated
-    session_environment
-        .start_with_context(&session_user, &context)
-        .unwrap_or_else(|_| {
-            error!("Starting post-login environment failed");
-            status_message.set(ErrorStatusMessage::FailedGraphicalEnvironment);
-            send_ui_request(UIThreadRequest::Redraw);
-        });
-
-    // Enable the rendering of the login manager
-    send_ui_request(UIThreadRequest::EnableTui);
-
-    status_message.clear();
-    send_ui_request(UIThreadRequest::Redraw);
-
-    // Just to add explicitness that the user session is dropped here
-    drop(session_user);
 }

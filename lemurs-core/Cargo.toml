@@ -1,5 +1,5 @@
 [package]
-name = "lemurs"
+name = "lemurs-core"
 authors = ["Gijs Burghoorn <me@gburghoorn.com>"]
 description = "A TUI Display/Login Manager"
 version = "0.3.0"

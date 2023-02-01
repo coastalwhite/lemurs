@@ -3,7 +3,7 @@ use log::info;
 use env_container::EnvironmentContainer;
 use nix::unistd::Uid;
 
-use super::{SessionEnvironment, SessionType};
+use super::SessionType;
 
 pub(crate) fn set_display(process_env: &mut EnvironmentContainer) {
     info!("Setting Display");

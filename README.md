@@ -161,7 +161,11 @@ Tested on
 
 - ArchLinux (Vanilla, ArcoLinux)
 - VoidLinux
-- Ubuntu (make sure to install `libpam-dev`)
+- Ubuntu (make sure to install `build-essential` and `libpam-dev`)
+
+## MSRV Policy
+
+Lemurs has a *Minimum Supported Rust Version* policy of *N - 2*. This means that we only use Rust languages features that have been in Rust as of 2 releases.
 
 ## License
 

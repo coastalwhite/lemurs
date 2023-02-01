@@ -6,11 +6,13 @@ use pam::{Authenticator, PasswordConv};
 
 use crate::auth::{AuthError, AuthSession, SessionAuthError};
 
+use super::AuthContext;
+
 pub struct PamSession<'a>(Authenticator<'a, PasswordConv>);
 
 #[derive(Debug, Clone)]
 pub struct PamContext {
-    service: &'static str,
+    service: String,
 }
 
 /// All the different errors that can occur during PAM opening an authenticated session
@@ -22,7 +24,7 @@ pub enum PamError {
 
 impl Default for PamContext {
     fn default() -> Self {
-        Self { service: "login" }
+        Self { service: "lemurs".to_string() }
     }
 }
 
@@ -40,7 +42,7 @@ impl<'a> AuthSession for PamSession<'a> {
 
         info!("Started opening session");
 
-        let mut authenticator = Authenticator::with_password(context.service)
+        let mut authenticator = Authenticator::with_password(&context.service)
             .map_err(|_| PamError::InvalidPamService(context.service.to_string()))?;
 
         info!("Gotten Authenticator");
@@ -86,3 +88,10 @@ impl Display for PamError {
 }
 
 impl Error for PamError {}
+
+impl AuthContext {
+    pub fn pam_service(mut self, service: impl ToString) -> Self {
+        self.backend_specific.service = service.to_string();
+        self
+    }
+}

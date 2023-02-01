@@ -8,7 +8,7 @@ use lemurs::auth::SessionAuthError;
 
 #[derive(Clone)]
 pub enum ErrorStatusMessage {
-    Session(SessionAuthError),
+    Authentication(SessionAuthError),
     NoGraphicalEnvironment,
     FailedGraphicalEnvironment,
     FailedDesktop,
@@ -21,7 +21,7 @@ impl From<&ErrorStatusMessage> for &'static str {
         use ErrorStatusMessage::*;
 
         match err {
-            Session(_) => "Authentication failed",
+            Authentication(_) => "Authentication failed",
             NoGraphicalEnvironment => "No graphical environment specified",
             FailedGraphicalEnvironment => "Failed booting into the graphical environment",
             FailedDesktop => "Failed booting into desktop environment",

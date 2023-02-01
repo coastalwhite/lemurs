@@ -9,14 +9,28 @@ use crate::session_environment::env_variables::{
     set_xdg_common_paths,
 };
 
-use self::auth::{SessionAuthError, SessionUser};
+use self::auth::{AuthContext, SessionAuthError, SessionUser};
 use self::session_environment::{EnvironmentStartError, SessionEnvironment, SessionType};
 
 pub mod auth;
 pub mod session_environment;
 
-struct Config {
-    tty: u8,
+pub struct StartSessionContext {
+    pub tty: u8,
+}
+
+pub fn authenticate_with_context<'a>(
+    username: &'_ str,
+    password: &'_ str,
+    session_type: Option<SessionType>,
+    context: &AuthContext,
+) -> Result<SessionUser<'a>, SessionAuthError> {
+    let mut env_container = EnvironmentContainer::take_snapshot();
+
+    set_display(&mut env_container);
+    set_session_params(&mut env_container, session_type);
+
+    SessionUser::authenticate_with_context(username, password, env_container, &context)
 }
 
 pub fn authenticate<'a>(
@@ -24,18 +38,13 @@ pub fn authenticate<'a>(
     password: &'_ str,
     session_type: Option<SessionType>,
 ) -> Result<SessionUser<'a>, SessionAuthError> {
-    let mut env_container = EnvironmentContainer::take_snapshot();
-
-    set_display(&mut env_container);
-    set_session_params(&mut env_container, session_type);
-
-    SessionUser::authenticate(username, password, env_container)
+    authenticate_with_context(username, password, session_type, &AuthContext::default())
 }
 
-fn start_session<'a>(
+pub fn start_session<'a>(
     mut session_user: SessionUser<'a>,
     session_environment: &SessionEnvironment,
-    config: &Config,
+    config: &StartSessionContext,
 ) -> Result<(), EnvironmentStartError> {
     let tty = config.tty;
 

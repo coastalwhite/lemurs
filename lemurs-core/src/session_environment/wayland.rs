@@ -1,5 +1,7 @@
 use log::{info, warn};
 
+use std::error::Error;
+use std::fmt::Display;
 use std::fs;
 use std::process::Command;
 
@@ -9,9 +11,17 @@ use super::{EnvironmentContext, SessionInitializer, SessionProcess};
 
 const WAYLAND_SESSIONS_DIR: &str = "/etc/lemurs/wayland";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WaylandStartError {
-    InitializerStartFailed,
 }
+
+impl Display for WaylandStartError {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+
+impl Error for WaylandStartError {}
 
 pub struct WaylandStartContext<'a> {
     system_shell: &'a str,

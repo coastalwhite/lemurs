@@ -1,4 +1,6 @@
 use rand::Rng;
+use std::error::Error;
+use std::fmt::Display;
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use std::{env, fs};
@@ -166,15 +168,30 @@ pub fn setup_x_server(
     Ok(child)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X11StartError {
     XAuthCommand,
     XServerStart,
-    ServerTimeout,
     FailedServerStartQuery,
     FailedServerStatusCheck,
     FailedResolveElapsedTime,
     ExceededMaxTries,
 }
+
+impl Display for X11StartError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::XAuthCommand => "Failed to find 'xauth' binary",
+            Self::XServerStart => "Failed to start the X11 server",
+            Self::FailedServerStartQuery => "Failed to check whether X11 server had started (1)",
+            Self::FailedServerStatusCheck => "Failed to check whether X11 server had started (2)",
+            Self::FailedResolveElapsedTime => "Failed to check elapsed time since X11 server start",
+            Self::ExceededMaxTries => "Exceeded the max tries for starting the x server",
+        })
+    }
+}
+
+impl Error for X11StartError {}
 
 impl Default for X11StartContext<'static> {
     fn default() -> Self {
@@ -202,7 +219,10 @@ impl SessionInitializer {
             self.path.display()
         ));
 
-        Ok(SessionProcess::X11 { server, client: initializer })
+        Ok(SessionProcess::X11 {
+            server,
+            client: initializer,
+        })
     }
 }
 

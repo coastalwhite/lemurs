@@ -127,7 +127,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lemurs"
+name = "lemurs-core"
 version = "0.3.0"
 dependencies = [
  "chvt-rs",
@@ -148,7 +148,7 @@ dependencies = [
  "chvt-rs",
  "crossterm 0.22.1",
  "env_logger",
- "lemurs",
+ "lemurs-core",
  "log",
  "serde",
  "toml",

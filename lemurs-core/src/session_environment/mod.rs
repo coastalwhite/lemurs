@@ -77,12 +77,14 @@ pub enum SessionType {
     Shell,
 }
 
+#[derive(Debug)]
 pub enum SessionProcess<T> {
     X11 { server: Child, client: T },
     Wayland(T),
     Shell(T),
 }
 
+#[derive(Debug, Clone)]
 pub enum EnvironmentStartError {
     Run(RunError),
     InitializerFailed,
@@ -106,6 +108,21 @@ impl Display for SessionEnvironment {
             Self::X11(initializer) => write!(f, "X11 session {}", initializer),
             Self::Shell => f.write_str("tty shell"),
             Self::Wayland(initializer) => write!(f, "Wayland session {}", initializer),
+        }
+    }
+}
+
+impl Display for EnvironmentStartError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Run(err) => write!(f, "Run Error. {err}"),
+            Self::InitializerFailed => f.write_str("Failed to create or spawn initializer"),
+            Self::InitializerWaitFailed => f.write_str("Failed to wait for initializer"),
+            Self::StdErrNonUtf8 => f.write_str("Initializer failed and the stderr is not valid UTF-8."),
+            Self::WaylandStart(err) => write!(f, "Wayland Start Error. {err}"),
+            Self::X11Start(err) => write!(f, "X11 Start Error. {err}"),
+            Self::X11ServerKillFailed => write!(f, "Failed to kill X11 server"),
+            Self::ReusedSessionUser => write!(f, "Reused Session User after it already spawned a session"),
         }
     }
 }
