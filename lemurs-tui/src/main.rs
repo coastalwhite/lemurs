@@ -8,7 +8,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use lemurs::can_run;
+use lemurs_core::{can_run, session_environment::get_envs};
 use log::{error, info, warn};
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(cmd) = cli.command {
         match cmd {
             Commands::Envs => {
-                let envs = lemurs::session_environment::get_envs(
+                let envs = get_envs(
                     config.environment_switcher.include_tty_shell,
                 );
 

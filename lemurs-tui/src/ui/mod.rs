@@ -1,17 +1,14 @@
-use lemurs::{authenticate, StartSessionContext};
-use log::{error, info, warn};
-
 use std::io;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use crate::config::{Config, FocusBehaviour};
-use crate::info_caching::{get_cached_information, set_cache};
-use lemurs::session_environment::SessionEnvironment;
-use lemurs::start_session;
+use log::{error, info, warn};
 
-use status_message::StatusMessage;
+use lemurs_core::auth::AuthContext;
+use lemurs_core::{authenticate_with_context, StartSessionContext};
+use lemurs_core::session_environment::{SessionEnvironment, get_envs};
+use lemurs_core::start_session;
 
 use crossterm::cursor::MoveTo;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
@@ -19,8 +16,15 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
 };
+
 use tui::backend::CrosstermBackend;
 use tui::{backend::Backend, Frame, Terminal};
+
+use crate::config::{Config, FocusBehaviour};
+use crate::info_caching::{get_cached_information, set_cache};
+
+use status_message::StatusMessage;
+
 
 mod chunks;
 mod input_field;
@@ -267,8 +271,7 @@ impl LoginForm {
     }
 
     pub fn new(config: Config, preview: bool) -> LoginForm {
-        let mut session_environments =
-            lemurs::session_environment::get_envs(config.environment_switcher.include_tty_shell);
+        let mut session_environments = get_envs(config.environment_switcher.include_tty_shell);
         if session_environments.is_empty() {
             session_environments.push(SessionEnvironment::Shell);
         }
@@ -408,16 +411,22 @@ impl LoginForm {
                                 send_ui_request(UIThreadRequest::Redraw);
                                 self.widgets.clear_password();
 
-                                let session_user =
-                                    match authenticate(&username, &password, Some(session_type)) {
-                                        Ok(u) => u,
-                                        Err(err) => {
-                                            status_message
-                                                .set(ErrorStatusMessage::Authentication(err));
-                                            send_ui_request(UIThreadRequest::Redraw);
-                                            continue;
-                                        }
-                                    };
+                                let context = AuthContext::default()
+                                    .pam_service(self.config.pam_service.clone());
+
+                                let session_user = match authenticate_with_context(
+                                    &username,
+                                    &password,
+                                    Some(session_type),
+                                    &context,
+                                ) {
+                                    Ok(u) => u,
+                                    Err(err) => {
+                                        status_message.set(ErrorStatusMessage::Authentication(err));
+                                        send_ui_request(UIThreadRequest::Redraw);
+                                        continue;
+                                    }
+                                };
 
                                 // Remember username and environment for next time
                                 self.set_cache();

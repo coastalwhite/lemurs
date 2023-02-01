@@ -4,7 +4,7 @@ use tui::style::Color;
 use tui::widgets::Paragraph;
 use tui::Frame;
 
-use lemurs::auth::SessionAuthError;
+use lemurs_core::auth::SessionAuthError;
 
 #[derive(Clone)]
 pub enum ErrorStatusMessage {

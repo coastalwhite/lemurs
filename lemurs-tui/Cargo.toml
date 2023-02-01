@@ -20,7 +20,7 @@ name = "lemurs"
 path = "src/main.rs"
 
 [dependencies]
-lemurs = { path = "../lemurs-core" }
+lemurs-core = { path = "../lemurs-core" }
 
 # Switching between TTYs
 chvt-rs = { path = "../chvt" }
