@@ -1,5 +1,4 @@
 use crossterm::event::KeyCode;
-use std::cmp::min;
 use tui::{
     layout::Rect,
     style::Style,
@@ -25,13 +24,17 @@ pub struct InputFieldWidget {
     content: String,
     /// Horizontal position of the cursor
     cursor: u16,
-    /// Horizontal scroll
+    /// Horizontal scroll in UTF-8 characters
     scroll: u16,
 
     /// Width of the InputField in cells
     width: u16,
     display_type: InputFieldDisplayType,
     style: InputFieldStyle,
+}
+
+fn get_byte_offset_of_char_offset(s: &str, offset: usize) -> usize {
+    s.char_indices().nth(offset).map_or(s.len(), |(i, _)| i)
 }
 
 impl InputFieldWidget {
@@ -62,19 +65,23 @@ impl InputFieldWidget {
         self.content.len()
     }
 
+    /// Return what string is currently shown to the user for an Echo type field
     fn show_echo(&self) -> String {
         let scroll = usize::from(self.scroll);
         let width = usize::from(self.width);
 
-        let mut cell_width = 0;
+        let start_index = get_byte_offset_of_char_offset(&self.content, scroll);
 
-        let mut substr = self.content.char_indices().skip(scroll);
-        let end_index = substr
-            .clone()
+        // The end_index is the end of the last index that fit within the box
+        let mut cell_width = 0;
+        let end_index = self
+            .content
+            .char_indices()
+            .skip(scroll)
             .find(|(_, c)| {
                 let Some(char_width) = c.width() else {
-                panic!("Input field cannot contain null byte (\\x00)");
-            };
+                    panic!("Input field cannot contain null byte (\\x00)");
+                };
 
                 if cell_width + char_width > width {
                     return true;
@@ -83,14 +90,7 @@ impl InputFieldWidget {
                 cell_width += char_width;
                 false
             })
-            .map(|(i, _)| i);
-
-        let Some((start_index, _)) = substr.next() else {
-            return String::new();
-        };
-        let Some(end_index) = end_index else {
-            return self.content[start_index..].to_string();
-        };
+            .map_or(self.content.len(), |(i, _)| i);
 
         self.content[start_index..end_index].to_string()
     }
@@ -126,15 +126,9 @@ impl InputFieldWidget {
             return;
         }
 
-        let Some((index, _)) = self.content.char_indices().nth(cursor + scroll - 1) else {
-            return;
-        };
+        let index = get_byte_offset_of_char_offset(&self.content, cursor + scroll - 1);
 
-        if scroll > 0 {
-            self.scroll -= 1;
-        } else if cursor > 0 {
-            self.cursor -= 1;
-        }
+        self.left();
         self.content.remove(index);
     }
 
@@ -179,6 +173,7 @@ impl InputFieldWidget {
         }
     }
 
+    #[inline]
     fn right(&mut self) {
         if usize::from(self.cursor + self.scroll) >= self.len() {
             return;
@@ -191,16 +186,19 @@ impl InputFieldWidget {
         }
     }
 
+    #[inline]
     fn left(&mut self) {
-        if self.cursor == 0 {
-            if self.scroll > 0 {
-                self.scroll -= 1;
-            }
-
+        if self.cursor == 0 && self.scroll == 0 {
             return;
         }
 
-        self.cursor -= 1;
+        if self.cursor > 0 {
+            self.cursor -= 1;
+        }
+
+        if self.scroll > 0 {
+            self.scroll -= 1;
+        }
     }
 
     pub fn clear(&mut self) {
@@ -283,11 +281,8 @@ impl InputFieldWidget {
 
         if is_focused {
             let Rect { x, y, .. } = inner;
-            frame.set_cursor(
-                x + self.content[usize::from(self.scroll)..usize::from(self.cursor + self.scroll)]
-                    .width() as u16,
-                y,
-            );
+            let cursor_offset = get_byte_offset_of_char_offset(&show_string, self.cursor.into());
+            frame.set_cursor(x + show_string[..cursor_offset].width() as u16, y);
         }
     }
 
