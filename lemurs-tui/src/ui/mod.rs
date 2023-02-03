@@ -6,9 +6,9 @@ use std::time::Duration;
 use log::{error, info, warn};
 
 use lemurs_core::auth::AuthContext;
+use lemurs_core::open_authenticated_session_with_context;
+use lemurs_core::session_environment::{get_envs, SessionEnvironment};
 use lemurs_core::{authenticate_with_context, StartSessionContext};
-use lemurs_core::session_environment::{SessionEnvironment, get_envs};
-use lemurs_core::start_session;
 
 use crossterm::cursor::MoveTo;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
@@ -24,7 +24,6 @@ use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_information, set_cache};
 
 use status_message::StatusMessage;
-
 
 mod chunks;
 mod input_field;
@@ -441,7 +440,13 @@ impl LoginForm {
                                 let context = StartSessionContext {
                                     tty: self.config.tty,
                                 };
-                                match start_session(session_user, &environment, &context) {
+                                match open_authenticated_session_with_context(
+                                    session_user,
+                                    &environment,
+                                    &context,
+                                )
+                                .and_then(|session_process| session_process.wait())
+                                {
                                     Ok(_) => {}
                                     Err(err) => {
                                         error!(

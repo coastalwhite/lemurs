@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use log::{error, info, warn};
 
-use crate::auth::SessionUser;
+use crate::UserInfo;
 
 use super::{EnvironmentContext, SessionInitializer, SessionProcess};
 
@@ -55,7 +55,7 @@ fn mcookie() -> String {
 }
 
 pub fn setup_x_server(
-    user_info: &SessionUser,
+    user_info: &UserInfo,
     context: &X11StartContext,
 ) -> Result<Child, X11StartError> {
     use std::os::unix::process::CommandExt;
@@ -202,13 +202,13 @@ impl Default for X11StartContext<'static> {
 impl SessionInitializer {
     pub fn start_x11(
         &self,
-        session_user: &SessionUser,
+        user_info: &UserInfo,
         context: &X11StartContext,
     ) -> Result<SessionProcess<Command>, X11StartError> {
         info!("Starting X11 session '{}'", self.name);
 
         // Start the X Server
-        let server = setup_x_server(session_user, context)?;
+        let server = setup_x_server(user_info, context)?;
 
         let mut initializer = Command::new(context.system_shell);
 

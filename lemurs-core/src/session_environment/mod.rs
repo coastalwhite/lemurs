@@ -8,10 +8,9 @@ use std::io;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
-use crate::auth::SessionUser;
 use crate::session_environment::wayland::WaylandStartContext;
 use crate::session_environment::x11::X11StartContext;
-use crate::{can_run, RunError};
+use crate::{can_run, RunError, UserInfo};
 
 use self::wayland::WaylandStartError;
 use self::x11::X11StartError;
@@ -153,7 +152,7 @@ impl<T> SessionProcess<T> {
 }
 
 impl SessionProcess<Child> {
-    fn pid(&self) -> u32 {
+    pub fn pid(&self) -> u32 {
         self.as_ref().id()
     }
 
@@ -174,6 +173,8 @@ impl SessionProcess<Child> {
     }
 
     pub fn wait(self) -> Result<(), EnvironmentStartError> {
+        info!("Waiting for environment to terminate");
+
         self.map_with_cleanup(|initializer| {
             // Wait for the session to end
             let output = match initializer.wait_with_output() {
@@ -211,26 +212,27 @@ impl SessionProcess<Child> {
                 };
             }
 
-            info!("Ended session");
+            info!("Environment terminated");
 
             Ok(())
         })
+
     }
 }
 
 impl SessionProcess<Command> {
-    fn pipe_output(&mut self) {
+    pub fn pipe_output(&mut self) {
         self.as_mut().stdout(Stdio::piped()).stderr(Stdio::piped());
     }
 
-    fn inherit_io(&mut self) {
+    pub fn inherit_io(&mut self) {
         self.as_mut()
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .stdin(Stdio::inherit());
     }
 
-    fn lower_permission_pre_exec(&mut self, uid: Uid, gid: Gid, groups: Vec<Gid>) {
+    pub fn lower_permission_pre_exec(&mut self, uid: Uid, gid: Gid, groups: Vec<Gid>) {
         // Lower the permissions of the initializer process
         let to_session_user_env = move || {
             use nix::unistd::{setgid, setgroups, setuid};
@@ -246,7 +248,7 @@ impl SessionProcess<Command> {
         unsafe { self.as_mut().pre_exec(to_session_user_env) };
     }
 
-    fn spawn(self) -> io::Result<SessionProcess<Child>> {
+    pub fn spawn(self) -> io::Result<SessionProcess<Child>> {
         Ok(match self {
             Self::X11 { server, mut client } => SessionProcess::X11 {
                 server,
@@ -269,7 +271,7 @@ impl SessionEnvironment {
 
     pub fn spawn(
         &self,
-        session_user: &mut SessionUser,
+        session_user: &UserInfo,
     ) -> Result<SessionProcess<Child>, EnvironmentStartError> {
         let context = EnvironmentContext::default();
         self.spawn_with_context(session_user, &context)
@@ -277,7 +279,7 @@ impl SessionEnvironment {
 
     pub fn spawn_with_context<'a>(
         &self,
-        session_user: &mut SessionUser,
+        session_user: &UserInfo,
         context: &EnvironmentContext<'a>,
     ) -> Result<SessionProcess<Child>, EnvironmentStartError> {
         let result = self.internal_spawn_with_context(session_user, context);
@@ -294,20 +296,20 @@ impl SessionEnvironment {
 
     fn internal_spawn_with_context<'a>(
         &self,
-        session_user: &mut SessionUser,
+        user_info: &UserInfo,
         context: &EnvironmentContext<'a>,
     ) -> Result<SessionProcess<Child>, EnvironmentStartError> {
         can_run()?;
 
-        let uid = session_user.user_id();
-        let gid = session_user.group_id();
-        let groups = session_user.groups().to_owned();
+        let uid = user_info.user_id();
+        let gid = user_info.group_id();
+        let groups = user_info.groups().to_owned();
 
         let mut session_process = match self {
             SessionEnvironment::X11(initializer) => {
                 let context = X11StartContext::from(context);
                 let mut session_process = initializer
-                    .start_x11(&session_user, &context)
+                    .start_x11(user_info, &context)
                     .map_err(EnvironmentStartError::X11Start)?;
 
                 // Pipe the stdout and stderr to us so we can read it.
@@ -318,7 +320,7 @@ impl SessionEnvironment {
             SessionEnvironment::Wayland(initializer) => {
                 let context = WaylandStartContext::from(context);
                 let mut session_process = initializer
-                    .start_wayland(&session_user, &context)
+                    .start_wayland(user_info, &context)
                     .map_err(EnvironmentStartError::WaylandStart)?;
 
                 // Pipe the stdout and stderr to us so we can read it.
@@ -329,7 +331,7 @@ impl SessionEnvironment {
             SessionEnvironment::Shell => {
                 info!("Starting TTY shell");
 
-                let shell = &session_user.shell();
+                let shell = &user_info.shell();
 
                 let mut session_process = SessionProcess::Shell(Command::new(shell));
                 session_process.inherit_io();
@@ -348,8 +350,6 @@ impl SessionEnvironment {
             }
         };
 
-        // Update the UTMPX session to include the initializer pid
-        session_user.set_pid(session_process.pid());
 
         Ok(session_process)
     }

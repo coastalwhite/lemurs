@@ -13,7 +13,7 @@ use nix::unistd::{Gid, Uid};
 use pgs_files::passwd::get_entry_by_name;
 use users::get_user_groups;
 
-use crate::{can_run, RunError};
+use crate::{can_run, RunError, UserInfo};
 
 use self::pam::{PamError, PamSession};
 
@@ -67,50 +67,17 @@ pub struct SessionUser<'a> {
     #[allow(dead_code)]
     session: AuthBackend<'a>,
 
-    environment_container: Option<EnvironmentContainer>,
+    #[allow(dead_code)]
+    env_container: EnvironmentContainer,
 
-    username: String,
-    user_id: Uid,
-    group_id: Gid,
-    groups: Vec<Gid>,
-    gecos: String,
-    home_dir: String,
-    shell: String,
     utmpx: Option<RefCell<Utmpx>>,
+
+    info: UserInfo,
 }
 
 impl<'a> SessionUser<'a> {
-    /// Get the username of the currently authenticated user
-    pub fn username(&self) -> &str {
-        &self.username
-    }
-    /// Get the user id (`uid`) of the currently authenticated user
-    pub fn user_id(&self) -> Uid {
-        self.user_id
-    }
-    /// Get the group id (`gid`) of the currently authenticated user
-    pub fn group_id(&self) -> Gid {
-        self.group_id
-    }
-    /// Get the group ids (`groups`) of the currently authenticated user
-    pub fn groups(&self) -> &[Gid] {
-        &self.groups
-    }
-    /// Get the GECOS User Information of the current authenticated user
-    pub fn gecos(&self) -> &str {
-        &self.gecos
-    }
-    /// Get the user home directory of the currently authenticated user
-    pub fn home_dir(&self) -> &str {
-        &self.home_dir
-    }
-    /// Get the user shell of the currently authenticated user
-    pub fn shell(&self) -> &str {
-        &self.shell
-    }
-
-    pub(crate) fn take_env_container(&mut self) -> Option<EnvironmentContainer> {
-        self.environment_container.take()
+    pub fn as_user_info(&self) -> &UserInfo {
+        &self.info
     }
 
     /// Attempt to create a new authenticated user from their username and password.
@@ -149,11 +116,7 @@ impl<'a> SessionUser<'a> {
                 auth_context.session_tty,
             )));
 
-        Ok(Self {
-            session,
-
-            environment_container: Some(env_container),
-
+        let info = UserInfo {
             username: String::from(username),
             user_id: Uid::from_raw(info.uid),
             group_id: Gid::from_raw(info.gid),
@@ -161,7 +124,13 @@ impl<'a> SessionUser<'a> {
             gecos: String::from(info.gecos),
             home_dir: String::from(info.dir),
             shell: String::from(info.shell),
+        };
+
+        Ok(Self {
+            session,
+            env_container,
             utmpx,
+            info,
         })
     }
 
@@ -206,6 +175,7 @@ impl<'a> Drop for SessionUser<'a> {
         }
     }
 }
+
 
 impl Default for AuthContext {
     fn default() -> Self {

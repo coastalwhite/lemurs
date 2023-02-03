@@ -5,7 +5,7 @@ use std::fmt::Display;
 use std::fs;
 use std::process::Command;
 
-use crate::auth::SessionUser;
+use crate::UserInfo;
 
 use super::{EnvironmentContext, SessionInitializer, SessionProcess};
 
@@ -43,7 +43,7 @@ impl<'a> From<&EnvironmentContext<'a>> for WaylandStartContext<'a> {
 impl SessionInitializer {
     pub fn start_wayland(
         &self,
-        _session_user: &SessionUser<'_>,
+        _user_info: &UserInfo,
         context: &WaylandStartContext,
     ) -> Result<SessionProcess<Command>, WaylandStartError> {
         info!("Starting Wayland session '{}'", self.name);
