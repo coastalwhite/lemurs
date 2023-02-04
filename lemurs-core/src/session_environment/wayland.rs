@@ -7,7 +7,7 @@ use std::process::Command;
 
 use crate::UserInfo;
 
-use super::{EnvironmentContext, SessionInitializer, SessionProcess};
+use super::{EnvironmentContext, SessionInitializer, SessionCommand};
 
 const WAYLAND_SESSIONS_DIR: &str = "/etc/lemurs/wayland";
 
@@ -44,7 +44,7 @@ impl SessionInitializer {
         &self,
         _user_info: &UserInfo,
         context: &WaylandStartContext,
-    ) -> Result<SessionProcess<Command>, WaylandStartError> {
+    ) -> Result<SessionCommand, WaylandStartError> {
         info!("Starting Wayland session '{}'", self.name);
 
         let mut initializer = Command::new(context.system_shell);
@@ -52,7 +52,7 @@ impl SessionInitializer {
         // Make it run the initializer
         initializer.arg("-c").arg(&self.path);
 
-        Ok(SessionProcess::Wayland(initializer))
+        Ok(SessionCommand::Wayland(initializer))
     }
 }
 

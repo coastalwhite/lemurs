@@ -8,6 +8,7 @@ use std::io;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
+use crate::auth::SessionUser;
 use crate::session_environment::wayland::WaylandStartContext;
 use crate::session_environment::x11::X11StartContext;
 use crate::{can_run, RunError, UserInfo};
@@ -76,11 +77,23 @@ pub enum SessionType {
     Shell,
 }
 
+pub struct SessionProcess<'a> {
+    type_specific_content: SessionProcessContent,
+    session_user: Option<SessionUser<'a>>,
+}
+
 #[derive(Debug)]
-pub enum SessionProcess<T> {
-    X11 { server: Child, client: T },
-    Wayland(T),
-    Shell(T),
+pub enum SessionProcessContent {
+    X11 { server: Child, client: Child },
+    Wayland(Child),
+    Shell(Child),
+}
+
+#[derive(Debug)]
+pub enum SessionCommand {
+    X11 { server: Child, client: Command },
+    Wayland(Command),
+    Shell(Command),
 }
 
 #[derive(Debug, Clone)]
@@ -140,22 +153,22 @@ impl SessionType {
     }
 }
 
-impl<T> SessionProcess<T> {
-    fn as_ref(&self) -> &T {
-        match self {
-            Self::X11 { client, .. } | Self::Wayland(client) | Self::Shell(client) => &client,
-        }
-    }
-    fn as_mut(&mut self) -> &mut T {
-        match self {
-            Self::X11 { ref mut client, .. }
-            | Self::Wayland(ref mut client)
-            | Self::Shell(ref mut client) => client,
-        }
-    }
-}
+impl<'a> SessionProcess<'a> {
+    fn as_ref(&self) -> &Child {
+        use SessionProcessContent::*;
 
-impl SessionProcess<Child> {
+        match &self.type_specific_content {
+            X11 { client, .. } | Wayland(client) | Shell(client) => &client,
+        }
+    }
+
+    pub fn authenticate(&mut self, session_user: SessionUser<'a>) {
+        // Insert the pid into the UTMPX entry, if needed
+        session_user.set_pid(self.pid());
+
+        self.session_user = Some(session_user);
+    }
+
     pub fn pid(&self) -> u32 {
         self.as_ref().id()
     }
@@ -164,15 +177,17 @@ impl SessionProcess<Child> {
         self,
         f: impl Fn(Child) -> Result<(), EnvironmentStartError>,
     ) -> Result<(), EnvironmentStartError> {
-        match self {
-            Self::X11 { mut server, client } => {
+        use SessionProcessContent::*;
+
+        match self.type_specific_content {
+            X11 { mut server, client } => {
                 f(client)?;
                 server.kill().map_err(|err| {
                     error!("Failed to kill X11 server, Reason: '{}'", err);
                     EnvironmentStartError::X11ServerKillFailed
                 })
             }
-            Self::Wayland(client) | Self::Shell(client) => f(client),
+            Wayland(client) | Shell(client) => f(client),
         }
     }
 
@@ -223,7 +238,24 @@ impl SessionProcess<Child> {
     }
 }
 
-impl SessionProcess<Command> {
+impl<'a> From<SessionProcessContent> for SessionProcess<'a> {
+    fn from(type_specific_content: SessionProcessContent) -> Self {
+        SessionProcess {
+            type_specific_content,
+            session_user: None,
+        }
+    }
+}
+
+impl SessionCommand {
+    fn as_mut(&mut self) -> &mut Command {
+        match self {
+            Self::X11 { ref mut client, .. }
+            | Self::Wayland(ref mut client)
+            | Self::Shell(ref mut client) => client,
+        }
+    }
+
     pub fn pipe_output(&mut self) {
         self.as_mut().stdout(Stdio::piped()).stderr(Stdio::piped());
     }
@@ -251,14 +283,17 @@ impl SessionProcess<Command> {
         unsafe { self.as_mut().pre_exec(to_session_user_env) };
     }
 
-    pub fn spawn(self) -> io::Result<SessionProcess<Child>> {
-        Ok(match self {
-            Self::X11 { server, mut client } => SessionProcess::X11 {
-                server,
-                client: client.spawn()?,
+    pub fn spawn<'a>(self) -> io::Result<SessionProcess<'a>> {
+        Ok(SessionProcess {
+            type_specific_content: match self {
+                Self::X11 { server, mut client } => SessionProcessContent::X11 {
+                    server,
+                    client: client.spawn()?,
+                },
+                Self::Wayland(mut client) => SessionProcessContent::Wayland(client.spawn()?),
+                Self::Shell(mut client) => SessionProcessContent::Shell(client.spawn()?),
             },
-            Self::Wayland(mut client) => SessionProcess::Wayland(client.spawn()?),
-            Self::Shell(mut client) => SessionProcess::Shell(client.spawn()?),
+            session_user: None,
         })
     }
 }
@@ -272,10 +307,7 @@ impl SessionEnvironment {
         }
     }
 
-    pub fn spawn(
-        &self,
-        session_user: &UserInfo,
-    ) -> Result<SessionProcess<Child>, EnvironmentStartError> {
+    pub fn spawn(&self, session_user: &UserInfo) -> Result<SessionProcess, EnvironmentStartError> {
         let context = EnvironmentContext::default();
         self.spawn_with_context(session_user, &context)
     }
@@ -284,7 +316,7 @@ impl SessionEnvironment {
         &self,
         session_user: &UserInfo,
         context: &EnvironmentContext<'a>,
-    ) -> Result<SessionProcess<Child>, EnvironmentStartError> {
+    ) -> Result<SessionProcess, EnvironmentStartError> {
         let result = self.internal_spawn_with_context(session_user, context);
 
         info!("Switch back to Lemurs virtual terminal");
@@ -301,59 +333,59 @@ impl SessionEnvironment {
         &self,
         user_info: &UserInfo,
         context: &EnvironmentContext<'a>,
-    ) -> Result<SessionProcess<Child>, EnvironmentStartError> {
+    ) -> Result<SessionProcess, EnvironmentStartError> {
         can_run()?;
 
         let uid = user_info.user_id();
         let gid = user_info.group_id();
         let groups = user_info.groups().to_owned();
 
-        let mut session_process = match self {
+        let mut session_command = match self {
             SessionEnvironment::X11(initializer) => {
                 let context = X11StartContext::from(context);
-                let mut session_process = initializer
+                let mut session_command = initializer
                     .start_x11(user_info, &context)
                     .map_err(EnvironmentStartError::X11Start)?;
 
                 // Pipe the stdout and stderr to us so we can read it.
-                session_process.pipe_output();
+                session_command.pipe_output();
 
-                session_process
+                session_command
             }
             SessionEnvironment::Wayland(initializer) => {
                 let context = WaylandStartContext::from(context);
-                let mut session_process = initializer
+                let mut session_command = initializer
                     .start_wayland(user_info, &context)
                     .map_err(EnvironmentStartError::WaylandStart)?;
 
                 // Pipe the stdout and stderr to us so we can read it.
-                session_process.pipe_output();
+                session_command.pipe_output();
 
-                session_process
+                session_command
             }
             SessionEnvironment::Shell => {
                 info!("Starting TTY shell");
 
                 let shell = &user_info.shell();
 
-                let mut session_process = SessionProcess::Shell(Command::new(shell));
-                session_process.inherit_io();
-                session_process
+                let mut session_command = SessionCommand::Shell(Command::new(shell));
+
+                session_command.inherit_io();
+
+                session_command
             }
         };
 
-        session_process.lower_permission_pre_exec(uid, gid, groups);
+        session_command.lower_permission_pre_exec(uid, gid, groups);
 
         // Actually spawn the initializer process
-        let session_process = match session_process.spawn() {
-            Ok(cmd) => cmd,
+        match session_command.spawn() {
+            Ok(cmd) => Ok(cmd.into()),
             Err(err) => {
                 error!("Failed to start initializer. Reason '{}'", err);
-                return Err(EnvironmentStartError::InitializerFailed);
+                Err(EnvironmentStartError::InitializerFailed)
             }
-        };
-
-        Ok(session_process)
+        }
     }
 }
 

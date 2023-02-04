@@ -11,8 +11,9 @@ use std::path::PathBuf;
 use log::{error, info, warn};
 
 use crate::UserInfo;
+use crate::session_environment::SessionCommand;
 
-use super::{EnvironmentContext, SessionInitializer, SessionProcess};
+use super::{EnvironmentContext, SessionInitializer};
 
 const SERVER_QUERY_NUM_OF_TRIES: usize = 10;
 const SERVER_QUERY_TIMEOUT: Duration = Duration::from_millis(1000);
@@ -204,7 +205,7 @@ impl SessionInitializer {
         &self,
         user_info: &UserInfo,
         context: &X11StartContext,
-    ) -> Result<SessionProcess<Command>, X11StartError> {
+    ) -> Result<SessionCommand, X11StartError> {
         info!("Starting X11 session '{}'", self.name);
 
         // Start the X Server
@@ -219,7 +220,7 @@ impl SessionInitializer {
             self.path.display()
         ));
 
-        Ok(SessionProcess::X11 {
+        Ok(SessionCommand::X11 {
             server,
             client: initializer,
         })

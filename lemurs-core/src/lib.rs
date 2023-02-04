@@ -1,6 +1,37 @@
-//! # API Example
+//! *LeMuRS*-core or *Login Manager RuSt* abstracts the complicated behavior needed when creating
+//! Login/Display Manager for \*nix systems.
+//!
+//! The library is compatible works for systems with and without SystemD. It aims to provide
+//! low-level control of the its functionality while not requiring the user to know all the details
+//! about the session open process.
+//!
+//! This library provides 2 main functionalities.
+//! 1. [Authentication](#authentication): verification of login credentials
+//! 2. [Session Environments](#session-environments): opening a X11, Wayland or Shell environment
+//!
+//! ## Basic example without Authentication
+//!
+//! The code below illustrates a basic example of how to use the libary. This example does not
+//! verify the user credentials. It performs something very similar to the
+//! [`startx`](https://www.x.org/releases/X11R7.5/doc/man/man1/startx.1.html) binary.
 //!
 //! ```no_run
+//! // Fetch the information for the currently active user
+//! let user_info = UserInfo::active_user()?;
+//!
+//! // Define what you want the session to start into
+//! let session_environment = SessionEnvironment::X11(
+//!     &format!("{}/.xinitrc", std::env::get("HOME")?)
+//! );
+//!
+//! // Start a session environment
+//! open_session(&user_info, &session_environment)?.wait()?;
+//! ```
+//!
+//! ## Basic example with Authentication
+//!
+//! ```no_run
+//! // TODO: Provide your own methods for fetching the user creditionals
 //! let username = "johndoe";
 //! let pasword = "*******";
 //!
@@ -15,8 +46,18 @@
 //! )?;
 //!
 //! // Start a session environment
-//! start_session(session_user, &session_environment);
+//! open_authenticated_session(
+//!     session_user,
+//!     &session_environment
+//! )?.wait()?;
 //! ```
+//!
+//! ## Authentication
+//!
+//! ## Session Environments
+//!
+//! # API Example
+//!
 //!
 //! # API Expanded
 //!
@@ -48,7 +89,6 @@ use libc::uid_t;
 use nix::unistd::{Gid, Uid};
 use std::env;
 use std::fmt::Display;
-use std::process::Child;
 
 use crate::session_environment::env_variables::{
     set_basic_variables, set_display, set_seat_vars, set_session_params, set_session_vars,
@@ -185,11 +225,11 @@ pub fn authenticate<'a>(
 /// In contrast to the [`open_session`] function, this function also allows for finer control of
 /// the internal operations with the `context` argument. See the [`StartSessionContext`]
 /// documentation for further explanation of what parameters can be controlled.
-pub fn open_session_with_context(
+pub fn open_session_with_context<'a>(
     user_info: &UserInfo,
     session_environment: &SessionEnvironment,
     context: &StartSessionContext,
-) -> Result<SessionProcess<Child>, EnvironmentStartError> {
+) -> Result<SessionProcess<'a>, EnvironmentStartError> {
     let tty = context.tty;
 
     let mut env_container = EnvironmentContainer::take_snapshot();
@@ -204,7 +244,8 @@ pub fn open_session_with_context(
     set_basic_variables(&mut env_container, username, homedir, shell);
     set_xdg_common_paths(&mut env_container, homedir);
 
-    session_environment.spawn(user_info)
+    unimplemented!()
+    // session_environment.spawn(user_info)
 }
 
 /// Open a `session_environment` with the given `user_info` and return a handler to the opened
@@ -223,10 +264,10 @@ pub fn open_session_with_context(
 /// the default [`StartSessionContext`]. The default settings can be found in the documentation of
 /// [`StartSessionContext`]. If more control is needed, the [`open_session_with_context`] can be
 /// used.
-pub fn open_session(
+pub fn open_session<'a>(
     user_info: &UserInfo,
     session_environment: &SessionEnvironment,
-) -> Result<SessionProcess<Child>, EnvironmentStartError> {
+) -> Result<SessionProcess<'a>, EnvironmentStartError> {
     let context = StartSessionContext::default();
     open_session_with_context(user_info, session_environment, &context)
 }
@@ -246,12 +287,10 @@ pub fn open_authenticated_session_with_context<'a>(
     session_user: SessionUser<'a>,
     session_environment: &SessionEnvironment,
     context: &StartSessionContext,
-) -> Result<SessionProcess<Child>, EnvironmentStartError> {
-    let session_process =
-        open_session_with_context(session_user.as_user_info(), session_environment, context)?;
-
-    // Insert the pid into the UTMPX entry, if needed
-    session_user.set_pid(session_process.pid());
+) -> Result<SessionProcess<'a>, EnvironmentStartError> {
+    let mut session_process = open_session_with_context(session_user.as_user_info(), session_environment, context)?;
+    
+    session_process.authenticate(session_user);
 
     Ok(session_process)
 }
@@ -271,7 +310,7 @@ pub fn open_authenticated_session_with_context<'a>(
 pub fn open_authenticated_session<'a>(
     session_user: SessionUser<'a>,
     session_environment: &SessionEnvironment,
-) -> Result<SessionProcess<Child>, EnvironmentStartError> {
+) -> Result<SessionProcess<'a>, EnvironmentStartError> {
     let context = StartSessionContext::default();
     open_authenticated_session_with_context(session_user, session_environment, &context)
 }
