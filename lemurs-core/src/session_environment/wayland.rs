@@ -12,8 +12,7 @@ use super::{EnvironmentContext, SessionInitializer, SessionProcess};
 const WAYLAND_SESSIONS_DIR: &str = "/etc/lemurs/wayland";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WaylandStartError {
-}
+pub enum WaylandStartError {}
 
 impl Display for WaylandStartError {
     fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -81,7 +81,11 @@ impl<'a> SessionUser<'a> {
     }
 
     /// Attempt to create a new authenticated user from their username and password.
-    pub fn authenticate(username: &'_ str, password: &'_ str, env_container: EnvironmentContainer) -> Result<Self, SessionAuthError> {
+    pub fn authenticate(
+        username: &'_ str,
+        password: &'_ str,
+        env_container: EnvironmentContainer,
+    ) -> Result<Self, SessionAuthError> {
         let auth_context = AuthContext::default();
         Self::authenticate_with_context(username, password, env_container, &auth_context)
     }
@@ -175,7 +179,6 @@ impl<'a> Drop for SessionUser<'a> {
         }
     }
 }
-
 
 impl Default for AuthContext {
     fn default() -> Self {

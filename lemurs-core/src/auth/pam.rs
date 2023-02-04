@@ -24,7 +24,9 @@ pub enum PamError {
 
 impl Default for PamContext {
     fn default() -> Self {
-        Self { service: "lemurs".to_string() }
+        Self {
+            service: "lemurs".to_string(),
+        }
     }
 }
 

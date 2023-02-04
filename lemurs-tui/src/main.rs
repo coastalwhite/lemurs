@@ -89,9 +89,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(cmd) = cli.command {
         match cmd {
             Commands::Envs => {
-                let envs = get_envs(
-                    config.environment_switcher.include_tty_shell,
-                );
+                let envs = get_envs(config.environment_switcher.include_tty_shell);
 
                 for session_env in envs.into_iter() {
                     println!("{session_env}");
