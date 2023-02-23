@@ -1,11 +1,9 @@
 use std::time::SystemTime;
 
-use libc::{c_char, utmpx};
+use libc::{c_char, utmpx as Utmpx};
 use log::{error, info};
 
-pub struct UtmpxSession(utmpx);
-
-pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> UtmpxSession {
+pub fn add_utmpx_entry(username: &str, tty: u8) -> Utmpx {
     info!("Adding UTMPX record");
 
     // Check the MAN page for utmp for more information
@@ -14,7 +12,7 @@ pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> UtmpxSession {
     // https://man7.org/linux/man-pages/man0/utmpx.h.0p.html
     // https://github.com/fairyglade/ly/blob/master/src/login.c
     let entry = {
-        let mut s: utmpx = unsafe { std::mem::zeroed() };
+        let mut s: Utmpx = unsafe { std::mem::zeroed() };
 
         // ut_line    --- Device name of tty - "/dev/"
         // ut_id      --- Terminal name suffix
@@ -29,7 +27,6 @@ pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> UtmpxSession {
         // ut_addr_v6 --- Internet address of remote
 
         s.ut_type = libc::USER_PROCESS;
-        s.ut_pid = pid as libc::pid_t;
 
         for (i, b) in username.as_bytes().iter().take(32).enumerate() {
             s.ut_user[i] = *b as c_char;
@@ -70,32 +67,10 @@ pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> UtmpxSession {
 
     unsafe {
         libc::setutxent();
-        libc::pututxline(&entry as *const utmpx);
+        libc::pututxline(&entry as *const Utmpx);
     };
 
     info!("Added UTMPX record");
 
-    UtmpxSession(entry)
-}
-
-impl Drop for UtmpxSession {
-    fn drop(&mut self) {
-        let UtmpxSession(mut entry) = self;
-
-        info!("Removing UTMPX record");
-
-        entry.ut_type = libc::DEAD_PROCESS;
-
-        entry.ut_line = <[c_char; 32]>::default();
-        entry.ut_user = <[c_char; 32]>::default();
-
-        entry.ut_tv.tv_usec = 0;
-        entry.ut_tv.tv_sec = 0;
-
-        unsafe {
-            libc::setutxent();
-            libc::pututxline(&entry as *const utmpx);
-            libc::endutxent();
-        }
-    }
+    entry
 }

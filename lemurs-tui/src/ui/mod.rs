@@ -1,15 +1,14 @@
-use log::{error, info, warn};
-
 use std::io;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use crate::config::{Config, FocusBehaviour};
-use crate::info_caching::{get_cached_information, set_cache};
-use crate::post_login::PostLoginEnvironment;
-use crate::{start_session, Hooks, StartSessionError};
-use status_message::StatusMessage;
+use log::{error, info, warn};
+
+use lemurs_core::auth::AuthContext;
+use lemurs_core::open_authenticated_session_with_context;
+use lemurs_core::session_environment::{get_envs, SessionEnvironment};
+use lemurs_core::{authenticate_with_context, StartSessionContext};
 
 use crossterm::cursor::MoveTo;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
@@ -17,8 +16,14 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
 };
+
 use tui::backend::CrosstermBackend;
 use tui::{backend::Backend, Frame, Terminal};
+
+use crate::config::{Config, FocusBehaviour};
+use crate::info_caching::{get_cached_information, set_cache};
+
+use status_message::StatusMessage;
 
 mod chunks;
 mod input_field;
@@ -151,13 +156,13 @@ enum UIThreadRequest {
 #[derive(Clone)]
 struct Widgets {
     power_menu: PowerMenuWidget,
-    environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
+    environment: Arc<Mutex<SwitcherWidget<SessionEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
     password: Arc<Mutex<InputFieldWidget>>,
 }
 
 impl Widgets {
-    fn environment_guard(&self) -> MutexGuard<SwitcherWidget<PostLoginEnvironment>> {
+    fn environment_guard(&self) -> MutexGuard<SwitcherWidget<SessionEnvironment>> {
         match self.environment.lock() {
             Ok(guard) => guard,
             Err(err) => {
@@ -185,7 +190,7 @@ impl Widgets {
         }
     }
 
-    fn get_environment(&self) -> Option<(String, PostLoginEnvironment)> {
+    fn get_environment(&self) -> Option<(String, SessionEnvironment)> {
         self.environment_guard()
             .selected()
             .map(|s| (s.title.clone(), s.content.clone()))
@@ -265,14 +270,28 @@ impl LoginForm {
     }
 
     pub fn new(config: Config, preview: bool) -> LoginForm {
+        let mut session_environments = get_envs(config.environment_switcher.include_tty_shell);
+        if session_environments.is_empty() {
+            session_environments.push(SessionEnvironment::Shell);
+        }
+
         LoginForm {
             preview,
             widgets: Widgets {
                 power_menu: PowerMenuWidget::new(config.power_controls.clone()),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
-                    crate::post_login::get_envs(config.environment_switcher.include_tty_shell)
+                    session_environments
                         .into_iter()
-                        .map(|(title, content)| SwitcherItem::new(title, content))
+                        .map(|env| {
+                            let name = match &env {
+                                SessionEnvironment::Shell => "TTY".to_string(),
+                                SessionEnvironment::X11(session_script)
+                                | SessionEnvironment::Wayland(session_script) => {
+                                    session_script.name.clone()
+                                }
+                            };
+                            SwitcherItem::new(name, env)
+                        })
                         .collect(),
                     config.environment_switcher.clone(),
                 ))),
@@ -357,38 +376,6 @@ impl LoginForm {
                 Err(err) => warn!("Failed to send UI request. Reason: {}", err),
             };
 
-            let pre_auth = || {
-                self.widgets.clear_password();
-
-                status_message.set(InfoStatusMessage::Authenticating);
-                send_ui_request(UIThreadRequest::Redraw);
-            };
-            let pre_environment = || {
-                // Remember username and environment for next time
-                self.set_cache();
-
-                status_message.set(InfoStatusMessage::LoggingIn);
-                send_ui_request(UIThreadRequest::Redraw);
-
-                // Disable the rendering of the login manager
-                send_ui_request(UIThreadRequest::DisableTui);
-            };
-            let pre_return = || {
-                // Enable the rendering of the login manager
-                send_ui_request(UIThreadRequest::EnableTui);
-
-                status_message.clear();
-                send_ui_request(UIThreadRequest::Redraw);
-            };
-
-            let hooks = Hooks {
-                pre_validate: None,
-                pre_auth: Some(&pre_auth),
-                pre_environment: Some(&pre_environment),
-                pre_wait: None,
-                pre_return: Some(&pre_return),
-            };
-
             loop {
                 if let Ok(Event::Key(key)) = event::read() {
                     match (key.code, input_mode.get()) {
@@ -410,30 +397,60 @@ impl LoginForm {
                                     self.widgets.get_environment().map(|(_, content)| content);
                                 let username = self.widgets.get_username();
                                 let password = self.widgets.get_password();
-                                let config = self.config.clone();
 
-                                let Some(post_login_env) = environment else {
+                                let Some(environment) = environment else {
                                     status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
                                     send_ui_request(UIThreadRequest::Redraw);
                                     continue
                                 };
 
-                                match start_session(
+                                let session_type = environment.session_type();
+
+                                status_message.set(InfoStatusMessage::Authenticating);
+                                send_ui_request(UIThreadRequest::Redraw);
+                                self.widgets.clear_password();
+
+                                let context = AuthContext::default()
+                                    .pam_service(self.config.pam_service.clone());
+
+                                let session_user = match authenticate_with_context(
                                     &username,
                                     &password,
-                                    &post_login_env,
-                                    &hooks,
-                                    &config,
+                                    Some(session_type),
+                                    &context,
                                 ) {
-                                    Ok(()) => {}
-                                    Err(StartSessionError::AuthenticationError(err)) => {
-                                        status_message
-                                            .set(ErrorStatusMessage::AuthenticationError(err));
+                                    Ok(u) => u,
+                                    Err(err) => {
+                                        status_message.set(ErrorStatusMessage::Authentication(err));
                                         send_ui_request(UIThreadRequest::Redraw);
+                                        continue;
                                     }
-                                    Err(StartSessionError::EnvironmentStartError(err)) => {
+                                };
+
+                                // Remember username and environment for next time
+                                self.set_cache();
+
+                                status_message.set(InfoStatusMessage::LoggingIn);
+                                send_ui_request(UIThreadRequest::Redraw);
+
+                                // Disable the rendering of the login manager
+                                send_ui_request(UIThreadRequest::DisableTui);
+
+                                // TODO: Make changable with config
+                                let context = StartSessionContext {
+                                    tty: self.config.tty,
+                                };
+                                match open_authenticated_session_with_context(
+                                    session_user,
+                                    &environment,
+                                    &context,
+                                )
+                                .and_then(|session_process| session_process.wait())
+                                {
+                                    Ok(_) => {}
+                                    Err(err) => {
                                         error!(
-                                            "Starting post-login environment failed. Reason: '{}'",
+                                            "Failed to start session environment. Reason: '{}'",
                                             err
                                         );
                                         send_ui_request(UIThreadRequest::EnableTui);
@@ -441,8 +458,15 @@ impl LoginForm {
                                         status_message
                                             .set(ErrorStatusMessage::FailedGraphicalEnvironment);
                                         send_ui_request(UIThreadRequest::Redraw);
+                                        continue;
                                     }
                                 }
+
+                                // Enable the rendering of the login manager
+                                send_ui_request(UIThreadRequest::EnableTui);
+
+                                status_message.clear();
+                                send_ui_request(UIThreadRequest::Redraw);
                             }
                         }
                         (KeyCode::Char('s'), InputMode::Normal) => self.set_cache(),
@@ -547,14 +571,14 @@ fn login_form_render<B: Backend>(
     frame: &mut Frame<B>,
     chunks: Chunks,
     power_menu: PowerMenuWidget,
-    environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
+    session_environment: Arc<Mutex<SwitcherWidget<SessionEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
     password: Arc<Mutex<InputFieldWidget>>,
     input_mode: InputMode,
     status_message: Option<StatusMessage>,
 ) {
     power_menu.render(frame, chunks.power_menu);
-    environment
+    session_environment
         .lock()
         .unwrap_or_else(|err| {
             error!("Failed to lock post-login environment. Reason: {}", err);

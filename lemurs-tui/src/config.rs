@@ -269,7 +269,7 @@ pub enum FocusBehaviour {
 
 impl Default for Config {
     fn default() -> Config {
-        toml::from_str(include_str!("../extra/config.toml")).unwrap_or_else(|_| {
+        toml::from_str(include_str!("../../extra/config.toml")).unwrap_or_else(|_| {
             eprintln!("Default configuration file cannot be properly parsed");
             process::exit(1);
         })

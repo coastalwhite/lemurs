@@ -1,0 +1,19 @@
+[package]
+name = "env-container"
+authors = ["Gijs Burghoorn <me@gburghoorn.com>"]
+description = "A TUI Display/Login Manager"
+version = "0.3.0"
+
+edition = "2021"
+
+categories = ["gui", "authentication"]
+keywords = ["display", "login", "desktop"]
+
+repository = "https://github.com/coastalwhite/lemurs"
+homepage = "https://github.com/coastalwhite/lemurs"
+
+readme = "README.md"
+license = "MIT or APACHE"
+
+[dependencies]
+log.workspace = true

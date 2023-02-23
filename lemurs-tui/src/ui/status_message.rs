@@ -4,11 +4,11 @@ use tui::style::Color;
 use tui::widgets::Paragraph;
 use tui::Frame;
 
-use crate::auth::AuthenticationError;
+use lemurs_core::auth::SessionAuthError;
 
 #[derive(Clone)]
 pub enum ErrorStatusMessage {
-    AuthenticationError(AuthenticationError),
+    Authentication(SessionAuthError),
     NoGraphicalEnvironment,
     FailedGraphicalEnvironment,
     FailedDesktop,
@@ -16,12 +16,12 @@ pub enum ErrorStatusMessage {
     FailedReboot,
 }
 
-impl From<ErrorStatusMessage> for &'static str {
-    fn from(err: ErrorStatusMessage) -> Self {
+impl From<&ErrorStatusMessage> for &'static str {
+    fn from(err: &ErrorStatusMessage) -> Self {
         use ErrorStatusMessage::*;
 
         match err {
-            AuthenticationError(_) => "Authentication failed",
+            Authentication(_) => "Authentication failed",
             NoGraphicalEnvironment => "No graphical environment specified",
             FailedGraphicalEnvironment => "Failed booting into the graphical environment",
             FailedDesktop => "Failed booting into desktop environment",
@@ -43,8 +43,8 @@ pub enum InfoStatusMessage {
     Authenticating,
 }
 
-impl From<InfoStatusMessage> for &'static str {
-    fn from(info: InfoStatusMessage) -> Self {
+impl From<&InfoStatusMessage> for &'static str {
+    fn from(info: &InfoStatusMessage) -> Self {
         use InfoStatusMessage::*;
 
         match info {
@@ -66,8 +66,8 @@ pub enum StatusMessage {
     Info(InfoStatusMessage),
 }
 
-impl From<StatusMessage> for &'static str {
-    fn from(msg: StatusMessage) -> Self {
+impl From<&StatusMessage> for &'static str {
+    fn from(msg: &StatusMessage) -> Self {
         use StatusMessage::*;
 
         match msg {
@@ -85,7 +85,7 @@ impl StatusMessage {
 
     pub fn render<B: Backend>(status: Option<Self>, frame: &mut Frame<B>, area: Rect) {
         if let Some(status_message) = status {
-            let widget = Paragraph::new(<&'static str>::from(status_message.clone())).style(
+            let widget = Paragraph::new(<&'static str>::from(&status_message)).style(
                 tui::style::Style::default().fg(if status_message.is_error() {
                     Color::Red
                 } else {
