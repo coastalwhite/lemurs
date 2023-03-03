@@ -16,7 +16,7 @@ can serve as the front-end to your TTY, X11 or Wayland sessions. Lemurs uses
 
 ## Screenshot
 
-![Cover image](./cover.png)
+![Cover image](./assets/cover.png)
 
 ## Installation
 
