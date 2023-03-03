@@ -1,5 +1,5 @@
 #%PAM-1.0
-auth        required    login
-account     required    login
-session     required    login
-password    required    login
+auth        include    login
+account     include    login
+session     include    login
+password    include    login
