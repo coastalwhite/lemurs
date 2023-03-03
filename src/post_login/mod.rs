@@ -199,19 +199,18 @@ impl PostLoginEnvironment {
             }
             PostLoginEnvironment::Wayland { script_path } => {
                 info!("Starting Wayland session");
-                let child =
-                    match client
-                        .arg(script_path)
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::piped())
-                        .spawn()
-                    {
-                        Ok(child) => child,
-                        Err(err) => {
-                            error!("Failed to start Wayland Compositor. Reason '{err}'");
-                            return Err(EnvironmentStartError::WaylandStart);
-                        }
-                    };
+                let child = match client
+                    .arg(script_path)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                {
+                    Ok(child) => child,
+                    Err(err) => {
+                        error!("Failed to start Wayland Compositor. Reason '{err}'");
+                        return Err(EnvironmentStartError::WaylandStart);
+                    }
+                };
 
                 Ok(SpawnedEnvironment::Wayland(child))
             }
