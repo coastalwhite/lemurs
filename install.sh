@@ -58,7 +58,7 @@ $ROOT_CMD cp -f "extra/lemurs.pam" "/etc/pam.d/lemurs"
 
 # Cache the current user
 echo 'Caching the current user'
-$ROOT_CMD /bin/bash -c "echo $USER > /var/cache/lemurs"
+$ROOT_CMD /bin/bash -c "echo 'xinitrc\n$USER' > /var/cache/lemurs"
 
 # Disable previous Display Manager
 echo 'Disabling the current display-manager. This might throw an error if no display manager is set up.'
