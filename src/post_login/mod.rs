@@ -9,7 +9,7 @@ use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
 use crate::auth::AuthUserInfo;
-use crate::config::Config;
+use crate::config::{Config, ShellLoginFlag};
 use crate::env_container::EnvironmentContainer;
 use crate::post_login::x::setup_x;
 
@@ -160,37 +160,47 @@ impl PostLoginEnvironment {
         &self,
         user_info: &AuthUserInfo<'_>,
         process_env: &mut EnvironmentContainer,
-        _config: &Config,
+        config: &Config,
     ) -> Result<SpawnedEnvironment, EnvironmentStartError> {
+        let shell_login_flag = match config.shell_login_flag {
+            ShellLoginFlag::None => None,
+            ShellLoginFlag::Short => Some("-l"),
+            ShellLoginFlag::Long => Some("--login"),
+        };
+
+        let mut client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
+
+        if let Some(shell_login_flag) = shell_login_flag {
+            client.arg(shell_login_flag);
+        }
+
+        client.arg("-c");
+
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
                 info!("Starting X11 session");
                 let server =
                     setup_x(process_env, user_info).map_err(EnvironmentStartError::XSetup)?;
-                let client =
-                    match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
-                        .arg("--login")
-                        .arg("-c")
-                        .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::piped())
-                        .spawn()
-                    {
-                        Ok(child) => child,
-                        Err(err) => {
-                            error!("Failed to start X11 environment. Reason '{}'", err);
-                            return Err(EnvironmentStartError::XStartEnv);
-                        }
-                    };
+
+                let client = match client
+                    .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                {
+                    Ok(child) => child,
+                    Err(err) => {
+                        error!("Failed to start X11 environment. Reason '{}'", err);
+                        return Err(EnvironmentStartError::XStartEnv);
+                    }
+                };
 
                 Ok(SpawnedEnvironment::X11 { server, client })
             }
             PostLoginEnvironment::Wayland { script_path } => {
                 info!("Starting Wayland session");
                 let child =
-                    match lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info)
-                        .arg("--login")
-                        .arg("-c")
+                    match client
                         .arg(script_path)
                         .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
@@ -209,10 +219,8 @@ impl PostLoginEnvironment {
                 info!("Starting TTY shell");
 
                 let shell = &user_info.shell;
-                // TODO: Instead of calling the shell directly we should be calling it through
-                // `/bin/bash --login`
-                let child = match lower_command_permissions_to_user(Command::new(shell), user_info)
-                    .arg("--login")
+                let child = match client
+                    .arg(shell)
                     .stdout(Stdio::inherit())
                     .stderr(Stdio::inherit())
                     .stdin(Stdio::inherit())

@@ -44,6 +44,13 @@ tty = 2
 # The PAM service that should be used to login
 pam_service = "lemurs"
 
+# The type flag that will be appended to the shell that calls the session
+# environment. This may depend on your shell. Options:
+# - 'none'. Disables calling a login shell
+# - 'short'. Produces the `-l` flag. Supported by most shells.
+# - 'long'. This produces the `--login` flag and is suited for bash and zsh.
+shell_login_flag = "short"
+
 # Focus behaviour of fields when Lemurs is initially started
 # 
 # Possible values:
