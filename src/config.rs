@@ -155,6 +155,8 @@ toml_config_struct! { Config, PartialConfig,
 
     pam_service => String,
 
+    shell_login_flag => ShellLoginFlag,
+
     focus_behaviour => FocusBehaviour,
 
     power_controls => PowerControlConfig [PartialPowerControlConfig],
@@ -265,6 +267,16 @@ pub enum FocusBehaviour {
     Username,
     #[serde(rename = "password")]
     Password,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub enum ShellLoginFlag {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "short")]
+    Short,
+    #[serde(rename = "long")]
+    Long,
 }
 
 impl Default for Config {
