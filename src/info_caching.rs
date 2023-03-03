@@ -1,10 +1,7 @@
-use lazy_static::lazy_static;
 use log::{info, warn};
-use regex::Regex;
 use std::fs::{read_to_string, write};
 
 pub const CACHE_PATH: &str = "/var/cache/lemurs";
-const USERNAME_REGEX_STR: &str = r"^[a-z][-a-z0-9]*$";
 const USERNAME_LENGTH_LIMIT: usize = 32;
 
 // Saved in the /var/cache/lemurs file as
@@ -18,6 +15,29 @@ pub struct CachedInfo {
     username: Option<String>,
 }
 
+fn verify_username(username: &str) -> bool {
+    // REGEX: "^[a-zA-Z][-a-zA-Z0-9]*$"
+
+    if username.len() > USERNAME_LENGTH_LIMIT {
+        return false;
+    }
+
+    let mut bytes = username.bytes();
+
+    match bytes.next() {
+        Some(b'a'..=b'z' | b'A'..=b'Z') => {}
+        _ => return false,
+    };
+
+    for b in bytes {
+        if !matches!(b, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-') {
+            return false;
+        }
+    }
+
+    true
+}
+
 impl CachedInfo {
     pub fn environment(&self) -> Option<&str> {
         self.environment.as_deref()
@@ -26,10 +46,6 @@ impl CachedInfo {
     pub fn username(&self) -> Option<&str> {
         self.username.as_deref()
     }
-}
-
-lazy_static! {
-    static ref USERNAME_REGEX: Regex = Regex::new(USERNAME_REGEX_STR).unwrap();
 }
 
 pub fn get_cached_information() -> CachedInfo {
@@ -61,7 +77,7 @@ pub fn get_cached_information() -> CachedInfo {
                     None
 
                 // Username validity check (through regex)
-                } else if !USERNAME_REGEX.is_match(cached_username) {
+                } else if !verify_username(cached_username) {
                     warn!("Cached username is not a valid username and is therefore not loaded.");
                     None
                 } else {
@@ -97,7 +113,7 @@ pub fn set_cache(environment: Option<&str>, username: Option<&str>) {
         }
 
         // Username validity check (through regex)
-        if !USERNAME_REGEX.is_match(username) {
+        if !verify_username(username) {
             warn!("Username is not a valid username and is therefore not cached.");
             None
         } else {

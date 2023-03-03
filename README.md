@@ -1,54 +1,43 @@
-<div align="center">
-	
-# Lemurs 🐒
-A TUI Display/Login Manager written in Rust
-	
-</div>
+<p align="center">
+	<!-- Icon by SVGRepo under CC0. Notice at the end of the file -->
+	<img src="./assets/text-icon.svg" height="200px" alt="Lemur Icon by SVGRepo" />
+</p>
 
-![Cover image](./cover.png)
-
-> Note: the project is installable and working, but there might still be some
-> limitations.
-
-A minimal TUI [Display Manager/Login
-Manager](https://wiki.archlinux.org/title/Display_manager) written in Rust
-similar to [Ly](https://github.com/nullgemm/ly).
+Lemurs provides a *Terminal User Interface* (TUI) for a [Display/Login
+Managers](https://wiki.archlinux.org/title/Display_manager) in Rust for most
+GNU/Linux and BSD distributions. It can work both *with or without SystemD*.
+Lemurs works on most Unix systems including Linux, FreeBSD and NetBSD.
 
 ## Goal
 
-The goal of this project is to create a small, robust and yet customizable
-Login Manager which can serve as the front-end to your graphical GNU/Linux.
-Lemurs uses Linux PAM as its method of authentication.
+This project creates a small, robust and yet customizable Login Manager which
+can serve as the front-end to your TTY, X11 or Wayland sessions. Lemurs uses
+[_Pluggable Authentication Modules_][pam] (PAM) as its method of authentication.
+
+## Screenshot
+
+![Cover image](./assets/cover.png)
 
 ## Installation
 
-There are two different ways to install Lemurs. Both require the rust toolchain
-to be installed. I.e. there is currently no precompiled option.
+[![Packaging status](https://repology.org/badge/vertical-allrepos/lemurs.svg)](https://repology.org/project/lemurs/versions)
 
-### Arch Linux --- AUR
+Installation follows three steps.
+
+1. Compile the codebase
+2. Copy all files to correct positions
+3. Enable `init` process to run `lemurs`
+
+### Arch Linux
 
 Lemurs can be installed from the [AUR](https://aur.archlinux.org). This will
-build the package on your local machine. It will automatically pull in rustup,
-but you might have to set the default toolchain with `rustup default stable`.
+build the package on your local machine.
 
 ```bash
 paru -S lemurs-git # paru can be replaced by any other AUR helper
 
 # Not needed if do don't have a window manager yet
-sudo systemctl disable display-manager.service 
-
-sudo systemctl enable lemurs.service
-```
-
-or
-
-```bash
-git clone https://aur.archlinux.org/lemurs-git.git
-cd lemurs-git
-makepkg -si
-
-# Not needed if do don't have a window manager yet
-sudo systemctl disable display-manager.service 
+sudo systemctl disable display-manager.service
 
 sudo systemctl enable lemurs.service
 ```
@@ -135,27 +124,53 @@ want to tweak details for their own installation.
 
 ```
 |- src: Rust Source Code
-|  |- main.rs: CLI argument parsing & main logic
-|  |- auth: Interaction with PAM modules
+|  |- main.rs
+|  |- chvt.rs: UNIX calls to change of TTY
+|  |- cli.rs: CLI argument parsing
 |  |- config.rs: Configuration file format and options
-|  |- info_caching.rs: Reading and writing cached login information
+|  |- env_container.rs: Handles resetting and resetting the environment variables
+|  |- info_caching.rs: Handling cached username and session environment
+|  |- auth: Interaction with PAM modules and UTMPX
+|  |  |- mod.rs
+|  |  |- pam.rs
+|  |  |- utmpx.rs
 |  |- post_login: All logic after authentication
+|  |  |- mod.rs
 |  |  |- env_variables.rs: General environment variables settings
 |  |  |- x.rs: Logic concerning Xorg
 |  |- ui: TUI code
 |  |  |- mod.rs: UI calling logic, separated over 2 threads
+|  |  |- chunks.rs: Division of the TUI screen
 |  |  |- input_field.rs: TUI input field used for username and password
 |  |  |- power_menu.rs: Shutdown and Reboot options UI
 |  |  |- status_message.rs: UI for error and information messages
 |  |  |- switcher.rs: UI for environment switcher
-|  |  |- chunks.rs: Division of the TUI screen
 |- extra: Configuration and extra files needed
 |  |- config.toml: The default configuration file
 |  |- xsetup.sh: Script used to setup a Xorg session
 |  |- lemurs.service: The systemd service used to start at boot
+|  |- lemurs.pam: PAM service configuration
 ```
 
+## Platforms
+
+Tested on
+
+- ArchLinux (Vanilla, ArcoLinux)
+- VoidLinux
+- Ubuntu (make sure to install `build-essential` and `libpam-dev`)
+
+## MSRV Policy
+
+Lemurs has a _Minimum Supported Rust Version_ policy of _N - 2_. This means that
+we only use Rust languages features that have been in Rust as of 2 releases.
+
 ## License
+
+The icon used at the top of the repository is not a logo and taken as an icon
+from the [SVGRepo](https://www.svgrepo.com/svg/252871/lemur). It is marked
+under CC0 and therefore freely distributable and amendable under a new
+license.
 
 The project is made available under the MIT and APACHE license. See the
 `LICENSE-MIT` and `LICENSE-APACHE` files, respectively, for more information.
@@ -164,3 +179,5 @@ The project is made available under the MIT and APACHE license. See the
 
 Please report any bugs and possible improvements as an issue within this
 repository. Pull requests are also welcome.
+
+[pam]: https://en.wikipedia.org/wiki/Pluggable_authentication_module

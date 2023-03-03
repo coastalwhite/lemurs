@@ -1,56 +1,87 @@
-use nix::unistd::{Gid, Uid};
 use rand::Rng;
 use std::env;
-use std::os::unix::process::CommandExt;
+use std::error::Error;
+use std::fmt::Display;
+use std::fs::remove_file;
 use std::process::{Child, Command, Stdio};
 use std::{thread, time};
-use users::get_user_groups;
 
 use std::path::PathBuf;
 
 use log::{error, info};
 
 use crate::auth::AuthUserInfo;
-
-const DISPLAY: &str = ":1";
-const VIRTUAL_TERMINAL: &str = "vt01";
-
-const SYSTEM_SHELL: &str = "/bin/sh";
+use crate::env_container::EnvironmentContainer;
 
 const XSTART_TIMEOUT_SECS: u64 = 20;
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 
+#[derive(Debug, Clone)]
 pub enum XSetupError {
+    DisplayEnvVar,
+    VTNREnvVar,
     FillingXAuth,
+    InvalidUTF8Path,
     XServerStart,
+    XServerTimeout,
+    XServerStatusCheck,
 }
 
-pub enum XStartEnvError {
-    StartingEnvironment,
+impl Display for XSetupError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DisplayEnvVar => f.write_str("`DISPLAY` is not set"),
+            Self::VTNREnvVar => f.write_str("`XDG_VTNR` is not set"),
+            Self::FillingXAuth => f.write_str("Failed to fill `.Xauthority` file"),
+            Self::InvalidUTF8Path => f.write_str("Path that is given is not valid UTF8"),
+            Self::XServerStart => f.write_str("Failed to start X server binary"),
+            Self::XServerTimeout => f.write_str("Timeout while waiting for X server to start"),
+            Self::XServerStatusCheck => f.write_str("Failed to check for X server status"),
+        }
+    }
 }
+
+impl Error for XSetupError {}
 
 fn mcookie() -> String {
     // TODO: Verify that this is actually safe. Maybe just use the mcookie binary?? Is that always
     // available?
     let mut rng = rand::thread_rng();
     let cookie: u128 = rng.gen();
-    format!("{:032x}", cookie)
+    format!("{cookie:032x}")
 }
 
-pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
+pub fn setup_x(
+    process_env: &mut EnvironmentContainer,
+    user_info: &AuthUserInfo,
+) -> Result<Child, XSetupError> {
+    use std::os::unix::process::CommandExt;
+
     info!("Start setup of X");
+
+    let display_value = env::var("DISPLAY").map_err(|_| XSetupError::DisplayEnvVar)?;
+    let vtnr_value = env::var("XDG_VTNR").map_err(|_| XSetupError::VTNREnvVar)?;
 
     // Setup xauth
     let xauth_dir =
         PathBuf::from(env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| user_info.dir.to_string()));
     let xauth_path = xauth_dir.join(".Xauthority");
-    env::set_var("XAUTHORITY", xauth_path);
-    env::set_var("DISPLAY", DISPLAY);
 
     info!("Filling Xauthority file");
-    Command::new(SYSTEM_SHELL)
+
+    // Make sure that we are generating a new file. This is necessary since sometimes, there may be
+    // a `root` permission `.Xauthority` file there.
+    let _ = remove_file(xauth_path.clone());
+
+    Command::new(super::SYSTEM_SHELL)
         .arg("-c")
-        .arg(format!("/usr/bin/xauth add {} . {}", DISPLAY, mcookie()))
+        .arg(format!(
+            "/usr/bin/xauth add {} . {}",
+            display_value,
+            mcookie()
+        ))
+        .uid(user_info.uid)
+        .gid(user_info.gid)
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .status()
@@ -59,10 +90,19 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
             XSetupError::FillingXAuth
         })?;
 
+    let xauth_path = xauth_path.to_str().ok_or(XSetupError::InvalidUTF8Path)?;
+    process_env.set("XAUTHORITY", xauth_path);
+
+    let doubledigit_vtnr = if vtnr_value.len() == 1 {
+        format!("0{vtnr_value}")
+    } else {
+        vtnr_value
+    };
+
     info!("Run X server");
-    let child = Command::new(SYSTEM_SHELL)
+    let child = Command::new(super::SYSTEM_SHELL)
         .arg("-c")
-        .arg(format!("/usr/bin/X {} {}", DISPLAY, VIRTUAL_TERMINAL))
+        .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}",))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .spawn()
@@ -82,10 +122,11 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
                 std::process::exit(1);
             }
         } {
-            return Err(XSetupError::XServerStart);
+            error!("Starting X timed out!");
+            return Err(XSetupError::XServerTimeout);
         }
 
-        match Command::new(SYSTEM_SHELL)
+        match Command::new(super::SYSTEM_SHELL)
             .arg("-c")
             .arg("timeout 1s /usr/bin/xset q")
             .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
@@ -98,51 +139,15 @@ pub fn setup_x(user_info: &AuthUserInfo) -> Result<Child, XSetupError> {
                 }
             }
             Err(_) => {
-                error!("Failed to run xset to check X server status");
-                return Err(XSetupError::XServerStart);
+                error!("Failed to run `xset` to check X server status");
+                return Err(XSetupError::XServerStatusCheck);
             }
         }
 
         thread::sleep(time::Duration::from_millis(XSTART_CHECK_INTERVAL_MILLIS));
     }
+
     info!("X server is running");
-
-    Ok(child)
-}
-
-pub fn start_env(user_info: &AuthUserInfo, script_path: &str) -> Result<Child, XStartEnvError> {
-    let uid = user_info.uid;
-    let gid = user_info.gid;
-    let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
-        .unwrap()
-        .iter()
-        .map(|group| Gid::from_raw(group.gid()))
-        .collect();
-
-    info!("Starting specified environment");
-    let mut cmd = Command::new(SYSTEM_SHELL);
-    let cmd = cmd
-        .arg("-c")
-        .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", script_path))
-        .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-        .stderr(Stdio::null()); // TODO: Maybe this should be logged or something?
-    let cmd = unsafe {
-        cmd.pre_exec(move || {
-            // NOTE: The order here is very vital, otherwise permission errors occur
-            // This is basically a copy of how the nightly standard library does it.
-            nix::unistd::setgroups(&groups)
-                .and(nix::unistd::setgid(Gid::from_raw(gid)))
-                .and(nix::unistd::setuid(Uid::from_raw(uid)))
-                .map_err(|err| err.into())
-        })
-    };
-
-    let child = cmd.spawn().map_err(|err| {
-        error!("Failed to start specified environment. Reason: {}", err);
-        XStartEnvError::StartingEnvironment
-    })?;
-
-    info!("Started specified environment");
 
     Ok(child)
 }

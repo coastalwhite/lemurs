@@ -41,6 +41,9 @@
 # The tty which contains lemurs. This has to be mirrored in the lemurs.service
 tty = 2
 
+# The PAM service that should be used to login
+pam_service = "lemurs"
+
 # Focus behaviour of fields when Lemurs is initially started
 # 
 # Possible values:

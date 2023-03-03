@@ -5,10 +5,10 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use crate::auth::{AuthUserInfo, AuthenticationError};
 use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_information, set_cache};
-use crate::post_login::{EnvironmentStartError, PostLoginEnvironment};
+use crate::post_login::PostLoginEnvironment;
+use crate::{start_session, Hooks, StartSessionError};
 use status_message::StatusMessage;
 
 use crossterm::cursor::MoveTo;
@@ -88,7 +88,7 @@ impl LoginFormStatusMessage {
     }
 
     fn get(&self) -> Option<StatusMessage> {
-        *self.get_guard()
+        self.get_guard().clone()
     }
 
     fn clear(&self) {
@@ -296,20 +296,7 @@ impl LoginForm {
         }
     }
 
-    pub fn run<'a, A, S>(
-        self,
-        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-        auth_fn: A,
-        start_env_fn: S,
-    ) -> io::Result<()>
-    where
-        A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>
-            + std::marker::Send
-            + 'static,
-        S: Fn(&PostLoginEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>
-            + std::marker::Send
-            + 'static,
-    {
+    pub fn run(self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
         self.load_cache();
         let input_mode = LoginFormInputMode::new(match self.config.focus_behaviour {
             FocusBehaviour::FirstNonCached => match (
@@ -370,6 +357,38 @@ impl LoginForm {
                 Err(err) => warn!("Failed to send UI request. Reason: {}", err),
             };
 
+            let pre_auth = || {
+                self.widgets.clear_password();
+
+                status_message.set(InfoStatusMessage::Authenticating);
+                send_ui_request(UIThreadRequest::Redraw);
+            };
+            let pre_environment = || {
+                // Remember username and environment for next time
+                self.set_cache();
+
+                status_message.set(InfoStatusMessage::LoggingIn);
+                send_ui_request(UIThreadRequest::Redraw);
+
+                // Disable the rendering of the login manager
+                send_ui_request(UIThreadRequest::DisableTui);
+            };
+            let pre_return = || {
+                // Enable the rendering of the login manager
+                send_ui_request(UIThreadRequest::EnableTui);
+
+                status_message.clear();
+                send_ui_request(UIThreadRequest::Redraw);
+            };
+
+            let hooks = Hooks {
+                pre_validate: None,
+                pre_auth: Some(&pre_auth),
+                pre_environment: Some(&pre_environment),
+                pre_wait: None,
+                pre_return: Some(&pre_return),
+            };
+
             loop {
                 if let Ok(Event::Key(key)) = event::read() {
                     match (key.code, input_mode.get()) {
@@ -393,18 +412,37 @@ impl LoginForm {
                                 let password = self.widgets.get_password();
                                 let config = self.config.clone();
 
-                                attempt_login(
-                                    environment,
-                                    username,
-                                    password,
-                                    config,
-                                    status_message.clone(),
-                                    send_ui_request,
-                                    || self.widgets.clear_password(),
-                                    || self.set_cache(),
-                                    &auth_fn,
-                                    &start_env_fn,
-                                );
+                                let Some(post_login_env) = environment else {
+                                    status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
+                                    send_ui_request(UIThreadRequest::Redraw);
+                                    continue
+                                };
+
+                                match start_session(
+                                    &username,
+                                    &password,
+                                    &post_login_env,
+                                    &hooks,
+                                    &config,
+                                ) {
+                                    Ok(()) => {}
+                                    Err(StartSessionError::AuthenticationError(err)) => {
+                                        status_message
+                                            .set(ErrorStatusMessage::AuthenticationError(err));
+                                        send_ui_request(UIThreadRequest::Redraw);
+                                    }
+                                    Err(StartSessionError::EnvironmentStartError(err)) => {
+                                        error!(
+                                            "Starting post-login environment failed. Reason: '{}'",
+                                            err
+                                        );
+                                        send_ui_request(UIThreadRequest::EnableTui);
+
+                                        status_message
+                                            .set(ErrorStatusMessage::FailedGraphicalEnvironment);
+                                        send_ui_request(UIThreadRequest::Redraw);
+                                    }
+                                }
                             }
                         }
                         (KeyCode::Char('s'), InputMode::Normal) => self.set_cache(),
@@ -552,77 +590,4 @@ fn login_form_render<B: Backend>(
 
     // Display Status Message
     StatusMessage::render(status_message, frame, chunks.status_message);
-}
-
-#[allow(clippy::too_many_arguments)]
-fn attempt_login<'a, TR, PC, SC, A, S>(
-    environment: Option<PostLoginEnvironment>,
-    username: String,
-    password: String,
-    config: Config,
-    status_message: LoginFormStatusMessage,
-    send_ui_request: TR,
-    password_clear: PC,
-    set_cache: SC,
-    auth_fn: A,
-    start_env_fn: S,
-) where
-    TR: Fn(UIThreadRequest),
-    PC: Fn(),
-    SC: Fn(),
-    A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>,
-    S: Fn(&PostLoginEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>,
-{
-    // Fetch the selected post login environment
-    let post_login_env = match environment {
-        None => {
-            status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
-            send_ui_request(UIThreadRequest::Redraw);
-            return;
-        }
-        Some(selected) => selected,
-    };
-
-    status_message.set(InfoStatusMessage::Authenticating);
-    send_ui_request(UIThreadRequest::Redraw);
-
-    // Clear the password field
-    password_clear();
-
-    let user_info = match auth_fn(username, password) {
-        Err(err) => {
-            status_message.set(ErrorStatusMessage::AuthenticationError(err));
-
-            send_ui_request(UIThreadRequest::Redraw);
-
-            return;
-        }
-        Ok(res) => res,
-    };
-
-    // Remember username for next time
-    set_cache();
-
-    status_message.set(InfoStatusMessage::LoggingIn);
-    send_ui_request(UIThreadRequest::Redraw);
-
-    // Disable the rendering of the login manager
-    send_ui_request(UIThreadRequest::DisableTui);
-
-    // NOTE: if this call is succesful, it blocks the thread until the environment is
-    // terminated
-    start_env_fn(&post_login_env, &config, &user_info).unwrap_or_else(|_| {
-        error!("Starting post-login environment failed");
-        status_message.set(ErrorStatusMessage::FailedGraphicalEnvironment);
-        send_ui_request(UIThreadRequest::Redraw);
-    });
-
-    // Enable the rendering of the login manager
-    send_ui_request(UIThreadRequest::EnableTui);
-
-    status_message.clear();
-    send_ui_request(UIThreadRequest::Redraw);
-
-    // Just to add explicitness that the user session is dropped here
-    drop(user_info);
 }

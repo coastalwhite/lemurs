@@ -1,9 +1,9 @@
 use std::error::Error;
+use std::fs::File;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process;
 
-use clap::{Parser, Subcommand};
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -13,14 +13,31 @@ use tui::backend::CrosstermBackend;
 use tui::Terminal;
 
 mod auth;
+mod chvt;
+mod cli;
 mod config;
+mod env_container;
 mod info_caching;
 mod post_login;
 mod ui;
 
-use auth::{try_auth, AuthUserInfo};
+use auth::try_auth;
 use config::Config;
 use post_login::{EnvironmentStartError, PostLoginEnvironment};
+
+use crate::{
+    auth::utmpx::add_utmpx_entry,
+    cli::{Cli, Commands},
+};
+
+use self::{
+    auth::AuthenticationError,
+    env_container::EnvironmentContainer,
+    post_login::env_variables::{
+        set_basic_variables, set_display, set_seat_vars, set_session_params, set_session_vars,
+        set_xdg_common_paths,
+    },
+};
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
@@ -64,66 +81,23 @@ fn setup_logger(is_preview: bool) {
         DEFAULT_LOG_PATH
     };
 
-    let log_file = fern::log_file(log_path).unwrap_or_else(|err| {
-        eprintln!(
-            "Failed to open log file: '{}'. Check that the path is valid or activate `--no-log`. Reason: {}",
-            log_path, err
-        );
-        process::exit(1);
-    });
+    let log_file = Box::new(File::create(log_path).unwrap_or_else(|_| {
+        eprintln!("Failed to open log file: '{log_path}'");
+        std::process::exit(1);
+    }));
 
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{}[{}][{}] {}",
-                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
-                record.target(),
-                record.level(),
-                message
-            ))
-        })
-        .level(log::LevelFilter::Debug)
-        .level_for("hyper", log::LevelFilter::Info)
-        .chain(log_file)
-        .apply()
-        .unwrap_or_else(|err| {
-            eprintln!(
-                "Failed to setup logger. Fix the error or activate `--no-log`. Reason: {}",
-                err
-            );
-            process::exit(1);
-        });
-}
-
-#[derive(Parser)]
-#[clap(name = "Lemurs", about, author, version)]
-struct Cli {
-    #[clap(long)]
-    preview: bool,
-
-    #[clap(long)]
-    no_log: bool,
-
-    /// Override the configured TTY number
-    #[clap(long, value_name = "N")]
-    tty: Option<u8>,
-
-    /// A file to replace the default configuration
-    #[clap(short, long, value_name = "FILE")]
-    config: Option<PathBuf>,
-
-    #[clap(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    Envs,
-    Cache,
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .target(env_logger::Target::Pipe(log_file))
+        .init();
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let cli = Cli::parse();
+    let cli = Cli::parse().unwrap_or_else(|err| {
+        eprintln!("{err}\n");
+        cli::usage();
+        std::process::exit(2);
+    });
 
     // Load and setup configuration
     let mut config = Config::default();
@@ -135,28 +109,28 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let envs = post_login::get_envs(config.environment_switcher.include_tty_shell);
 
                 for (env_name, _) in envs.into_iter() {
-                    println!("{}", env_name);
+                    println!("{env_name}");
                 }
             }
             Commands::Cache => {
                 let cached_info = info_caching::get_cached_information();
 
-                let environment = cached_info
-                    .environment()
-                    .map(|s| format!("'{}'", s))
-                    .unwrap_or_else(|| String::from("No cached value"));
-                let username = cached_info
-                    .username()
-                    .map(|s| format!("'{}'", s))
-                    .unwrap_or_else(|| String::from("No cached value"));
+                let environment = cached_info.environment().unwrap_or("No cached value");
+                let username = cached_info.username().unwrap_or("No cached value");
 
                 println!(
                     "Information currently cached within '{}'\n",
                     info_caching::CACHE_PATH
                 );
 
-                println!("environment: {}", environment);
-                println!("username: {}", username);
+                println!("environment: '{environment}'");
+                println!("username: '{username}'");
+            }
+            Commands::Help => {
+                cli::usage();
+            }
+            Commands::Version => {
+                println!("{}", env!("CARGO_PKG_VERSION"));
             }
         }
 
@@ -166,28 +140,40 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Setup the logger
     if !cli.no_log {
         setup_logger(cli.preview);
-    }
-
-    info!("Lemurs logger is running");
-
-    if let Some(tty) = cli.tty {
-        info!("Overwritten the tty to '{}' with the --tty flag", tty);
-        config.tty = tty;
+        info!("Lemurs logger is running");
     }
 
     if !cli.preview {
+        if std::env::var("XDG_SESSION_TYPE").is_ok() {
+            eprintln!("Lemurs cannot be ran without `--preview` within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
+            error!("Lemurs cannot be started when within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
+            std::process::exit(1);
+        }
+
+        let uid = users::get_current_uid();
+        if users::get_current_uid() != 0 {
+            eprintln!("Lemurs needs to be ran as root. Found user id '{uid}'");
+            error!("Lemurs not ran as root. Found user id '{uid}'");
+            std::process::exit(1);
+        }
+
+        if let Some(tty) = cli.tty {
+            info!("Overwritten the tty to '{tty}' with the --tty flag");
+            config.tty = tty;
+        }
+
         // Switch to the proper tty
         info!("Switching to tty {}", config.tty);
 
-        chvt::chvt(config.tty.into()).unwrap_or_else(|err| {
-            error!("Failed to switch tty {}. Reason: {}", config.tty, err);
+        unsafe { chvt::chvt(config.tty.into()) }.unwrap_or_else(|err| {
+            error!("Failed to switch tty {}. Reason: {err}", config.tty);
         });
     }
 
     // Start application
     let mut terminal = tui_enable()?;
     let login_form = ui::LoginForm::new(config, cli.preview);
-    login_form.run(&mut terminal, try_auth, post_login_env_start)?;
+    login_form.run(&mut terminal)?;
     tui_disable(terminal)?;
 
     info!("Lemurs is booting down");
@@ -217,10 +203,95 @@ pub fn tui_disable(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::
     Ok(())
 }
 
-fn post_login_env_start<'a>(
+struct Hooks<'a> {
+    pre_validate: Option<&'a dyn Fn()>,
+    pre_auth: Option<&'a dyn Fn()>,
+    pre_environment: Option<&'a dyn Fn()>,
+    pre_wait: Option<&'a dyn Fn()>,
+    pre_return: Option<&'a dyn Fn()>,
+}
+
+pub enum StartSessionError {
+    AuthenticationError(AuthenticationError),
+    EnvironmentStartError(EnvironmentStartError),
+}
+
+impl From<EnvironmentStartError> for StartSessionError {
+    fn from(value: EnvironmentStartError) -> Self {
+        Self::EnvironmentStartError(value)
+    }
+}
+
+impl From<AuthenticationError> for StartSessionError {
+    fn from(value: AuthenticationError) -> Self {
+        Self::AuthenticationError(value)
+    }
+}
+
+fn start_session(
+    username: &str,
+    password: &str,
     post_login_env: &PostLoginEnvironment,
+    hooks: &Hooks<'_>,
     config: &Config,
-    user_info: &AuthUserInfo<'a>,
-) -> Result<(), EnvironmentStartError> {
-    post_login_env.start(config, user_info)
+) -> Result<(), StartSessionError> {
+    info!(
+        "Starting new session for '{}' in environment '{:?}'",
+        username, post_login_env
+    );
+
+    if let Some(pre_validate_hook) = hooks.pre_validate {
+        pre_validate_hook();
+    }
+
+    let mut process_env = EnvironmentContainer::take_snapshot();
+
+    if let Some(pre_auth_hook) = hooks.pre_auth {
+        pre_auth_hook();
+    }
+
+    set_display(&mut process_env);
+    set_session_params(&mut process_env, post_login_env);
+
+    let auth_session = try_auth(username, password, &config.pam_service)?;
+
+    if let Some(pre_environment_hook) = hooks.pre_environment {
+        pre_environment_hook();
+    }
+
+    let tty = config.tty;
+    let uid = auth_session.uid;
+    let homedir = &auth_session.dir;
+    let shell = &auth_session.shell;
+
+    set_seat_vars(&mut process_env, tty);
+    set_session_vars(&mut process_env, uid);
+    set_basic_variables(&mut process_env, username, homedir, shell);
+    set_xdg_common_paths(&mut process_env, homedir);
+
+    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, config)?;
+
+    let pid = spawned_environment.pid();
+
+    let utmpx_session = add_utmpx_entry(username, tty, pid);
+    drop(process_env);
+
+    info!("Waiting for environment to terminate");
+
+    if let Some(pre_wait_hook) = hooks.pre_wait {
+        pre_wait_hook();
+    }
+
+    spawned_environment.wait();
+
+    info!("Environment terminated. Returning to Lemurs...");
+
+    if let Some(pre_return_hook) = hooks.pre_return {
+        pre_return_hook();
+    }
+
+    drop(utmpx_session);
+    drop(auth_session);
+
+    Ok(())
 }
