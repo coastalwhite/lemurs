@@ -250,7 +250,9 @@ fn start_session(
         pre_auth_hook();
     }
 
-    set_display(&mut process_env);
+    if matches!(post_login_env, PostLoginEnvironment::X { .. }) {
+        set_display(&mut process_env);
+    }
     set_session_params(&mut process_env, post_login_env);
 
     let auth_session = try_auth(username, password, &config.pam_service)?;
