@@ -41,6 +41,9 @@
 # The tty which contains lemurs. This has to be mirrored in the lemurs.service
 tty = 2
 
+# The value of the `DISPLAY` environment variable for X11 sessions
+x11_display = ":1"
+
 # The PAM service that should be used to login
 pam_service = "lemurs"
 

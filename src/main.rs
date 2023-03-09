@@ -251,7 +251,7 @@ fn start_session(
     }
 
     if matches!(post_login_env, PostLoginEnvironment::X { .. }) {
-        set_display(&mut process_env);
+        set_display(&config.x11_display, &mut process_env);
     }
     set_session_params(&mut process_env, post_login_env);
 

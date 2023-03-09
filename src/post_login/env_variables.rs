@@ -4,10 +4,10 @@ use crate::env_container::EnvironmentContainer;
 
 use super::PostLoginEnvironment;
 
-pub fn set_display(process_env: &mut EnvironmentContainer) {
+pub fn set_display(display: &str, process_env: &mut EnvironmentContainer) {
     info!("Setting Display");
 
-    process_env.set("DISPLAY", ":1");
+    process_env.set("DISPLAY", display);
 }
 
 pub fn set_session_params(
