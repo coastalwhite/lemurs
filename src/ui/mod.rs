@@ -472,6 +472,10 @@ impl LoginForm {
                             input_mode.set(InputMode::Normal);
                         }
 
+                        (KeyCode::F(_), _) => {
+                            self.widgets.power_menu.key_press(key.code);
+                        }
+
                         // For the different input modes the key should be passed to the corresponding
                         // widget.
                         (k, mode) => {
