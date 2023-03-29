@@ -485,7 +485,7 @@ impl LoginForm {
                                 }
                                 InputMode::Username => self.widgets.username_guard().key_press(k),
                                 InputMode::Password => self.widgets.password_guard().key_press(k),
-                                InputMode::Normal => self.widgets.power_menu.key_press(k),
+                                _ => None,
                             };
 
                             // We don't wanna clear any existing error messages
