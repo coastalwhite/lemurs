@@ -1,4 +1,9 @@
+use libc::{signal, SIGUSR1, SIG_DFL, SIG_IGN};
 use rand::Rng;
+
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
+
 use std::env;
 use std::error::Error;
 use std::fmt::Display;
@@ -13,7 +18,7 @@ use log::{error, info};
 use crate::auth::AuthUserInfo;
 use crate::env_container::EnvironmentContainer;
 
-const XSTART_TIMEOUT_SECS: u64 = 20;
+const XSTART_CHECK_MAX_TRIES: u64 = 300;
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 
 #[derive(Debug, Clone)]
@@ -49,6 +54,20 @@ fn mcookie() -> String {
     let mut rng = rand::thread_rng();
     let cookie: u128 = rng.gen();
     format!("{cookie:032x}")
+}
+
+static X_HAS_STARTED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
+
+#[allow(dead_code)]
+fn handle_sigusr1(_: i32) {
+    *X_HAS_STARTED.lock().unwrap_or_else(|err| {
+        error!("Failed to grab the `X_HAS_STARTED` Mutex lock. Reason: {err}");
+        std::process::exit(1);
+    }) = true;
+
+    unsafe {
+        signal(SIGUSR1, handle_sigusr1 as usize);
+    }
 }
 
 pub fn setup_x(
@@ -99,10 +118,20 @@ pub fn setup_x(
         vtnr_value
     };
 
+    // Here we explicitely ignore the first USR defined signal. Xorg looks at whether this signal
+    // is ignored or not. If it is ignored, it will send that signal to the parent when it ready to
+    // receive connections. This is also how xinit does it.
+    //
+    // After we spawn the Xorg process, we need to make sure to quickly re-enable this signal as we
+    // need to listen to the signal by Xorg.
+    unsafe {
+        libc::signal(SIGUSR1, SIG_IGN);
+    }
+
     info!("Run X server");
-    let child = Command::new(super::SYSTEM_SHELL)
+    let mut child = Command::new(super::SYSTEM_SHELL)
         .arg("-c")
-        .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}",))
+        .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"))
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .spawn()
@@ -111,41 +140,42 @@ pub fn setup_x(
             XSetupError::XServerStart
         })?;
 
+    // See note above
+    unsafe {
+        libc::signal(SIGUSR1, SIG_DFL);
+        signal(SIGUSR1, handle_sigusr1 as usize);
+    }
+
     // Wait for XServer to boot-up
     let start_time = time::SystemTime::now();
-    loop {
-        // Timeout
-        if match start_time.elapsed() {
-            Ok(dur) => dur.as_secs() >= XSTART_TIMEOUT_SECS,
-            Err(_) => {
-                error!("Failed to resolve elapsed time");
-                std::process::exit(1);
-            }
-        } {
-            error!("Starting X timed out!");
-            return Err(XSetupError::XServerTimeout);
-        }
-
-        match Command::new(super::SYSTEM_SHELL)
-            .arg("-c")
-            .arg("timeout 1s /usr/bin/xset q")
-            .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-            .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
-            .status()
-        {
-            Ok(status) => {
-                if status.success() {
-                    break;
-                }
-            }
-            Err(_) => {
-                error!("Failed to run `xset` to check X server status");
-                return Err(XSetupError::XServerStatusCheck);
-            }
+    for _ in 0..XSTART_CHECK_MAX_TRIES {
+        // This will be set by the `handle_sigusr1` signal handler.
+        if *X_HAS_STARTED.lock().unwrap() {
+            break;
         }
 
         thread::sleep(time::Duration::from_millis(XSTART_CHECK_INTERVAL_MILLIS));
     }
+
+    // If the value is still `false`, this means we have time-ed out and Xorg is not running.
+    if !*X_HAS_STARTED.lock().unwrap() {
+        child.kill().unwrap_or_else(|err| {
+            error!("Failed kill Xorg after it time-ed out. Reason: {err}");
+        });
+        return Err(XSetupError::XServerTimeout);
+    }
+
+    if let Ok(x_server_start_time) = start_time.elapsed() {
+        info!(
+            "It took X server {start_ms}ms to start",
+            start_ms = x_server_start_time.as_millis()
+        );
+    }
+
+    *X_HAS_STARTED.lock().unwrap_or_else(|err| {
+        error!("Failed to grab the `X_HAS_STARTED` Mutex lock. Reason: {err}");
+        std::process::exit(1);
+    }) = false;
 
     info!("X server is running");
 
