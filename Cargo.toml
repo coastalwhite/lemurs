@@ -33,6 +33,9 @@ pam = "0.7.0"
 pgs-files = "0.0.7"
 users = "0.11.0"
 
+# Once Cell
+once_cell = "1.17.1"
+
 # Logging
 env_logger = { version = "0.9.0", default-features = false }
 log = "0.4.0"
