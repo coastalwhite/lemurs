@@ -14,13 +14,18 @@ pub struct EnvironmentContainer {
 
 impl EnvironmentContainer {
     pub fn take_snapshot() -> Self {
+        let pwd = match env::current_dir().map(|pathbuf| pathbuf.to_str().map(str::to_string)) {
+            Ok(Some(s)) => s,
+            Ok(None) | Err(_) => {
+                error!("Could not find the working directory when taking snapshot");
+                String::from("/")
+            }
+        };
+
         Self {
             snapshot: env::vars().collect::<HashMap<String, String>>(),
             owned: HashMap::default(),
-            snapshot_pwd: env::var("PWD").unwrap_or_else(|_| {
-                error!("Could not find the working directory when taking snapshot");
-                String::new()
-            }),
+            snapshot_pwd: pwd,
         }
     }
 
@@ -59,6 +64,7 @@ impl EnvironmentContainer {
         } else {
             error!("Failed to change the working directory to {}", value);
         }
+        self.snapshot_pwd = value;
     }
 }
 
@@ -80,6 +86,7 @@ impl Drop for EnvironmentContainer {
             }
         }
 
+        info!("Reverting to working directory before session");
         if env::set_current_dir(&self.snapshot_pwd).is_err() {
             error!(
                 "Failed to change the working directory back to {}",
