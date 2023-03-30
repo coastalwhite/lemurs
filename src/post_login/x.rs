@@ -7,18 +7,18 @@ use std::env;
 use std::error::Error;
 use std::fmt::Display;
 use std::fs::remove_file;
-use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::{thread, time};
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use log::{error, info};
 
 use crate::auth::AuthUserInfo;
 use crate::config::Config;
 use crate::env_container::EnvironmentContainer;
+use crate::post_login::output_command_to_log;
 
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 
@@ -135,11 +135,15 @@ pub fn setup_x(
         libc::signal(SIGUSR1, SIG_IGN);
     }
 
-    let mut child = Command::new(super::SYSTEM_SHELL)
+    let child = Command::new(super::SYSTEM_SHELL);
+    info!(
+        "Setup XServer to log `stdout` and `stderr` to '{log_path}'",
+        log_path = config.xserver_log_path
+    );
+    let mut child = output_command_to_log(child, Path::new(&config.xserver_log_path));
+    let mut child = child
         .arg("-c")
         .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"))
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
         .spawn()
         .map_err(|err| {
             error!("Failed to start X server. Reason: {}", err);
@@ -170,20 +174,6 @@ pub fn setup_x(
 
         if let Some(status) = child.try_wait().unwrap_or(None) {
             error!("X server died before signaling it was ready to received connections. Status code: {status}.");
-
-            if let Some(mut stdout) = child.stdout.take() {
-                let mut buf = String::new();
-                if stdout.read_to_string(&mut buf).is_ok() {
-                    error!("X server STDOUT: '''\n{buf}\n'''");
-                }
-            }
-
-            if let Some(mut stdout) = child.stdout.take() {
-                let mut buf = String::new();
-                if stdout.read_to_string(&mut buf).is_ok() {
-                    error!("X server STDERR: '''\n{buf}\n'''");
-                }
-            }
 
             return Err(XSetupError::XServerPrematureExit);
         }
