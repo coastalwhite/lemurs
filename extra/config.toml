@@ -48,6 +48,13 @@ x11_display = ":1"
 # to 0.
 xserver_timeout_secs = 60
 
+# Where to log to for the client. The Client is the Desktop Environment or
+# Window Manager for Xorg, the Compositor for Wayland and the Shell for TTY.
+client_log_path = "/var/log/lemurs.client.log"
+
+# Where to log to for the XServer.
+xserver_log_path = "/var/log/lemurs.xorg.log"
+
 # The PAM service that should be used to login
 pam_service = "lemurs"
 

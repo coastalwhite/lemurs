@@ -1,7 +1,9 @@
 use log::{error, info, warn};
 use std::error::Error;
 use std::fmt::Display;
-use std::fs;
+use std::fs::{self, File};
+use std::os::fd::{FromRawFd, IntoRawFd};
+use std::path::Path;
 
 use users::get_user_groups;
 
@@ -73,6 +75,16 @@ impl From<XSetupError> for EnvironmentStartError {
     }
 }
 
+fn output_command_to_log(mut command: Command, log_path: &Path) -> Command {
+    let fd = File::create(log_path).unwrap().into_raw_fd();
+
+    command
+        .stdout(unsafe { Stdio::from_raw_fd(fd) })
+        .stderr(unsafe { Stdio::from_raw_fd(fd) });
+
+    command
+}
+
 fn lower_command_permissions_to_user(
     mut command: Command,
     user_info: &AuthUserInfo<'_>,
@@ -113,44 +125,29 @@ impl SpawnedEnvironment {
     }
 
     pub fn wait(self) {
-        let child = match self {
-            Self::X11 { client, .. } | Self::Wayland(client) | Self::Tty(client) => client,
-        };
+        info!("Waiting for client to exit");
 
-        let child_output = match child.wait_with_output() {
-            Ok(output) => output,
-            Err(err) => {
-                error!("Failed to wait for environment to exit, Reason: '{}'", err);
-                return;
-            }
-        };
-
-        // Print the stdout if it is at all available
-        match std::str::from_utf8(&child_output.stdout) {
-            Ok(output) => {
-                if !output.trim().is_empty() {
-                    info!("Environment's stdout: \"\"\"\n{}\n\"\"\"", output.trim());
-                }
-            }
-            Err(err) => {
-                warn!("Failed to read STDOUT output as UTF-8. Reason: '{}'", err);
-            }
-        };
-
-        // Return the `stderr` if the child process did not exit correctly.
-        if !child_output.status.success() {
-            warn!("Environment came back with non-zero exit code.");
-
-            match std::str::from_utf8(&child_output.stderr) {
-                Ok(output) => {
-                    if !output.trim().is_empty() {
-                        warn!("Environment's stderr: \"\"\"\n{}\n\"\"\"", output.trim());
+        match self {
+            Self::X11 {
+                mut client,
+                mut server,
+            } => {
+                match client.wait() {
+                    Ok(exit_code) => info!("Client exited with exit code `{exit_code}`"),
+                    Err(err) => {
+                        error!("Failed to wait for client. Reason: {err}");
                     }
+                };
+
+                match server.kill() {
+                    Ok(_) => {}
+                    Err(err) => error!("Failed to terminate X11. Reason: {err}"),
                 }
-                Err(err) => {
-                    warn!("Failed to read STDERR output as UTF-8. Reason: '{}'", err);
-                }
-            };
+            }
+            Self::Wayland(mut client) | Self::Tty(mut client) => match client.wait() {
+                Ok(exit_code) => info!("Client exited with exit code `{exit_code}`"),
+                Err(err) => error!("Failed to wait for client. Reason: {err}"),
+            },
         }
     }
 }
@@ -168,7 +165,13 @@ impl PostLoginEnvironment {
             ShellLoginFlag::Long => Some("--login"),
         };
 
-        let mut client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
+        let client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
+
+        info!(
+            "Setup client to log `stdout` and `stderr` to '{log_path}'",
+            log_path = config.client_log_path
+        );
+        let mut client = output_command_to_log(client, Path::new(&config.client_log_path));
 
         if let Some(shell_login_flag) = shell_login_flag {
             client.arg(shell_login_flag);
@@ -184,8 +187,6 @@ impl PostLoginEnvironment {
 
                 let client = match client
                     .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
                     .spawn()
                 {
                     Ok(child) => child,
@@ -199,12 +200,7 @@ impl PostLoginEnvironment {
             }
             PostLoginEnvironment::Wayland { script_path } => {
                 info!("Starting Wayland session");
-                let child = match client
-                    .arg(script_path)
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .spawn()
-                {
+                let child = match client.arg(script_path).spawn() {
                     Ok(child) => child,
                     Err(err) => {
                         error!("Failed to start Wayland Compositor. Reason '{err}'");
