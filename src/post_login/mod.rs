@@ -139,9 +139,16 @@ impl SpawnedEnvironment {
                     }
                 };
 
+                info!("Killing X server");
                 match server.kill() {
                     Ok(_) => {}
                     Err(err) => error!("Failed to terminate X11. Reason: {err}"),
+                }
+
+                info!("Waiting for X server");
+                match server.wait() {
+                    Ok(_) => {}
+                    Err(err) => error!("Failed to wait for X11. Reason: {err}"),
                 }
             }
             Self::Wayland(mut client) | Self::Tty(mut client) => match client.wait() {
