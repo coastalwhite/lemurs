@@ -76,11 +76,15 @@ impl From<XSetupError> for EnvironmentStartError {
 }
 
 fn output_command_to_log(mut command: Command, log_path: &Path) -> Command {
-    let fd = File::create(log_path).unwrap().into_raw_fd();
+    if let Ok(file) = File::create(log_path) {
+        let fd = file.into_raw_fd();
 
-    command
-        .stdout(unsafe { Stdio::from_raw_fd(fd) })
-        .stderr(unsafe { Stdio::from_raw_fd(fd) });
+        command
+            .stdout(unsafe { Stdio::from_raw_fd(fd) })
+            .stderr(unsafe { Stdio::from_raw_fd(fd) });
+    } else {
+        warn!("Failed to create and open file to log into");
+    }
 
     command
 }
@@ -92,7 +96,10 @@ fn lower_command_permissions_to_user(
     let uid = user_info.uid;
     let gid = user_info.gid;
     let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
-        .unwrap()
+        .unwrap_or_else(|| {
+            error!("Failed to get user groups. This should not happen here...");
+            std::process::exit(1);
+        })
         .iter()
         .map(|group| Gid::from_raw(group.gid()))
         .collect();

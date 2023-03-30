@@ -511,21 +511,22 @@ impl LoginForm {
         while let Ok(request) = req_recv_channel.recv() {
             match request {
                 UIThreadRequest::Redraw => {
-                    terminal
-                        .draw(|f| {
-                            let layout = Chunks::new(f);
-                            login_form_render(
-                                f,
-                                layout,
-                                power_menu.clone(),
-                                environment.clone(),
-                                username.clone(),
-                                password.clone(),
-                                input_mode.get(),
-                                status_message.get(),
-                            );
-                        })
-                        .unwrap();
+                    match terminal.draw(|f| {
+                        let layout = Chunks::new(f);
+                        login_form_render(
+                            f,
+                            layout,
+                            power_menu.clone(),
+                            environment.clone(),
+                            username.clone(),
+                            password.clone(),
+                            input_mode.get(),
+                            status_message.get(),
+                        );
+                    }) {
+                        Ok(_) => {}
+                        Err(err) => warn!("Failed to draw to screen. Reason: {err}"),
+                    }
                 }
                 UIThreadRequest::DisableTui => {
                     disable_raw_mode()?;
