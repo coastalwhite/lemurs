@@ -172,13 +172,18 @@ impl PostLoginEnvironment {
             ShellLoginFlag::Long => Some("--login"),
         };
 
-        let client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
+        let mut client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
 
-        info!(
-            "Setup client to log `stdout` and `stderr` to '{log_path}'",
-            log_path = config.client_log_path
-        );
-        let mut client = output_command_to_log(client, Path::new(&config.client_log_path));
+        let mut client = if config.no_log {
+            client.stdout(Stdio::null()).stderr(Stdio::null());
+            client
+        } else {
+            info!(
+                "Setup client to log `stdout` and `stderr` to '{log_path}'",
+                log_path = config.client_log_path
+            );
+            output_command_to_log(client, Path::new(&config.client_log_path))
+        };
 
         if let Some(shell_login_flag) = shell_login_flag {
             client.arg(shell_login_flag);

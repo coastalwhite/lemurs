@@ -141,6 +141,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     if !cli.no_log {
         setup_logger(cli.preview);
         info!("Lemurs logger is running");
+    } else {
+        config.no_log = true;
     }
 
     if !cli.preview {

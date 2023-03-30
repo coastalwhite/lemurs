@@ -55,6 +55,9 @@ client_log_path = "/var/log/lemurs.client.log"
 # Where to log to for the XServer.
 xserver_log_path = "/var/log/lemurs.xorg.log"
 
+# Disable all logging. This is overwritten by the `--no-log` flag.
+no_log = false
+
 # The PAM service that should be used to login
 pam_service = "lemurs"
 
