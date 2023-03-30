@@ -29,7 +29,7 @@ pub enum XSetupError {
     InvalidUTF8Path,
     XServerStart,
     XServerTimeout,
-    XServerStatusCheck,
+    XServerPrematureExit,
 }
 
 impl Display for XSetupError {
@@ -41,7 +41,7 @@ impl Display for XSetupError {
             Self::InvalidUTF8Path => f.write_str("Path that is given is not valid UTF8"),
             Self::XServerStart => f.write_str("Failed to start X server binary"),
             Self::XServerTimeout => f.write_str("Timeout while waiting for X server to start"),
-            Self::XServerStatusCheck => f.write_str("Failed to check for X server status"),
+            Self::XServerPrematureExit => f.write_str("X server exited before it signaled to accept connections"),
         }
     }
 }
@@ -149,6 +149,11 @@ pub fn setup_x(
         // This will be set by the `handle_sigusr1` signal handler.
         if X_HAS_STARTED.load(std::sync::atomic::Ordering::SeqCst) {
             break;
+        }
+
+        if let Some(status) = child.try_wait().unwrap_or(None) {
+            error!("X server died before signaling it was ready to received connections. Status code: {status}.");
+            return Err(XSetupError::XServerPrematureExit);
         }
 
         thread::sleep(time::Duration::from_millis(XSTART_CHECK_INTERVAL_MILLIS));
