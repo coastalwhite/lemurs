@@ -446,14 +446,19 @@ impl LoginForm {
                             }
                         }
                         (KeyCode::Char('s'), InputMode::Normal) => self.set_cache(),
+
                         (KeyCode::Enter | KeyCode::Down, _) => {
                             input_mode.next();
                         }
-                        (KeyCode::Up, _) => {
+                        (KeyCode::Up | KeyCode::BackTab, _) => {
                             input_mode.prev();
                         }
+
                         (KeyCode::Tab, _) => {
-                            if key.modifiers == KeyModifiers::SHIFT {
+                            // On the TTY, it triggers the ALT key for some reason.
+                            if key.modifiers.contains(KeyModifiers::ALT)
+                                || key.modifiers.contains(KeyModifiers::SHIFT)
+                            {
                                 input_mode.prev();
                             } else {
                                 input_mode.next();
