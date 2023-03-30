@@ -179,8 +179,8 @@ impl PostLoginEnvironment {
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
                 info!("Starting X11 session");
-                let server =
-                    setup_x(process_env, user_info).map_err(EnvironmentStartError::XSetup)?;
+                let server = setup_x(process_env, user_info, config)
+                    .map_err(EnvironmentStartError::XSetup)?;
 
                 let client = match client
                     .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))

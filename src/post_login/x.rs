@@ -17,9 +17,9 @@ use std::path::PathBuf;
 use log::{error, info};
 
 use crate::auth::AuthUserInfo;
+use crate::config::Config;
 use crate::env_container::EnvironmentContainer;
 
-const XSTART_CHECK_MAX_TRIES: u64 = 300;
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 
 #[derive(Debug, Clone)]
@@ -71,6 +71,7 @@ fn handle_sigusr1(_: i32) {
 pub fn setup_x(
     process_env: &mut EnvironmentContainer,
     user_info: &AuthUserInfo,
+    config: &Config,
 ) -> Result<Child, XSetupError> {
     use std::os::unix::process::CommandExt;
 
@@ -146,7 +147,11 @@ pub fn setup_x(
 
     // Wait for XServer to boot-up
     let start_time = time::SystemTime::now();
-    for _ in 0..XSTART_CHECK_MAX_TRIES {
+    loop {
+        if config.xserver_timeout_secs == 0 || start_time.elapsed().map_or(false, |t| t.as_secs() > config.xserver_timeout_secs.into()) {
+            break;
+        }
+
         // This will be set by the `handle_sigusr1` signal handler.
         if X_HAS_STARTED.load(std::sync::atomic::Ordering::SeqCst) {
             break;
