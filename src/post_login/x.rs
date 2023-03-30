@@ -7,6 +7,7 @@ use std::env;
 use std::error::Error;
 use std::fmt::Display;
 use std::fs::remove_file;
+use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::{thread, time};
@@ -129,8 +130,8 @@ pub fn setup_x(
     let mut child = Command::new(super::SYSTEM_SHELL)
         .arg("-c")
         .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"))
-        .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
-        .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|err| {
             error!("Starting X server failed. Reason: {}", err);
@@ -153,6 +154,21 @@ pub fn setup_x(
 
         if let Some(status) = child.try_wait().unwrap_or(None) {
             error!("X server died before signaling it was ready to received connections. Status code: {status}.");
+
+            if let Some(mut stdout) = child.stdout.take() {
+                let mut buf = String::new();
+                if let Ok(_) = stdout.read_to_string(&mut buf) {
+                    error!("X server STDOUT: '''\n{buf}\n'''");
+                }
+            }
+
+            if let Some(mut stdout) = child.stdout.take() {
+                let mut buf = String::new();
+                if let Ok(_) = stdout.read_to_string(&mut buf) {
+                    error!("X server STDERR: '''\n{buf}\n'''");
+                }
+            }
+
             return Err(XSetupError::XServerPrematureExit);
         }
 
