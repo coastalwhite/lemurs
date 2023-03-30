@@ -2,13 +2,13 @@ use libc::{signal, SIGUSR1, SIG_DFL, SIG_IGN};
 use rand::Rng;
 
 use once_cell::sync::Lazy;
-use std::sync::Mutex;
 
 use std::env;
 use std::error::Error;
 use std::fmt::Display;
 use std::fs::remove_file;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::AtomicBool;
 use std::{thread, time};
 
 use std::path::PathBuf;
@@ -56,14 +56,11 @@ fn mcookie() -> String {
     format!("{cookie:032x}")
 }
 
-static X_HAS_STARTED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
+static X_HAS_STARTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
 #[allow(dead_code)]
 fn handle_sigusr1(_: i32) {
-    *X_HAS_STARTED.lock().unwrap_or_else(|err| {
-        error!("Failed to grab the `X_HAS_STARTED` Mutex lock. Reason: {err}");
-        std::process::exit(1);
-    }) = true;
+    X_HAS_STARTED.store(true, std::sync::atomic::Ordering::SeqCst);
 
     unsafe {
         signal(SIGUSR1, handle_sigusr1 as usize);
@@ -150,7 +147,7 @@ pub fn setup_x(
     let start_time = time::SystemTime::now();
     for _ in 0..XSTART_CHECK_MAX_TRIES {
         // This will be set by the `handle_sigusr1` signal handler.
-        if *X_HAS_STARTED.lock().unwrap() {
+        if X_HAS_STARTED.load(std::sync::atomic::Ordering::SeqCst) {
             break;
         }
 
@@ -158,7 +155,7 @@ pub fn setup_x(
     }
 
     // If the value is still `false`, this means we have time-ed out and Xorg is not running.
-    if !*X_HAS_STARTED.lock().unwrap() {
+    if !X_HAS_STARTED.load(std::sync::atomic::Ordering::SeqCst) {
         child.kill().unwrap_or_else(|err| {
             error!("Failed kill Xorg after it time-ed out. Reason: {err}");
         });
@@ -172,10 +169,7 @@ pub fn setup_x(
         );
     }
 
-    *X_HAS_STARTED.lock().unwrap_or_else(|err| {
-        error!("Failed to grab the `X_HAS_STARTED` Mutex lock. Reason: {err}");
-        std::process::exit(1);
-    }) = false;
+    X_HAS_STARTED.store(false, std::sync::atomic::Ordering::SeqCst);
 
     info!("X server is running");
 
