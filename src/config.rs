@@ -152,7 +152,9 @@ macro_rules! toml_config_struct {
 
 toml_config_struct! { Config, PartialConfig,
     tty => u8,
+
     x11_display => String,
+    xserver_timeout_secs => u16,
 
     pam_service => String,
 

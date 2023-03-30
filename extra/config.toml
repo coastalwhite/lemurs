@@ -44,6 +44,10 @@ tty = 2
 # The value of the `DISPLAY` environment variable for X11 sessions
 x11_display = ":1"
 
+# How many seconds to give the X server to start. To make it infinitely, put it
+# to 0.
+xserver_timeout_secs = 60
+
 # The PAM service that should be used to login
 pam_service = "lemurs"
 
