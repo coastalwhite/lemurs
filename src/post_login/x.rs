@@ -173,14 +173,14 @@ pub fn setup_x(
 
             if let Some(mut stdout) = child.stdout.take() {
                 let mut buf = String::new();
-                if let Ok(_) = stdout.read_to_string(&mut buf) {
+                if stdout.read_to_string(&mut buf).is_ok() {
                     error!("X server STDOUT: '''\n{buf}\n'''");
                 }
             }
 
             if let Some(mut stdout) = child.stdout.take() {
                 let mut buf = String::new();
-                if let Ok(_) = stdout.read_to_string(&mut buf) {
+                if stdout.read_to_string(&mut buf).is_ok() {
                     error!("X server STDERR: '''\n{buf}\n'''");
                 }
             }
