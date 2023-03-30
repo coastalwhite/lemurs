@@ -42,7 +42,9 @@ impl Display for XSetupError {
             Self::InvalidUTF8Path => f.write_str("Path that is given is not valid UTF8"),
             Self::XServerStart => f.write_str("Failed to start X server binary"),
             Self::XServerTimeout => f.write_str("Timeout while waiting for X server to start"),
-            Self::XServerPrematureExit => f.write_str("X server exited before it signaled to accept connections"),
+            Self::XServerPrematureExit => {
+                f.write_str("X server exited before it signaled to accept connections")
+            }
         }
     }
 }
@@ -75,7 +77,7 @@ pub fn setup_x(
 ) -> Result<Child, XSetupError> {
     use std::os::unix::process::CommandExt;
 
-    info!("Start setup of X");
+    info!("Start setup of X server");
 
     let display_value = env::var("DISPLAY").map_err(|_| XSetupError::DisplayEnvVar)?;
     let vtnr_value = env::var("XDG_VTNR").map_err(|_| XSetupError::VTNREnvVar)?;
@@ -85,7 +87,10 @@ pub fn setup_x(
         PathBuf::from(env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| user_info.dir.to_string()));
     let xauth_path = xauth_dir.join(".Xauthority");
 
-    info!("Filling Xauthority file");
+    info!(
+        "Filling `.Xauthority` file at `{xauth_path}`",
+        xauth_path = xauth_path.display()
+    );
 
     // Make sure that we are generating a new file. This is necessary since sometimes, there may be
     // a `root` permission `.Xauthority` file there.
@@ -104,7 +109,10 @@ pub fn setup_x(
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .status()
         .map_err(|err| {
-            error!("Filling xauth file failed. Reason: {}", err);
+            error!(
+                "Failed to fill Xauthority file with `xauth`. Reason: {}",
+                err
+            );
             XSetupError::FillingXAuth
         })?;
 
@@ -127,7 +135,6 @@ pub fn setup_x(
         libc::signal(SIGUSR1, SIG_IGN);
     }
 
-    info!("Run X server");
     let mut child = Command::new(super::SYSTEM_SHELL)
         .arg("-c")
         .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"))
@@ -135,7 +142,7 @@ pub fn setup_x(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|err| {
-            error!("Starting X server failed. Reason: {}", err);
+            error!("Failed to start X server. Reason: {}", err);
             XSetupError::XServerStart
         })?;
 
@@ -148,7 +155,11 @@ pub fn setup_x(
     // Wait for XServer to boot-up
     let start_time = time::SystemTime::now();
     loop {
-        if config.xserver_timeout_secs == 0 || start_time.elapsed().map_or(false, |t| t.as_secs() > config.xserver_timeout_secs.into()) {
+        if config.xserver_timeout_secs == 0
+            || start_time
+                .elapsed()
+                .map_or(false, |t| t.as_secs() > config.xserver_timeout_secs.into())
+        {
             break;
         }
 
@@ -183,7 +194,7 @@ pub fn setup_x(
     // If the value is still `false`, this means we have time-ed out and Xorg is not running.
     if !X_HAS_STARTED.load(std::sync::atomic::Ordering::SeqCst) {
         child.kill().unwrap_or_else(|err| {
-            error!("Failed kill Xorg after it time-ed out. Reason: {err}");
+            error!("Failed to kill Xorg after it timed out. Reason: {err}");
         });
         return Err(XSetupError::XServerTimeout);
     }
