@@ -113,11 +113,29 @@ impl SpawnedEnvironment {
     }
 
     pub fn wait(self) {
-        let child = match self {
-            Self::X11 { client, .. } | Self::Wayland(client) | Self::Tty(client) => client,
+        let child_output = match self {
+            Self::X11 { client, mut server } => {
+                info!("Waiting for client");
+                let Ok(output) = client.wait_with_output() else {
+                    error!("failed to wait on process");
+                    match server.kill() {
+                        Ok(_) => {}
+                        Err(err) => error!("Failed to terminate X11. Reason: {err}"),
+                    }
+                    return;
+                };
+
+                match server.kill() {
+                    Ok(_) => {}
+                    Err(err) => error!("Failed to terminate X11. Reason: {err}"),
+                }
+
+                Ok(output)
+            }
+            Self::Wayland(client) | Self::Tty(client) => client.wait_with_output(),
         };
 
-        let child_output = match child.wait_with_output() {
+        let child_output = match child_output {
             Ok(output) => output,
             Err(err) => {
                 error!("Failed to wait for environment to exit, Reason: '{}'", err);
