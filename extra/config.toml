@@ -48,6 +48,9 @@ x11_display = ":1"
 # to 0.
 xserver_timeout_secs = 60
 
+# Where to log the main lemurs control flow.
+main_log_path = "/var/log/lemurs.log"
+
 # Where to log to for the client. The Client is the Desktop Environment or
 # Window Manager for Xorg, the Compositor for Wayland and the Shell for TTY.
 client_log_path = "/var/log/lemurs.client.log"
@@ -56,7 +59,7 @@ client_log_path = "/var/log/lemurs.client.log"
 xserver_log_path = "/var/log/lemurs.xorg.log"
 
 # Disable all logging. This is overwritten by the `--no-log` flag.
-no_log = false
+do_log = true
 
 # The PAM service that should be used to login
 pam_service = "lemurs"

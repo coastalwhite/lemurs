@@ -41,7 +41,6 @@ use self::{
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
-const DEFAULT_LOG_PATH: &str = "/var/log/lemurs.log";
 
 fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
     let load_config_path = config_path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
@@ -74,13 +73,7 @@ fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
     }
 }
 
-fn setup_logger(is_preview: bool) {
-    let log_path = if is_preview {
-        PREVIEW_LOG_PATH
-    } else {
-        DEFAULT_LOG_PATH
-    };
-
+fn setup_logger(log_path: &str) {
     let log_file = Box::new(File::create(log_path).unwrap_or_else(|_| {
         eprintln!("Failed to open log file: '{log_path}'");
         std::process::exit(1);
@@ -139,10 +132,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup the logger
     if !cli.no_log {
-        setup_logger(cli.preview);
-        info!("Lemurs logger is running");
+        setup_logger(if cli.preview {
+            PREVIEW_LOG_PATH
+        } else {
+            &config.main_log_path
+        });
+        info!("Main lemurs logger is running");
     } else {
-        config.no_log = true;
+        config.do_log = false;
     }
 
     if !cli.preview {

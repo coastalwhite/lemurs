@@ -137,16 +137,17 @@ pub fn setup_x(
 
     let mut child = Command::new(super::SYSTEM_SHELL);
 
-    let mut child = if config.no_log {
-        child.stdout(Stdio::null()).stderr(Stdio::null());
-        child
-    } else {
+    let mut child = if config.do_log {
         info!(
             "Setup XServer to log `stdout` and `stderr` to '{log_path}'",
             log_path = config.xserver_log_path
         );
         output_command_to_log(child, Path::new(&config.xserver_log_path))
+    } else {
+        child.stdout(Stdio::null()).stderr(Stdio::null());
+        child
     };
+
     let mut child = child
         .arg("-c")
         .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"))

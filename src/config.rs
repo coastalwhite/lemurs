@@ -156,10 +156,11 @@ toml_config_struct! { Config, PartialConfig,
     x11_display => String,
     xserver_timeout_secs => u16,
 
+    main_log_path => String,
     client_log_path => String,
     xserver_log_path => String,
 
-    no_log => bool,
+    do_log => bool,
 
     pam_service => String,
 

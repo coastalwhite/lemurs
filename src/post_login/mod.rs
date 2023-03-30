@@ -181,15 +181,15 @@ impl PostLoginEnvironment {
 
         let mut client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
 
-        let mut client = if config.no_log {
-            client.stdout(Stdio::null()).stderr(Stdio::null());
-            client
-        } else {
+        let mut client = if config.do_log {
             info!(
                 "Setup client to log `stdout` and `stderr` to '{log_path}'",
                 log_path = config.client_log_path
             );
             output_command_to_log(client, Path::new(&config.client_log_path))
+        } else {
+            client.stdout(Stdio::null()).stderr(Stdio::null());
+            client
         };
 
         if let Some(shell_login_flag) = shell_login_flag {
