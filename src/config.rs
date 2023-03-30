@@ -159,6 +159,8 @@ toml_config_struct! { Config, PartialConfig,
     client_log_path => String,
     xserver_log_path => String,
 
+    no_log => bool,
+
     pam_service => String,
 
     shell_login_flag => ShellLoginFlag,

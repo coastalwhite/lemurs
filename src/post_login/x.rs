@@ -135,12 +135,18 @@ pub fn setup_x(
         libc::signal(SIGUSR1, SIG_IGN);
     }
 
-    let child = Command::new(super::SYSTEM_SHELL);
-    info!(
-        "Setup XServer to log `stdout` and `stderr` to '{log_path}'",
-        log_path = config.xserver_log_path
-    );
-    let mut child = output_command_to_log(child, Path::new(&config.xserver_log_path));
+    let mut child = Command::new(super::SYSTEM_SHELL);
+
+    let mut child = if config.no_log {
+        child.stdout(Stdio::null()).stderr(Stdio::null());
+        child
+    } else {
+        info!(
+            "Setup XServer to log `stdout` and `stderr` to '{log_path}'",
+            log_path = config.xserver_log_path
+        );
+        output_command_to_log(child, Path::new(&config.xserver_log_path))
+    };
     let mut child = child
         .arg("-c")
         .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"))
