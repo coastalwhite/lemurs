@@ -23,12 +23,10 @@ use auth::try_auth;
 use config::Config;
 use post_login::{EnvironmentStartError, PostLoginEnvironment};
 
-use crate::{
-    auth::utmpx::add_utmpx_entry,
-    cli::{Cli, Commands},
-};
+use crate::cli::{Cli, Commands};
 
 use env_container::EnvironmentContainer;
+use utmpx::add_utmpx_entry;
 
 use self::{
     auth::AuthenticationError,

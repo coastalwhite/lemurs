@@ -3,6 +3,7 @@ members = [
     "chvt",
     "lemurs-tui",
 	"env_container",
+    "utmpx",
 ]
 
 [workspace.dependencies]
