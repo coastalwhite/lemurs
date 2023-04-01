@@ -13,7 +13,6 @@ use tui::backend::CrosstermBackend;
 use tui::Terminal;
 
 mod auth;
-mod chvt;
 mod cli;
 mod config;
 mod env_container;

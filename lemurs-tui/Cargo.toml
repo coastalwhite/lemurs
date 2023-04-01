@@ -16,6 +16,8 @@ readme = "README.md"
 license = "MIT or APACHE"
 
 [dependencies]
+chvt.path = "../chvt"
+
 # UI and TUI interface
 tui = { version = "0.16.0", features = [ "crossterm" ] }
 unicode-width = "0.1"
