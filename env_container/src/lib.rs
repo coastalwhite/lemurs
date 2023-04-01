@@ -13,6 +13,7 @@ pub struct EnvironmentContainer {
 }
 
 impl EnvironmentContainer {
+    /// Take a snapshot of the current state of the Environment
     pub fn take_snapshot() -> Self {
         let pwd = match env::current_dir().map(|pathbuf| pathbuf.to_str().map(str::to_string)) {
             Ok(Some(s)) => s,
@@ -30,6 +31,9 @@ impl EnvironmentContainer {
     }
 
     /// Set an environment variable and own the value
+    ///
+    /// This function will overwrite a value that is currently in the environment or that is
+    /// currently owned.
     pub fn set(&mut self, key: &'static str, value: impl Into<String>) {
         let value = value.into();
 
@@ -68,6 +72,7 @@ impl EnvironmentContainer {
     }
 }
 
+// When a EnvironmentContainer is dropped it restores all the set variables to the previous state.
 impl Drop for EnvironmentContainer {
     fn drop(&mut self) {
         // Remove all owned variables for which we have an accurate environment value
