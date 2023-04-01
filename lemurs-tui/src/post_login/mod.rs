@@ -12,8 +12,8 @@ use std::process::{Child, Command, Stdio};
 
 use crate::auth::AuthUserInfo;
 use crate::config::{Config, ShellLoginFlag};
-use crate::env_container::EnvironmentContainer;
 use crate::post_login::x::setup_x;
+use env_container::EnvironmentContainer;
 
 use nix::unistd::{Gid, Uid};
 

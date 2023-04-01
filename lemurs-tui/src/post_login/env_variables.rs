@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::env_container::EnvironmentContainer;
+use env_container::EnvironmentContainer;
 
 use super::PostLoginEnvironment;
 

@@ -17,6 +17,7 @@ license = "MIT or APACHE"
 
 [dependencies]
 chvt.path = "../chvt"
+env_container.path = "../env_container"
 
 # UI and TUI interface
 tui = { version = "0.16.0", features = [ "crossterm" ] }

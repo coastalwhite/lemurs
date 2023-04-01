@@ -15,7 +15,6 @@ use tui::Terminal;
 mod auth;
 mod cli;
 mod config;
-mod env_container;
 mod info_caching;
 mod post_login;
 mod ui;
@@ -29,9 +28,10 @@ use crate::{
     cli::{Cli, Commands},
 };
 
+use env_container::EnvironmentContainer;
+
 use self::{
     auth::AuthenticationError,
-    env_container::EnvironmentContainer,
     post_login::env_variables::{
         set_basic_variables, set_display, set_seat_vars, set_session_params, set_session_vars,
         set_xdg_common_paths,
