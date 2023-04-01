@@ -46,10 +46,10 @@ $ROOT_CMD cp -f "extra/xsetup.sh" "/etc/lemurs/xsetup.sh"
 if [ $? -ne 0 ]; then exit 1; fi
 
 # Copy over default xinitrc
-if [ -f .xinitrc ]
+if [ -f $XINITRC ]
 then
     echo 'Copy over existing xinitrc'
-	$ROOT_CMD cp -f "~/.xinitrc" "/etc/lemurs/wms/xinitrc"
+	$ROOT_CMD cp -f "$XINITRC" "/etc/lemurs/wms/xinitrc"
 fi
 
 # Cache the current user
