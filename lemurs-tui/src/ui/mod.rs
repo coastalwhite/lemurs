@@ -5,8 +5,8 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use lemurs_core::{start_session, Hooks, StartSessionError, LemursConfig};
 use lemurs_core::post_login::PostLoginEnvironment;
+use lemurs_core::{start_session, Hooks, LemursConfig, StartSessionError};
 
 use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_information, set_cache};
@@ -271,10 +271,12 @@ impl LoginForm {
             widgets: Widgets {
                 power_menu: PowerMenuWidget::new(config.power_controls.clone()),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
-                    lemurs_core::post_login::get_envs(config.environment_switcher.include_tty_shell)
-                        .into_iter()
-                        .map(|(title, content)| SwitcherItem::new(title, content))
-                        .collect(),
+                    lemurs_core::post_login::get_envs(
+                        config.environment_switcher.include_tty_shell,
+                    )
+                    .into_iter()
+                    .map(|(title, content)| SwitcherItem::new(title, content))
+                    .collect(),
                     config.environment_switcher.clone(),
                 ))),
                 username: Arc::new(Mutex::new(InputFieldWidget::new(

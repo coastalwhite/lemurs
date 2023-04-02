@@ -15,9 +15,9 @@ use std::path::{Path, PathBuf};
 
 use log::{error, info};
 
-use crate::LemursConfig;
 use crate::auth::AuthUserInfo;
 use crate::post_login::output_command_to_log;
+use crate::LemursConfig;
 use env_container::EnvironmentContainer;
 
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;

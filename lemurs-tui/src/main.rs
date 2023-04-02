@@ -17,8 +17,8 @@ mod config;
 mod info_caching;
 mod ui;
 
-use config::Config;
 use crate::cli::{Cli, Commands};
+use config::Config;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
@@ -80,7 +80,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(cmd) = cli.command {
         match cmd {
             Commands::Envs => {
-                let envs = lemurs_core::post_login::get_envs(config.environment_switcher.include_tty_shell);
+                let envs = lemurs_core::post_login::get_envs(
+                    config.environment_switcher.include_tty_shell,
+                );
 
                 for (env_name, _) in envs.into_iter() {
                     println!("{env_name}");

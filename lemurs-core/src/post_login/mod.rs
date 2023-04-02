@@ -10,9 +10,9 @@ use users::get_user_groups;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
-use crate::{ShellLoginFlag, LemursConfig};
 use crate::auth::AuthUserInfo;
 use crate::post_login::x::setup_x;
+use crate::{LemursConfig, ShellLoginFlag};
 use env_container::EnvironmentContainer;
 
 use nix::unistd::{Gid, Uid};
