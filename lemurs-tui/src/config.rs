@@ -278,7 +278,7 @@ pub enum FocusBehaviour {
     Password,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub enum ShellLoginFlag {
     #[serde(rename = "none")]
     None,

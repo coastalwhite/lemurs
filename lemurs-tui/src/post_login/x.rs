@@ -15,8 +15,8 @@ use std::path::{Path, PathBuf};
 
 use log::{error, info};
 
+use crate::LemursConfig;
 use crate::auth::AuthUserInfo;
-use crate::config::Config;
 use crate::post_login::output_command_to_log;
 use env_container::EnvironmentContainer;
 
@@ -73,7 +73,7 @@ fn handle_sigusr1(_: i32) {
 pub fn setup_x(
     process_env: &mut EnvironmentContainer,
     user_info: &AuthUserInfo,
-    config: &Config,
+    config: &LemursConfig,
 ) -> Result<Child, XSetupError> {
     use std::os::unix::process::CommandExt;
 

@@ -10,8 +10,9 @@ use users::get_user_groups;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
+use crate::LemursConfig;
 use crate::auth::AuthUserInfo;
-use crate::config::{Config, ShellLoginFlag};
+use crate::config::ShellLoginFlag;
 use crate::post_login::x::setup_x;
 use env_container::EnvironmentContainer;
 
@@ -171,7 +172,7 @@ impl PostLoginEnvironment {
         &self,
         user_info: &AuthUserInfo<'_>,
         process_env: &mut EnvironmentContainer,
-        config: &Config,
+        config: &LemursConfig,
     ) -> Result<SpawnedEnvironment, EnvironmentStartError> {
         let shell_login_flag = match config.shell_login_flag {
             ShellLoginFlag::None => None,

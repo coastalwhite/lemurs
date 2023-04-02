@@ -30,6 +30,7 @@ use utmpx::add_utmpx_entry;
 
 use self::{
     auth::AuthenticationError,
+    config::ShellLoginFlag,
     post_login::env_variables::{
         set_basic_variables, set_display, set_seat_vars, set_session_params, set_session_vars,
         set_xdg_common_paths,
@@ -38,6 +39,22 @@ use self::{
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
+
+#[derive(Debug, Clone)]
+pub struct LemursConfig {
+    do_log: bool,
+    shell_login_flag: ShellLoginFlag,
+
+    client_log_path: String,
+    xserver_log_path: String,
+
+    xserver_timeout_secs: u16,
+    pam_service: String,
+
+    tty: u8,
+
+    x11_display: String,
+}
 
 fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
     let load_config_path = config_path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
@@ -236,6 +253,17 @@ fn start_session(
         username, post_login_env
     );
 
+    let config = LemursConfig {
+        do_log: config.do_log,
+        shell_login_flag: config.shell_login_flag,
+        client_log_path: config.client_log_path.clone(),
+        xserver_log_path: config.xserver_log_path.clone(),
+        xserver_timeout_secs: config.xserver_timeout_secs,
+        pam_service: config.pam_service.clone(),
+        tty: config.tty,
+        x11_display: config.x11_display.clone(),
+    };
+
     if let Some(pre_validate_hook) = hooks.pre_validate {
         pre_validate_hook();
     }
@@ -267,7 +295,7 @@ fn start_session(
     set_basic_variables(&mut process_env, username, homedir, shell);
     set_xdg_common_paths(&mut process_env, homedir);
 
-    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, config)?;
+    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, &config)?;
 
     let pid = spawned_environment.pid();
 
