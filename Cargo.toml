@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "chvt",
+	"lemurs-core",
     "lemurs-tui",
 	"env_container",
     "utmpx",
@@ -10,3 +11,4 @@ members = [
 log = "0.4.0"
 nix = "0.23.1"
 libc = "0.2"
+users = "0.11.0"

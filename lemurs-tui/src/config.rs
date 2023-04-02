@@ -288,6 +288,16 @@ pub enum ShellLoginFlag {
     Long,
 }
 
+impl Into<lemurs_core::ShellLoginFlag> for ShellLoginFlag {
+    fn into(self) -> lemurs_core::ShellLoginFlag {
+        match self {
+            Self::None => lemurs_core::ShellLoginFlag::None,
+            Self::Short => lemurs_core::ShellLoginFlag::Short,
+            Self::Long => lemurs_core::ShellLoginFlag::Long,
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Config {
         toml::from_str(include_str!("../../extra/config.toml")).unwrap_or_else(|_| {
