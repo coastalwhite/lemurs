@@ -5,10 +5,11 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
+use lemurs_core::{start_session, Hooks, StartSessionError, LemursConfig};
+use lemurs_core::post_login::PostLoginEnvironment;
+
 use crate::config::{Config, FocusBehaviour};
 use crate::info_caching::{get_cached_information, set_cache};
-use crate::post_login::PostLoginEnvironment;
-use crate::{start_session, Hooks, StartSessionError};
 use status_message::StatusMessage;
 
 use crossterm::cursor::MoveTo;
@@ -270,7 +271,7 @@ impl LoginForm {
             widgets: Widgets {
                 power_menu: PowerMenuWidget::new(config.power_controls.clone()),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
-                    crate::post_login::get_envs(config.environment_switcher.include_tty_shell)
+                    lemurs_core::post_login::get_envs(config.environment_switcher.include_tty_shell)
                         .into_iter()
                         .map(|(title, content)| SwitcherItem::new(title, content))
                         .collect(),
@@ -410,12 +411,22 @@ impl LoginForm {
                                     self.widgets.get_environment().map(|(_, content)| content);
                                 let username = self.widgets.get_username();
                                 let password = self.widgets.get_password();
-                                let config = self.config.clone();
 
                                 let Some(post_login_env) = environment else {
                                     status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
                                     send_ui_request(UIThreadRequest::Redraw);
                                     continue
+                                };
+
+                                let config = LemursConfig {
+                                    do_log: self.config.do_log,
+                                    shell_login_flag: self.config.shell_login_flag.into(),
+                                    client_log_path: self.config.client_log_path.clone(),
+                                    xserver_log_path: self.config.xserver_log_path.clone(),
+                                    xserver_timeout_secs: self.config.xserver_timeout_secs,
+                                    pam_service: self.config.pam_service.clone(),
+                                    tty: self.config.tty,
+                                    x11_display: self.config.x11_display.clone(),
                                 };
 
                                 match start_session(

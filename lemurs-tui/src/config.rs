@@ -278,7 +278,7 @@ pub enum FocusBehaviour {
     Password,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub enum ShellLoginFlag {
     #[serde(rename = "none")]
     None,
@@ -288,9 +288,19 @@ pub enum ShellLoginFlag {
     Long,
 }
 
+impl Into<lemurs_core::ShellLoginFlag> for ShellLoginFlag {
+    fn into(self) -> lemurs_core::ShellLoginFlag {
+        match self {
+            Self::None => lemurs_core::ShellLoginFlag::None,
+            Self::Short => lemurs_core::ShellLoginFlag::Short,
+            Self::Long => lemurs_core::ShellLoginFlag::Long,
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Config {
-        toml::from_str(include_str!("../extra/config.toml")).unwrap_or_else(|_| {
+        toml::from_str(include_str!("../../extra/config.toml")).unwrap_or_else(|_| {
             eprintln!("Default configuration file cannot be properly parsed");
             process::exit(1);
         })

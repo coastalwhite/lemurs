@@ -25,7 +25,7 @@ if [ $? -ne 0 ]; then exit 1; fi
 
 # Move lemurs to /usr/bin
 echo 'Move lemurs into /usr/bin'
-$ROOT_CMD cp -f "target/release/lemurs" "/usr/bin/lemurs"
+$ROOT_CMD cp -f "target/release/lemurs-tui" "/usr/bin/lemurs"
 if [ $? -ne 0 ]; then exit 1; fi
 
 # Create lemurs directory
