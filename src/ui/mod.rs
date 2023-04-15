@@ -391,8 +391,8 @@ impl LoginForm {
 
             loop {
                 if let Ok(Event::Key(key)) = event::read() {
-                    match (key.code, input_mode.get()) {
-                        (KeyCode::Enter, InputMode::Password) => {
+                    match (key.code, input_mode.get(), key.modifiers) {
+                        (KeyCode::Enter, InputMode::Password, _) => {
                             if self.preview {
                                 // This is only for demonstration purposes
                                 status_message.set(InfoStatusMessage::Authenticating);
@@ -445,51 +445,49 @@ impl LoginForm {
                                 }
                             }
                         }
-                        (KeyCode::Char('s'), InputMode::Normal) => self.set_cache(),
+                        (KeyCode::Char('s'), InputMode::Normal, _) => self.set_cache(),
 
-                        (KeyCode::Enter | KeyCode::Down, _) => {
-                            input_mode.next();
-                        }
-                        (KeyCode::Up | KeyCode::BackTab, _) => {
+                        // On the TTY, it triggers the ALT key for some reason.
+                        (KeyCode::Up | KeyCode::BackTab, _, _)
+                        | (KeyCode::Tab, _, KeyModifiers::ALT | KeyModifiers::SHIFT)
+                        | (KeyCode::Char('p'), _, KeyModifiers::CONTROL) => {
                             input_mode.prev();
                         }
 
-                        (KeyCode::Tab, _) => {
-                            // On the TTY, it triggers the ALT key for some reason.
-                            if key.modifiers.contains(KeyModifiers::ALT)
-                                || key.modifiers.contains(KeyModifiers::SHIFT)
-                            {
-                                input_mode.prev();
-                            } else {
-                                input_mode.next();
-                            }
+                        (KeyCode::Enter | KeyCode::Down | KeyCode::Tab, _, _)
+                        | (KeyCode::Char('n'), _, KeyModifiers::CONTROL) => {
+                            input_mode.next();
                         }
 
                         // Esc is the overal key to get out of your input mode
-                        (KeyCode::Esc, InputMode::Normal) => {
+                        (KeyCode::Esc, InputMode::Normal, _) => {
                             if self.preview {
                                 info!("Pressed escape in preview mode to exit the application");
                                 req_send_channel.send(UIThreadRequest::StopDrawing).unwrap();
                             }
                         }
 
-                        (KeyCode::Esc, _) => {
+                        (KeyCode::Esc, _, _) => {
                             input_mode.set(InputMode::Normal);
                         }
 
-                        (KeyCode::F(_), _) => {
+                        (KeyCode::F(_), _, _) => {
                             self.widgets.power_menu.key_press(key.code);
                         }
 
                         // For the different input modes the key should be passed to the corresponding
                         // widget.
-                        (k, mode) => {
+                        (k, mode, modifiers) => {
                             let status_message_opt = match mode {
                                 InputMode::Switcher => {
                                     self.widgets.environment_guard().key_press(k)
                                 }
-                                InputMode::Username => self.widgets.username_guard().key_press(k),
-                                InputMode::Password => self.widgets.password_guard().key_press(k),
+                                InputMode::Username => {
+                                    self.widgets.username_guard().key_press(k, modifiers)
+                                }
+                                InputMode::Password => {
+                                    self.widgets.password_guard().key_press(k, modifiers)
+                                }
                                 _ => None,
                             };
 
