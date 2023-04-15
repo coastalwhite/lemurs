@@ -1,4 +1,4 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use tui::{
     layout::Rect,
     style::Style,
@@ -207,6 +207,35 @@ impl InputFieldWidget {
         self.content = String::new();
     }
 
+    pub fn clear_before(&mut self) {
+        let byte_offset =
+            get_byte_offset_of_char_offset(&self.content, (self.cursor + self.scroll) as usize);
+        self.content = self.content[byte_offset..].to_string();
+
+        self.cursor = 0;
+        self.scroll = 0;
+    }
+
+    pub fn clear_after(&mut self) {
+        let byte_offset =
+            get_byte_offset_of_char_offset(&self.content, (self.cursor + self.scroll) as usize);
+        self.content.truncate(byte_offset);
+    }
+
+    pub fn move_to_begin(&mut self) {
+        self.cursor = 0;
+        self.scroll = 0;
+    }
+
+    pub fn move_to_end(&mut self) {
+        self.cursor = (self.content.len() % (self.width as usize)) as u16;
+        self.scroll = if self.content.len() > (self.width as usize) {
+            (self.content.len() - (self.width as usize)) as u16
+        } else {
+            0
+        }
+    }
+
     fn get_text_style(&self, is_focused: bool) -> Style {
         if is_focused {
             Style::default().fg(get_color(&self.style.content_color_focused))
@@ -286,15 +315,27 @@ impl InputFieldWidget {
         }
     }
 
-    pub(crate) fn key_press(&mut self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
-        match key_code {
-            KeyCode::Backspace => self.backspace(),
-            KeyCode::Delete => self.delete(),
+    pub(crate) fn key_press(
+        &mut self,
+        key_code: KeyCode,
+        modifiers: KeyModifiers,
+    ) -> Option<super::ErrorStatusMessage> {
+        match (key_code, modifiers) {
+            (KeyCode::Backspace, _) | (KeyCode::Char('h'), KeyModifiers::CONTROL) => {
+                self.backspace()
+            }
+            (KeyCode::Delete, _) | (KeyCode::Char('d'), KeyModifiers::CONTROL) => self.delete(),
 
-            KeyCode::Left => self.left(),
-            KeyCode::Right => self.right(),
+            (KeyCode::Left, _) | (KeyCode::Char('b'), KeyModifiers::CONTROL) => self.left(),
+            (KeyCode::Right, _) | (KeyCode::Char('f'), KeyModifiers::CONTROL) => self.right(),
 
-            KeyCode::Char(c) => self.insert(c),
+            (KeyCode::Char('l'), KeyModifiers::CONTROL) => self.clear(),
+            (KeyCode::Char('a'), KeyModifiers::CONTROL) => self.move_to_begin(),
+            (KeyCode::Char('e'), KeyModifiers::CONTROL) => self.move_to_end(),
+            (KeyCode::Char('u'), KeyModifiers::CONTROL) => self.clear_before(),
+            (KeyCode::Char('k'), KeyModifiers::CONTROL) => self.clear_after(),
+
+            (KeyCode::Char(c), _) => self.insert(c),
             _ => {}
         }
 
