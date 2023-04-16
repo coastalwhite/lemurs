@@ -166,17 +166,17 @@ want to tweak details for their own installation.
 
 Lemurs has support for some basic shell keybindings.
 
-- <kbd>Ctrl</kdb> + <kdb>A</kdb>: Go to the beginning of the focused input field
-- <kbd>Ctrl</kdb> + <kdb>E</kdb>: Go to the end of the focused input field
-- <kbd>Ctrl</kdb> + <kdb>L</kdb>: Clear the focused input field
-- <kbd>Ctrl</kdb> + <kdb>U</kdb>: Clear input field text before the cursor
-- <kbd>Ctrl</kdb> + <kdb>K</kdb>: Clear input field text after the cursor
-- <kbd>Ctrl</kdb> + <kdb>D</kdb>: Same as <kdb>Delete</kdb>
-- <kbd>Ctrl</kdb> + <kdb>H</kdb>: Same as <kdb>Backspace</kdb>
-- <kbd>Ctrl</kdb> + <kdb>B</kdb>: Same as <kdb>Left</kdb>
-- <kbd>Ctrl</kdb> + <kdb>F</kdb>: Same as <kdb>Right</kdb>
-- <kbd>Ctrl</kdb> + <kdb>P</kdb>: Same as <kdb>Up</kdb>
-- <kbd>Ctrl</kdb> + <kdb>N</kdb>: Same as <kdb>Down</kdb>
+- <kbd>Ctrl</kbd> + <kbd>A</kbd>: Go to the beginning of the focused input field
+- <kbd>Ctrl</kbd> + <kbd>E</kbd>: Go to the end of the focused input field
+- <kbd>Ctrl</kbd> + <kbd>L</kbd>: Clear the focused input field
+- <kbd>Ctrl</kbd> + <kbd>U</kbd>: Clear input field text before the cursor
+- <kbd>Ctrl</kbd> + <kbd>K</kbd>: Clear input field text after the cursor
+- <kbd>Ctrl</kbd> + <kbd>D</kbd>: Same as <kdb>Delete</kdb>
+- <kbd>Ctrl</kbd> + <kbd>H</kbd>: Same as <kdb>Backspace</kdb>
+- <kbd>Ctrl</kbd> + <kbd>B</kbd>: Same as <kdb>Left</kdb>
+- <kbd>Ctrl</kbd> + <kbd>F</kbd>: Same as <kdb>Right</kdb>
+- <kbd>Ctrl</kbd> + <kbd>P</kbd>: Same as <kdb>Up</kdb>
+- <kbd>Ctrl</kbd> + <kbd>N</kbd>: Same as <kdb>Down</kdb>
 
 ## Platforms
 
