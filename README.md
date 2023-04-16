@@ -162,6 +162,22 @@ want to tweak details for their own installation.
 |  |- lemurs.pam: PAM service configuration
 ```
 
+## Shell Keybindings
+
+Lemurs has support for some basic shell keybindings.
+
+- <kbd>Ctrl</kdb> + <kdb>A</kdb>: Go to the beginning of the focused input field
+- <kbd>Ctrl</kdb> + <kdb>E</kdb>: Go to the end of the focused input field
+- <kbd>Ctrl</kdb> + <kdb>L</kdb>: Clear the focused input field
+- <kbd>Ctrl</kdb> + <kdb>U</kdb>: Clear input field text before the cursor
+- <kbd>Ctrl</kdb> + <kdb>K</kdb>: Clear input field text after the cursor
+- <kbd>Ctrl</kdb> + <kdb>D</kdb>: Same as <kdb>Delete</kdb>
+- <kbd>Ctrl</kdb> + <kdb>H</kdb>: Same as <kdb>Backspace</kdb>
+- <kbd>Ctrl</kdb> + <kdb>B</kdb>: Same as <kdb>Left</kdb>
+- <kbd>Ctrl</kdb> + <kdb>F</kdb>: Same as <kdb>Right</kdb>
+- <kbd>Ctrl</kdb> + <kdb>P</kdb>: Same as <kdb>Up</kdb>
+- <kbd>Ctrl</kdb> + <kdb>N</kdb>: Same as <kdb>Down</kdb>
+
 ## Platforms
 
 Tested on
