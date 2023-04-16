@@ -146,10 +146,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // Switch to the proper tty
         info!("Switching to tty {}", config.tty);
-
-        unsafe { chvt::chvt(config.tty.into()) }.unwrap_or_else(|err| {
-            error!("Failed to switch tty {}. Reason: {err}", config.tty);
-        });
     }
 
     // Start application

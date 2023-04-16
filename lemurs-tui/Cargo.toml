@@ -16,7 +16,6 @@ readme = "README.md"
 license = "MIT or APACHE"
 
 [dependencies]
-chvt.path = "../chvt"
 lemurs_core = { package = "lemurs", path = "../lemurs-core" }
 
 # UI and TUI interface

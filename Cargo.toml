@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "chvt",
 	"lemurs-core",
     "lemurs-tui",
 	"env_container",
