@@ -193,6 +193,11 @@ toml_config_struct! { PowerControlConfig, PartialPowerControlConfig,
 }
 
 toml_config_struct! { SwitcherConfig, PartialSwitcherConfig,
+    switcher_visibility => SwitcherVisibility,
+    toggle_hint => String,
+    toggle_hint_color => String,
+    toggle_hint_modifiers => String,
+
     include_tty_shell => bool,
 
     remember => bool,
@@ -286,6 +291,29 @@ pub enum ShellLoginFlag {
     Short,
     #[serde(rename = "long")]
     Long,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SwitcherVisibility {
+    Visible,
+    Hidden,
+    Keybind(KeyCode),
+}
+
+/// Deserialise from a string of "visible", "hidden", or the keybind ("F1"-"F12")
+impl<'de> Deserialize<'de> for SwitcherVisibility {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+
+        Ok(match s {
+            "visible" => Self::Visible,
+            "hidden" => Self::Hidden,
+            k => Self::Keybind(get_key(k)),
+        })
+    }
 }
 
 impl Default for Config {

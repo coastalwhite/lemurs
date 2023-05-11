@@ -5,7 +5,7 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use crate::config::{Config, FocusBehaviour};
+use crate::config::{Config, FocusBehaviour, SwitcherVisibility};
 use crate::info_caching::{get_cached_information, set_cache};
 use crate::post_login::PostLoginEnvironment;
 use crate::{start_session, Hooks, StartSessionError};
@@ -30,7 +30,7 @@ use chunks::Chunks;
 use input_field::{InputFieldDisplayType, InputFieldWidget};
 use power_menu::PowerMenuWidget;
 use status_message::{ErrorStatusMessage, InfoStatusMessage};
-use switcher::{SwitcherItem, SwitcherWidget};
+use switcher::{SwitcherItem, SwitcherToggleMenuWidget, SwitcherWidget};
 
 #[derive(Clone)]
 struct LoginFormInputMode(Arc<Mutex<InputMode>>);
@@ -56,11 +56,11 @@ impl LoginFormInputMode {
         *self.get_guard()
     }
 
-    fn prev(&self) {
-        self.get_guard().prev()
+    fn prev(&self, skip_switcher: bool) {
+        self.get_guard().prev(skip_switcher)
     }
-    fn next(&self) {
-        self.get_guard().next()
+    fn next(&self, skip_switcher: bool) {
+        self.get_guard().next(skip_switcher)
     }
     fn set(&self, mode: InputMode) {
         *self.get_guard() = mode;
@@ -117,11 +117,17 @@ enum InputMode {
 
 impl InputMode {
     /// Move to the next mode
-    fn next(&mut self) {
+    fn next(&mut self, skip_switcher: bool) {
         use InputMode::*;
 
         *self = match self {
-            Normal => Switcher,
+            Normal => {
+                if skip_switcher {
+                    Username
+                } else {
+                    Switcher
+                }
+            }
             Switcher => Username,
             Username => Password,
             Password => Password,
@@ -129,13 +135,19 @@ impl InputMode {
     }
 
     /// Move to the previous mode
-    fn prev(&mut self) {
+    fn prev(&mut self, skip_switcher: bool) {
         use InputMode::*;
 
         *self = match self {
             Normal => Normal,
             Switcher => Normal,
-            Username => Switcher,
+            Username => {
+                if skip_switcher {
+                    Normal
+                } else {
+                    Switcher
+                }
+            }
             Password => Username,
         }
     }
@@ -151,6 +163,7 @@ enum UIThreadRequest {
 #[derive(Clone)]
 struct Widgets {
     power_menu: PowerMenuWidget,
+    switcher_toggle_menu: SwitcherToggleMenuWidget,
     environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
     password: Arc<Mutex<InputFieldWidget>>,
@@ -269,6 +282,9 @@ impl LoginForm {
             preview,
             widgets: Widgets {
                 power_menu: PowerMenuWidget::new(config.power_controls.clone()),
+                switcher_toggle_menu: SwitcherToggleMenuWidget::new(
+                    config.environment_switcher.clone(), // TODO: Remove this clone
+                ),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
                     crate::post_login::get_envs(config.environment_switcher.include_tty_shell)
                         .into_iter()
@@ -310,7 +326,15 @@ impl LoginForm {
             ) {
                 (true, true) => InputMode::Password,
                 (true, _) => InputMode::Username,
-                _ => InputMode::Switcher,
+                _ => {
+                    if self.config.environment_switcher.switcher_visibility
+                        == SwitcherVisibility::Visible
+                    {
+                        InputMode::Switcher
+                    } else {
+                        InputMode::Username
+                    }
+                }
             },
             FocusBehaviour::NoFocus => InputMode::Normal,
             FocusBehaviour::Environment => InputMode::Switcher,
@@ -320,6 +344,7 @@ impl LoginForm {
         let status_message = LoginFormStatusMessage::new();
 
         let power_menu = self.widgets.power_menu.clone();
+        let switcher_toggle_menu = self.widgets.switcher_toggle_menu.clone();
         let environment = self.widgets.environment.clone();
         let username = self.widgets.username.clone();
         let password = self.widgets.password.clone();
@@ -330,6 +355,7 @@ impl LoginForm {
                 f,
                 layout,
                 power_menu.clone(),
+                switcher_toggle_menu.clone(),
                 environment.clone(),
                 username.clone(),
                 password.clone(),
@@ -451,12 +477,18 @@ impl LoginForm {
                         (KeyCode::Up | KeyCode::BackTab, _, _)
                         | (KeyCode::Tab, _, KeyModifiers::ALT | KeyModifiers::SHIFT)
                         | (KeyCode::Char('p'), _, KeyModifiers::CONTROL) => {
-                            input_mode.prev();
+                            input_mode.prev(
+                                self.config.environment_switcher.switcher_visibility
+                                    == SwitcherVisibility::Hidden,
+                            );
                         }
 
                         (KeyCode::Enter | KeyCode::Down | KeyCode::Tab, _, _)
                         | (KeyCode::Char('n'), _, KeyModifiers::CONTROL) => {
-                            input_mode.next();
+                            input_mode.next(
+                                self.config.environment_switcher.switcher_visibility
+                                    == SwitcherVisibility::Hidden,
+                            );
                         }
 
                         // Esc is the overal key to get out of your input mode
@@ -473,6 +505,7 @@ impl LoginForm {
 
                         (KeyCode::F(_), _, _) => {
                             self.widgets.power_menu.key_press(key.code);
+                            self.widgets.environment_guard().key_press(key.code);
                         }
 
                         // For the different input modes the key should be passed to the corresponding
@@ -515,6 +548,7 @@ impl LoginForm {
                             f,
                             layout,
                             power_menu.clone(),
+                            switcher_toggle_menu.clone(),
                             environment.clone(),
                             username.clone(),
                             password.clone(),
@@ -555,6 +589,7 @@ fn login_form_render<B: Backend>(
     frame: &mut Frame<B>,
     chunks: Chunks,
     power_menu: PowerMenuWidget,
+    switcher_toggle_menu: SwitcherToggleMenuWidget,
     environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
     password: Arc<Mutex<InputFieldWidget>>,
@@ -562,6 +597,7 @@ fn login_form_render<B: Backend>(
     status_message: Option<StatusMessage>,
 ) {
     power_menu.render(frame, chunks.power_menu);
+    switcher_toggle_menu.render(frame, chunks.switcher_toggle_menu);
     environment
         .lock()
         .unwrap_or_else(|err| {
