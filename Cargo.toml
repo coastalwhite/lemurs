@@ -37,7 +37,7 @@ users = "0.11.0"
 once_cell = "1.17.1"
 
 # Logging
-env_logger = { version = "0.9.0", default-features = false }
+env_logger = { version = "0.9.0", default-features = false, features = ["humantime"] }
 log = "0.4.0"
 
 # Configuration File Parsing
