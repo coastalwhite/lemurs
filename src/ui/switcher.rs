@@ -8,7 +8,7 @@ use tui::{
     widgets::{Block, Paragraph},
 };
 
-use crate::config::{get_color, get_modifiers, SwitcherConfig};
+use crate::config::{get_color, get_modifiers, SwitcherConfig, SwitcherVisibility};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct SwitcherItem<T> {
@@ -27,6 +27,8 @@ struct Switcher<T> {
 pub struct SwitcherWidget<T> {
     selector: Switcher<T>,
     config: SwitcherConfig,
+    /// Indicates whether the widget has been hidden by the config or keybind
+    hidden: bool,
 }
 
 impl<T> SwitcherItem<T> {
@@ -124,9 +126,12 @@ impl<T> Switcher<T> {
 
 impl<T> SwitcherWidget<T> {
     pub fn new(items: Vec<SwitcherItem<T>>, config: SwitcherConfig) -> Self {
+        // Always hidden by default unless explicitly stated to be visible
+        let hidden = config.switcher_visibility != SwitcherVisibility::Visible;
         Self {
             selector: Switcher::new(items),
             config,
+            hidden,
         }
     }
 
@@ -276,7 +281,21 @@ impl<T> SwitcherWidget<T> {
         area: Rect,
         is_focused: bool,
     ) {
-        let Self { selector, config } = &self;
+        let Self {
+            selector,
+            config,
+            hidden,
+        } = &self;
+
+        if *hidden {
+            let text = Text::default();
+            let widget = Paragraph::new(text)
+                .block(Block::default())
+                .alignment(Alignment::Center);
+
+            frame.render_widget(widget, area);
+            return;
+        }
 
         let mut spans = Vec::with_capacity(
             // Left + Right +
@@ -371,6 +390,9 @@ impl<T> SwitcherWidget<T> {
             KeyCode::Right | KeyCode::Char('l') => {
                 self.right();
             }
+            kc if self.config.switcher_visibility == SwitcherVisibility::Keybind(kc) => {
+                self.hidden ^= true;
+            }
             _ => {}
         }
 
@@ -380,6 +402,43 @@ impl<T> SwitcherWidget<T> {
     pub fn selected(&self) -> Option<&SwitcherItem<T>> {
         let Self { selector, .. } = &self;
         selector.current()
+    }
+}
+
+#[derive(Clone)]
+pub struct SwitcherToggleMenuWidget {
+    config: SwitcherConfig,
+}
+
+impl SwitcherToggleMenuWidget {
+    pub fn new(config: SwitcherConfig) -> Self {
+        Self { config }
+    }
+    fn toggle_style(&self) -> Style {
+        let mut style = Style::default().fg(get_color(&self.config.toggle_hint_color));
+
+        for modifier in get_modifiers(&self.config.toggle_hint_modifiers) {
+            style = style.add_modifier(modifier);
+        }
+
+        style
+    }
+
+    pub fn render(&self, frame: &mut Frame<impl tui::backend::Backend>, area: Rect) {
+        let mut items = Vec::new();
+
+        if let SwitcherVisibility::Keybind(KeyCode::F(n)) = self.config.switcher_visibility {
+            items.push(Span::styled(
+                self.config.toggle_hint.replace("%key%", &format!("F{n}")),
+                self.toggle_style(),
+            ));
+        }
+
+        let mut text = Text::raw("");
+        text.lines.push(Spans(items));
+        let widget = Paragraph::new(text);
+
+        frame.render_widget(widget, area);
     }
 }
 

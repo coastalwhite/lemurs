@@ -137,6 +137,23 @@ hint_margin = 2
 # ---------
 #
 
+# Control the visiblity of the switcher
+# Options:
+# - "visible" - Always show the switcher [default]
+# - "hidden"  - Always hide the switcher
+# - [key]     - F1-F12 to be able to toggle the visiblity
+switcher_visibility = "visible"
+
+# The text in the top-left to display how to toggle the switcher. The text '%key%' will be
+# replaced with the switcher_visibility key.
+# This is not shown if switcher_visiblity is set to "visible" or "hidden".
+toggle_hint = "Switcher %key%"
+
+# The color and modifiers of the hint in the top-left corner
+toggle_hint_color = "dark gray"
+toggle_hint_modifiers = ""
+
+
 # Show an option for the TTY shell when logging in as one of the environments. 
 # NOTE: it is always shown when no viable options are found. 
 include_tty_shell = false
