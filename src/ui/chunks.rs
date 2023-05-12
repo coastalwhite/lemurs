@@ -6,8 +6,7 @@ use tui::{
 use Constraint::{Length, Min};
 
 pub struct Chunks {
-    pub power_menu: Rect,
-    pub switcher_toggle_menu: Rect,
+    pub key_menu: Rect,
     pub switcher: Rect,
     pub username_field: Rect,
     pub password_field: Rect,
@@ -38,8 +37,7 @@ impl Chunks {
             .split(frame.size());
 
         Self {
-            power_menu: chunks[0],
-            switcher_toggle_menu: chunks[1],
+            key_menu: chunks[0],
             switcher: chunks[3],
             username_field: chunks[5],
             password_field: chunks[7],
