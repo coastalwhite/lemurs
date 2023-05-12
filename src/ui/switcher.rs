@@ -405,43 +405,6 @@ impl<T> SwitcherWidget<T> {
     }
 }
 
-#[derive(Clone)]
-pub struct SwitcherToggleMenuWidget {
-    config: SwitcherConfig,
-}
-
-impl SwitcherToggleMenuWidget {
-    pub fn new(config: SwitcherConfig) -> Self {
-        Self { config }
-    }
-    fn toggle_style(&self) -> Style {
-        let mut style = Style::default().fg(get_color(&self.config.toggle_hint_color));
-
-        for modifier in get_modifiers(&self.config.toggle_hint_modifiers) {
-            style = style.add_modifier(modifier);
-        }
-
-        style
-    }
-
-    pub fn render(&self, frame: &mut Frame<impl tui::backend::Backend>, area: Rect) {
-        let mut items = Vec::new();
-
-        if let SwitcherVisibility::Keybind(KeyCode::F(n)) = self.config.switcher_visibility {
-            items.push(Span::styled(
-                self.config.toggle_hint.replace("%key%", &format!("F{n}")),
-                self.toggle_style(),
-            ));
-        }
-
-        let mut text = Text::raw("");
-        text.lines.push(Spans(items));
-        let widget = Paragraph::new(text);
-
-        frame.render_widget(widget, area);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

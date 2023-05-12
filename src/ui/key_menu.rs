@@ -1,27 +1,33 @@
 use std::process::{Command, Output};
 
 use crossterm::event::KeyCode;
-use tui::layout::Rect;
+use tui::layout::{Alignment, Rect};
 use tui::style::Style;
 use tui::text::{Span, Spans, Text};
 use tui::widgets::Paragraph;
 use tui::Frame;
 
-use crate::config::{get_color, get_key, get_modifiers, PowerControlConfig};
+use crate::config::{
+    get_color, get_key, get_modifiers, PowerControlConfig, SwitcherConfig, SwitcherVisibility,
+};
 
 #[derive(Clone)]
-pub struct PowerMenuWidget {
-    config: PowerControlConfig,
+pub struct KeyMenuWidget {
+    power_config: PowerControlConfig,
+    switcher_config: SwitcherConfig,
 }
 
-impl PowerMenuWidget {
-    pub fn new(config: PowerControlConfig) -> Self {
-        Self { config }
+impl KeyMenuWidget {
+    pub fn new(power_config: PowerControlConfig, switcher_config: SwitcherConfig) -> Self {
+        Self {
+            power_config,
+            switcher_config,
+        }
     }
     fn shutdown_style(&self) -> Style {
-        let mut style = Style::default().fg(get_color(&self.config.shutdown_hint_color));
+        let mut style = Style::default().fg(get_color(&self.power_config.shutdown_hint_color));
 
-        for modifier in get_modifiers(&self.config.shutdown_hint_modifiers) {
+        for modifier in get_modifiers(&self.power_config.shutdown_hint_modifiers) {
             style = style.add_modifier(modifier);
         }
 
@@ -29,9 +35,19 @@ impl PowerMenuWidget {
     }
 
     fn reboot_style(&self) -> Style {
-        let mut style = Style::default().fg(get_color(&self.config.reboot_hint_color));
+        let mut style = Style::default().fg(get_color(&self.power_config.reboot_hint_color));
 
-        for modifier in get_modifiers(&self.config.reboot_hint_modifiers) {
+        for modifier in get_modifiers(&self.power_config.reboot_hint_modifiers) {
+            style = style.add_modifier(modifier);
+        }
+
+        style
+    }
+
+    fn switcher_toggle_style(&self) -> Style {
+        let mut style = Style::default().fg(get_color(&self.switcher_config.toggle_hint_color));
+
+        for modifier in get_modifiers(&self.switcher_config.toggle_hint_modifiers) {
             style = style.add_modifier(modifier);
         }
 
@@ -41,40 +57,55 @@ impl PowerMenuWidget {
     pub fn render(&self, frame: &mut Frame<impl tui::backend::Backend>, area: Rect) {
         let mut items = Vec::new();
 
-        if self.config.allow_shutdown {
+        if self.power_config.allow_shutdown {
             items.push(Span::styled(
-                self.config
+                self.power_config
                     .shutdown_hint
-                    .replace("%key%", &self.config.shutdown_key),
+                    .replace("%key%", &self.power_config.shutdown_key),
                 self.shutdown_style(),
             ));
 
             // Add margin
-            items.push(Span::raw(" ".repeat(self.config.hint_margin.into())));
+            items.push(Span::raw(" ".repeat(self.power_config.hint_margin.into())));
         }
 
-        if self.config.allow_reboot {
+        if self.power_config.allow_reboot {
             items.push(Span::styled(
-                self.config
+                self.power_config
                     .reboot_hint
-                    .replace("%key%", &self.config.reboot_key),
+                    .replace("%key%", &self.power_config.reboot_key),
                 self.reboot_style(),
             ));
         }
 
+        // Since we only allow Fn keys, this should always match if it's set... because of this, an
+        // invalid key is effectively the same as "hidden"
+        if let SwitcherVisibility::Keybind(KeyCode::F(n)) = self.switcher_config.switcher_visibility
+        {
+            let right_widget = Paragraph::new(
+                self.switcher_config
+                    .toggle_hint
+                    .replace("%key%", &format!("F{n}")),
+            )
+            .alignment(Alignment::Right)
+            .style(self.switcher_toggle_style());
+            frame.render_widget(right_widget, area);
+        }
+
         let mut text = Text::raw("");
         text.lines.push(Spans(items));
-        let widget = Paragraph::new(text);
+        let left_widget = Paragraph::new(text);
 
-        frame.render_widget(widget, area);
+        frame.render_widget(left_widget, area);
     }
 
     pub(crate) fn key_press(&self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         // TODO: Properly handle StdIn
-        if self.config.allow_shutdown && key_code == get_key(&self.config.shutdown_key) {
+        if self.power_config.allow_shutdown && key_code == get_key(&self.power_config.shutdown_key)
+        {
             let cmd_status = Command::new("bash")
                 .arg("-c")
-                .arg(self.config.shutdown_cmd.clone())
+                .arg(self.power_config.shutdown_cmd.clone())
                 .output();
 
             match cmd_status {
@@ -96,10 +127,10 @@ impl PowerMenuWidget {
                 _ => {}
             }
         }
-        if self.config.allow_reboot && key_code == get_key(&self.config.reboot_key) {
+        if self.power_config.allow_reboot && key_code == get_key(&self.power_config.reboot_key) {
             let cmd_status = Command::new("bash")
                 .arg("-c")
-                .arg(self.config.reboot_cmd.clone())
+                .arg(self.power_config.reboot_cmd.clone())
                 .output();
 
             match cmd_status {

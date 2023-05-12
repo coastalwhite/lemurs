@@ -22,15 +22,15 @@ use tui::{backend::Backend, Frame, Terminal};
 
 mod chunks;
 mod input_field;
-mod power_menu;
+mod key_menu;
 mod status_message;
 mod switcher;
 
 use chunks::Chunks;
 use input_field::{InputFieldDisplayType, InputFieldWidget};
-use power_menu::PowerMenuWidget;
+use key_menu::KeyMenuWidget;
 use status_message::{ErrorStatusMessage, InfoStatusMessage};
-use switcher::{SwitcherItem, SwitcherToggleMenuWidget, SwitcherWidget};
+use switcher::{SwitcherItem, SwitcherWidget};
 
 #[derive(Clone)]
 struct LoginFormInputMode(Arc<Mutex<InputMode>>);
@@ -162,8 +162,7 @@ enum UIThreadRequest {
 
 #[derive(Clone)]
 struct Widgets {
-    power_menu: PowerMenuWidget,
-    switcher_toggle_menu: SwitcherToggleMenuWidget,
+    key_menu: KeyMenuWidget,
     environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
     password: Arc<Mutex<InputFieldWidget>>,
@@ -281,9 +280,9 @@ impl LoginForm {
         LoginForm {
             preview,
             widgets: Widgets {
-                power_menu: PowerMenuWidget::new(config.power_controls.clone()),
-                switcher_toggle_menu: SwitcherToggleMenuWidget::new(
-                    config.environment_switcher.clone(), // TODO: Remove this clone
+                key_menu: KeyMenuWidget::new(
+                    config.power_controls.clone(),
+                    config.environment_switcher.clone(),
                 ),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
                     crate::post_login::get_envs(config.environment_switcher.include_tty_shell)
@@ -343,8 +342,7 @@ impl LoginForm {
         });
         let status_message = LoginFormStatusMessage::new();
 
-        let power_menu = self.widgets.power_menu.clone();
-        let switcher_toggle_menu = self.widgets.switcher_toggle_menu.clone();
+        let key_menu = self.widgets.key_menu.clone();
         let environment = self.widgets.environment.clone();
         let username = self.widgets.username.clone();
         let password = self.widgets.password.clone();
@@ -354,8 +352,7 @@ impl LoginForm {
             login_form_render(
                 f,
                 layout,
-                power_menu.clone(),
-                switcher_toggle_menu.clone(),
+                key_menu.clone(),
                 environment.clone(),
                 username.clone(),
                 password.clone(),
@@ -504,7 +501,7 @@ impl LoginForm {
                         }
 
                         (KeyCode::F(_), _, _) => {
-                            self.widgets.power_menu.key_press(key.code);
+                            self.widgets.key_menu.key_press(key.code);
                             self.widgets.environment_guard().key_press(key.code);
                         }
 
@@ -547,8 +544,7 @@ impl LoginForm {
                         login_form_render(
                             f,
                             layout,
-                            power_menu.clone(),
-                            switcher_toggle_menu.clone(),
+                            key_menu.clone(),
                             environment.clone(),
                             username.clone(),
                             password.clone(),
@@ -588,16 +584,14 @@ impl LoginForm {
 fn login_form_render<B: Backend>(
     frame: &mut Frame<B>,
     chunks: Chunks,
-    power_menu: PowerMenuWidget,
-    switcher_toggle_menu: SwitcherToggleMenuWidget,
+    key_menu: KeyMenuWidget,
     environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
     password: Arc<Mutex<InputFieldWidget>>,
     input_mode: InputMode,
     status_message: Option<StatusMessage>,
 ) {
-    power_menu.render(frame, chunks.power_menu);
-    switcher_toggle_menu.render(frame, chunks.switcher_toggle_menu);
+    key_menu.render(frame, chunks.key_menu);
     environment
         .lock()
         .unwrap_or_else(|err| {
