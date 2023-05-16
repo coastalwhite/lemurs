@@ -275,6 +275,10 @@ impl<T> SwitcherWidget<T> {
         items.push(Span::raw(right_padding));
     }
 
+    pub fn hidden(&self) -> bool {
+        self.hidden
+    }
+
     pub fn render(
         &self,
         frame: &mut Frame<impl tui::backend::Backend>,
