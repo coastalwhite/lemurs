@@ -5,7 +5,7 @@ use std::process;
 
 use crossterm::event::KeyCode;
 use log::error;
-use serde::Deserialize;
+use serde::{Deserialize, de::Error};
 
 use tui::style::{Color, Modifier};
 
@@ -91,8 +91,8 @@ pub fn get_modifiers(modifiers: &str) -> Vec<Modifier> {
     ms
 }
 
-pub fn get_key(key: &str) -> KeyCode {
-    match key.trim() {
+pub fn get_function_key(key: &str) -> Option<KeyCode> {
+    Some(match key.trim() {
         "F1" => KeyCode::F(1),
         "F2" => KeyCode::F(2),
         "F3" => KeyCode::F(3),
@@ -105,6 +105,16 @@ pub fn get_key(key: &str) -> KeyCode {
         "F10" => KeyCode::F(10),
         "F11" => KeyCode::F(11),
         "F12" => KeyCode::F(12),
+        _ => return None,
+    })
+}
+
+pub fn get_key(key: &str) -> KeyCode {
+    if let Some(fn_key) = get_function_key(key) {
+        return fn_key;
+    }
+
+    match key.trim() {
         // TODO: Add others
         _ => KeyCode::F(255),
     }
@@ -337,9 +347,19 @@ impl Default for Config {
 impl PartialConfig {
     pub fn from_file(path: &Path) -> io::Result<PartialConfig> {
         let file = File::open(path)?;
+
         let mut buf_reader = BufReader::new(file);
         let mut contents = String::new();
+
         buf_reader.read_to_string(&mut contents)?;
-        Ok(toml::from_str(&contents).expect("Given configuration file contains errors."))
+
+        match toml::from_str(&contents) {
+            Ok(config) => Ok(config),
+            Err(err) => {
+                eprintln!("Given configuration file contains errors:");
+                eprintln!("{err}");
+                std::process::exit(1);
+            }
+        }
     }
 }
