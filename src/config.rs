@@ -114,10 +114,7 @@ pub fn get_key(key: &str) -> KeyCode {
         return fn_key;
     }
 
-    match key.trim() {
-        // TODO: Add others
-        _ => KeyCode::F(255),
-    }
+    KeyCode::F(255)
 }
 
 macro_rules! partial_struct_field {
