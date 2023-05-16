@@ -5,7 +5,7 @@ use std::process;
 
 use crossterm::event::KeyCode;
 use log::error;
-use serde::{Deserialize, de::Error};
+use serde::{de::Error, Deserialize};
 
 use tui::style::{Color, Modifier};
 
@@ -330,7 +330,7 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
                 };
 
                 Self::Keybind(keycode)
-            },
+            }
         })
     }
 }
