@@ -326,7 +326,7 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
                     return Err(D::Error::custom(
                         "Invalid key provided to toggle switcher visibility. Only F1-F12 are allowed"
                     ));
-                    
+
                 };
 
                 Self::Keybind(keycode)
