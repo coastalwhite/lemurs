@@ -144,9 +144,9 @@ hint_margin = 2
 # - [key]     - F1-F12 to be able to toggle the visiblity
 switcher_visibility = "visible"
 
-# The text in the top-left to display how to toggle the switcher. The text '%key%' will be
-# replaced with the switcher_visibility key.
-# This is not shown if switcher_visiblity is set to "visible" or "hidden".
+# The text in the top-left to display how to toggle the switcher. The text
+# '%key%' will be replaced with the switcher_visibility key. This is not shown
+# if switcher_visiblity is set to "visible" or "hidden".
 toggle_hint = "Switcher %key%"
 
 # The color and modifiers of the hint in the top-left corner
