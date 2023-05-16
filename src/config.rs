@@ -311,7 +311,16 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
         Ok(match s {
             "visible" => Self::Visible,
             "hidden" => Self::Hidden,
-            k => Self::Keybind(get_key(k)),
+            key => {
+                let Some(keycode) = get_function_key(key) else {
+                    return Err(D::Error::custom(
+                        "Invalid key provided to toggle switcher visibility. Only F1-F12 are allowed"
+                    ));
+                    
+                };
+
+                Self::Keybind(keycode)
+            },
         })
     }
 }
