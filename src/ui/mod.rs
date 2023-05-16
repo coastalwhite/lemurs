@@ -372,6 +372,12 @@ impl LoginForm {
 
         let (req_send_channel, req_recv_channel) = channel();
         std::thread::spawn(move || {
+            let mut switcher_hidden = self
+                .widgets
+                .environment
+                .lock()
+                .expect("Failed to grab environment lock")
+                .hidden();
             let input_mode = event_input_mode;
             let status_message = event_status_message;
 
@@ -474,18 +480,12 @@ impl LoginForm {
                         (KeyCode::Up | KeyCode::BackTab, _, _)
                         | (KeyCode::Tab, _, KeyModifiers::ALT | KeyModifiers::SHIFT)
                         | (KeyCode::Char('p'), _, KeyModifiers::CONTROL) => {
-                            input_mode.prev(
-                                self.config.environment_switcher.switcher_visibility
-                                    == SwitcherVisibility::Hidden,
-                            );
+                            input_mode.prev(switcher_hidden);
                         }
 
                         (KeyCode::Enter | KeyCode::Down | KeyCode::Tab, _, _)
                         | (KeyCode::Char('n'), _, KeyModifiers::CONTROL) => {
-                            input_mode.next(
-                                self.config.environment_switcher.switcher_visibility
-                                    == SwitcherVisibility::Hidden,
-                            );
+                            input_mode.next(switcher_hidden);
                         }
 
                         // Esc is the overal key to get out of your input mode
@@ -503,6 +503,17 @@ impl LoginForm {
                         (KeyCode::F(_), _, _) => {
                             self.widgets.key_menu.key_press(key.code);
                             self.widgets.environment_guard().key_press(key.code);
+
+                            switcher_hidden = self
+                                .widgets
+                                .environment
+                                .lock()
+                                .expect("Failed to grab lock")
+                                .hidden();
+
+                            if matches!(input_mode.get(), InputMode::Switcher) && switcher_hidden {
+                                input_mode.next(true);
+                            }
                         }
 
                         // For the different input modes the key should be passed to the corresponding
