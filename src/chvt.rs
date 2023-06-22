@@ -1,5 +1,6 @@
 //! Adapted From https://github.com/jonay2000/chvt-rs
 
+use libc::{c_int, c_ulong};
 use nix::errno::Errno;
 use nix::fcntl::{self, OFlag};
 use nix::sys::stat::Mode;
@@ -7,11 +8,11 @@ use nix::unistd::close;
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Formatter};
 
-const VT_ACTIVATE: u64 = 0x5606;
-const VT_WAITACTIVE: u64 = 0x5607;
+const VT_ACTIVATE: c_ulong = 0x5606;
+const VT_WAITACTIVE: c_ulong = 0x5607;
 
 // Request Number to get Keyboard Type
-const KDGKBTYPE: u64 = 0x4B33;
+const KDGKBTYPE: c_ulong = 0x4B33;
 
 const KB_101: u8 = 0x02;
 const KB_84: u8 = 0x01;
@@ -33,7 +34,7 @@ impl Display for ChvtError {
     }
 }
 
-fn is_a_console(fd: i32) -> bool {
+fn is_a_console(fd: c_int) -> bool {
     let mut arg = 0;
     if unsafe { libc::ioctl(fd, KDGKBTYPE, &mut arg) } > 0 {
         return false;
@@ -42,7 +43,7 @@ fn is_a_console(fd: i32) -> bool {
     (arg == KB_101) || (arg == KB_84)
 }
 
-fn open_a_console(filename: &str) -> Result<i32, ChvtError> {
+fn open_a_console(filename: &str) -> Result<c_int, ChvtError> {
     for oflag in [OFlag::O_RDWR, OFlag::O_RDONLY, OFlag::O_WRONLY] {
         match fcntl::open(filename, oflag, Mode::empty()) {
             Ok(fd) => {
@@ -61,7 +62,7 @@ fn open_a_console(filename: &str) -> Result<i32, ChvtError> {
     Err(ChvtError::OpenConsole)
 }
 
-fn get_fd() -> Result<i32, ChvtError> {
+fn get_fd() -> Result<c_int, ChvtError> {
     if let Ok(fd) = open_a_console("/dev/tty") {
         return Ok(fd);
     }
@@ -95,7 +96,7 @@ fn get_fd() -> Result<i32, ChvtError> {
 pub unsafe fn chvt(ttynum: i32) -> Result<(), ChvtError> {
     let fd = get_fd()?;
 
-    let activate = unsafe { libc::ioctl(fd, VT_ACTIVATE, ttynum) };
+    let activate = unsafe { libc::ioctl(fd, VT_ACTIVATE, ttynum as c_int) };
     if activate > 0 {
         return Err(ChvtError::Activate(activate));
     }
