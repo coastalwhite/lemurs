@@ -1,10 +1,10 @@
 use crossterm::event::KeyCode;
 use log::warn;
-use tui::{
+use ratatui::{
     layout::{Alignment, Rect},
     style::Style,
     terminal::Frame,
-    text::{Span, Spans, Text},
+    text::{Span, Line, Text},
     widgets::{Block, Paragraph},
 };
 
@@ -281,7 +281,7 @@ impl<T> SwitcherWidget<T> {
 
     pub fn render(
         &self,
-        frame: &mut Frame<impl tui::backend::Backend>,
+        frame: &mut Frame<impl ratatui::backend::Backend>,
         area: Rect,
         is_focused: bool,
     ) {
@@ -378,7 +378,7 @@ impl<T> SwitcherWidget<T> {
             ));
         }
 
-        let text = Text::from(Spans::from(spans));
+        let text = Text::from(Line::from(spans));
         let widget = Paragraph::new(text)
             .block(Block::default())
             .alignment(Alignment::Center);

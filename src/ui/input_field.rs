@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers};
-use tui::{
+use ratatui::{
     layout::Rect,
     style::Style,
     terminal::Frame,
@@ -290,7 +290,7 @@ impl InputFieldWidget {
 
     pub fn render(
         &mut self,
-        frame: &mut Frame<impl tui::backend::Backend>,
+        frame: &mut Frame<impl ratatui::backend::Backend>,
         area: Rect,
         is_focused: bool,
     ) {
@@ -302,17 +302,18 @@ impl InputFieldWidget {
         self.width = inner.width;
 
         let show_string = self.show_string();
-        let widget = Paragraph::new(show_string.as_ref())
-            .style(self.get_text_style(is_focused))
-            .block(self.get_block(is_focused));
-
-        frame.render_widget(widget, area);
 
         if is_focused {
             let Rect { x, y, .. } = inner;
             let cursor_offset = get_byte_offset_of_char_offset(&show_string, self.cursor.into());
             frame.set_cursor(x + show_string[..cursor_offset].width() as u16, y);
         }
+
+        let widget = Paragraph::new(show_string)
+            .style(self.get_text_style(is_focused))
+            .block(self.get_block(is_focused));
+
+        frame.render_widget(widget, area);
     }
 
     pub(crate) fn key_press(

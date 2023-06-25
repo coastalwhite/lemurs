@@ -17,9 +17,9 @@ license = "MIT or APACHE"
 
 [dependencies]
 # UI and TUI interface
-tui = { version = "0.16.0", features = [ "crossterm" ] }
+ratatui = "0.21.0"
+crossterm = "0.26"
 unicode-width = "0.1"
-crossterm = { version = "0.22" }
 
 # Interacting with the kernel interfaces
 rand = "0.8.4"
