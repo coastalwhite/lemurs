@@ -1,8 +1,8 @@
-use tui::backend::Backend;
-use tui::layout::Rect;
-use tui::style::Color;
-use tui::widgets::Paragraph;
-use tui::Frame;
+use ratatui::backend::Backend;
+use ratatui::layout::Rect;
+use ratatui::style::{Style, Color};
+use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::auth::AuthenticationError;
 
@@ -86,7 +86,7 @@ impl StatusMessage {
     pub fn render<B: Backend>(status: Option<Self>, frame: &mut Frame<B>, area: Rect) {
         if let Some(status_message) = status {
             let widget = Paragraph::new(<&'static str>::from(status_message.clone())).style(
-                tui::style::Style::default().fg(if status_message.is_error() {
+                Style::default().fg(if status_message.is_error() {
                     Color::Red
                 } else {
                     Color::Yellow

@@ -7,7 +7,7 @@ use crossterm::event::KeyCode;
 use log::error;
 use serde::{de::Error, Deserialize};
 
-use tui::style::{Color, Modifier};
+use ratatui::style::{Color, Modifier};
 
 pub fn get_color(color: &str) -> Color {
     if let Some(color) = str_to_color(color) {

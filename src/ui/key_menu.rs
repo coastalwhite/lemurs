@@ -1,11 +1,11 @@
 use std::process::{Command, Output};
 
 use crossterm::event::KeyCode;
-use tui::layout::{Alignment, Rect};
-use tui::style::Style;
-use tui::text::{Span, Spans, Text};
-use tui::widgets::Paragraph;
-use tui::Frame;
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::Style;
+use ratatui::text::{Span, Line, Text};
+use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::config::{
     get_color, get_key, get_modifiers, PowerControlConfig, SwitcherConfig, SwitcherVisibility,
@@ -54,7 +54,7 @@ impl KeyMenuWidget {
         style
     }
 
-    pub fn render(&self, frame: &mut Frame<impl tui::backend::Backend>, area: Rect) {
+    pub fn render(&self, frame: &mut Frame<impl ratatui::backend::Backend>, area: Rect) {
         let mut items = Vec::new();
 
         if self.power_config.allow_shutdown {
@@ -93,7 +93,7 @@ impl KeyMenuWidget {
         }
 
         let mut text = Text::raw("");
-        text.lines.push(Spans(items));
+        text.lines.push(Line::from(items));
         let left_widget = Paragraph::new(text);
 
         frame.render_widget(left_widget, area);

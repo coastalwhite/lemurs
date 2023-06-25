@@ -17,8 +17,8 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use tui::backend::CrosstermBackend;
-use tui::{backend::Backend, Frame, Terminal};
+use ratatui::backend::CrosstermBackend;
+use ratatui::{backend::Backend, Frame, Terminal};
 
 mod chunks;
 mod input_field;
