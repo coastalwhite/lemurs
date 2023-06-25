@@ -7,7 +7,7 @@ use std::env;
 use std::error::Error;
 use std::fmt::Display;
 use std::fs::remove_file;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::{thread, time};
 
@@ -18,7 +18,7 @@ use log::{error, info};
 use crate::auth::AuthUserInfo;
 use crate::config::Config;
 use crate::env_container::EnvironmentContainer;
-use crate::post_login::output_command_to_log;
+use crate::post_login::wait_with_log::LemursChild;
 
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 
@@ -74,7 +74,7 @@ pub fn setup_x(
     process_env: &mut EnvironmentContainer,
     user_info: &AuthUserInfo,
     config: &Config,
-) -> Result<Child, XSetupError> {
+) -> Result<LemursChild, XSetupError> {
     use std::os::unix::process::CommandExt;
 
     info!("Start setup of X server");
@@ -137,25 +137,16 @@ pub fn setup_x(
 
     let mut child = Command::new(super::SYSTEM_SHELL);
 
-    let mut child = if config.do_log {
-        info!(
-            "Setup XServer to log `stdout` and `stderr` to '{log_path}'",
-            log_path = config.xserver_log_path
-        );
-        output_command_to_log(child, Path::new(&config.xserver_log_path))
-    } else {
-        child.stdout(Stdio::null()).stderr(Stdio::null());
-        child
-    };
+    let log_path = config.do_log.then_some(Path::new(&config.xserver_log_path));
 
-    let mut child = child
+    child
         .arg("-c")
-        .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"))
-        .spawn()
-        .map_err(|err| {
-            error!("Failed to start X server. Reason: {}", err);
-            XSetupError::XServerStart
-        })?;
+        .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"));
+
+    let mut child = LemursChild::spawn(child, log_path).map_err(|err| {
+        error!("Failed to start X server. Reason: {}", err);
+        XSetupError::XServerStart
+    })?;
 
     // See note above
     unsafe {

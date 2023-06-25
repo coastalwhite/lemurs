@@ -21,6 +21,8 @@ ratatui = "0.21.0"
 crossterm = "0.26"
 unicode-width = "0.1"
 
+mio = { version = "0.8.8", features = [ "os-poll", "os-ext" ] }
+
 # Interacting with the kernel interfaces
 rand = "0.8.4"
 nix = "0.23.1"
