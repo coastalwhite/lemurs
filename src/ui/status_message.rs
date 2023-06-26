@@ -1,6 +1,6 @@
 use ratatui::backend::Backend;
 use ratatui::layout::Rect;
-use ratatui::style::{Style, Color};
+use ratatui::style::{Color, Style};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 

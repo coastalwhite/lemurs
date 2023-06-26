@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::Style,
     terminal::Frame,
-    text::{Span, Line, Text},
+    text::{Line, Span, Text},
     widgets::{Block, Paragraph},
 };
 
