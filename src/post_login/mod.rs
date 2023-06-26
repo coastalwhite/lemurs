@@ -1,8 +1,7 @@
 use log::{error, info, warn};
 use std::error::Error;
 use std::fmt::Display;
-use std::fs::{self, File};
-use std::os::fd::{FromRawFd, IntoRawFd};
+use std::fs;
 use std::path::Path;
 
 use users::get_user_groups;
@@ -17,9 +16,11 @@ use crate::post_login::x::setup_x;
 
 use nix::unistd::{Gid, Uid};
 
+use self::wait_with_log::LemursChild;
 use self::x::XSetupError;
 
 pub(crate) mod env_variables;
+mod wait_with_log;
 mod x;
 
 const SYSTEM_SHELL: &str = "/bin/sh";
@@ -75,20 +76,6 @@ impl From<XSetupError> for EnvironmentStartError {
     }
 }
 
-fn output_command_to_log(mut command: Command, log_path: &Path) -> Command {
-    if let Ok(file) = File::create(log_path) {
-        let fd = file.into_raw_fd();
-
-        command
-            .stdout(unsafe { Stdio::from_raw_fd(fd) })
-            .stderr(unsafe { Stdio::from_raw_fd(fd) });
-    } else {
-        warn!("Failed to create and open file to log into");
-    }
-
-    command
-}
-
 fn lower_command_permissions_to_user(
     mut command: Command,
     user_info: &AuthUserInfo<'_>,
@@ -119,15 +106,19 @@ fn lower_command_permissions_to_user(
 }
 
 pub enum SpawnedEnvironment {
-    X11 { server: Child, client: Child },
-    Wayland(Child),
+    X11 {
+        server: LemursChild,
+        client: LemursChild,
+    },
+    Wayland(LemursChild),
     Tty(Child),
 }
 
 impl SpawnedEnvironment {
     pub fn pid(&self) -> u32 {
         match self {
-            Self::X11 { client, .. } | Self::Wayland(client) | Self::Tty(client) => client.id(),
+            Self::X11 { client, .. } | Self::Wayland(client) => client.id(),
+            Self::Tty(client) => client.id(),
         }
     }
 
@@ -146,8 +137,8 @@ impl SpawnedEnvironment {
                     }
                 };
 
-                info!("Killing X server");
-                match server.kill() {
+                info!("Telling X server to shut down");
+                match server.send_sigterm() {
                     Ok(_) => {}
                     Err(err) => error!("Failed to terminate X11. Reason: {err}"),
                 }
@@ -158,7 +149,11 @@ impl SpawnedEnvironment {
                     Err(err) => error!("Failed to wait for X11. Reason: {err}"),
                 }
             }
-            Self::Wayland(mut client) | Self::Tty(mut client) => match client.wait() {
+            Self::Wayland(mut client) => match client.wait() {
+                Ok(exit_code) => info!("Client exited with exit code `{exit_code}`"),
+                Err(err) => error!("Failed to wait for client. Reason: {err}"),
+            },
+            Self::Tty(mut client) => match client.wait() {
                 Ok(exit_code) => info!("Client exited with exit code `{exit_code}`"),
                 Err(err) => error!("Failed to wait for client. Reason: {err}"),
             },
@@ -181,16 +176,7 @@ impl PostLoginEnvironment {
 
         let mut client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
 
-        let mut client = if config.do_log {
-            info!(
-                "Setup client to log `stdout` and `stderr` to '{log_path}'",
-                log_path = config.client_log_path
-            );
-            output_command_to_log(client, Path::new(&config.client_log_path))
-        } else {
-            client.stdout(Stdio::null()).stderr(Stdio::null());
-            client
-        };
+        let log_path = config.do_log.then_some(Path::new(&config.client_log_path));
 
         if let Some(shell_login_flag) = shell_login_flag {
             client.arg(shell_login_flag);
@@ -201,13 +187,13 @@ impl PostLoginEnvironment {
         match self {
             PostLoginEnvironment::X { xinitrc_path } => {
                 info!("Starting X11 session");
+
                 let server = setup_x(process_env, user_info, config)
                     .map_err(EnvironmentStartError::XSetup)?;
 
-                let client = match client
-                    .arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path))
-                    .spawn()
-                {
+                client.arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path));
+
+                let client = match LemursChild::spawn(client, log_path) {
                     Ok(child) => child,
                     Err(err) => {
                         error!("Failed to start X11 environment. Reason '{}'", err);
@@ -219,7 +205,10 @@ impl PostLoginEnvironment {
             }
             PostLoginEnvironment::Wayland { script_path } => {
                 info!("Starting Wayland session");
-                let child = match client.arg(script_path).spawn() {
+
+                client.arg(script_path);
+
+                let child = match LemursChild::spawn(client, log_path) {
                     Ok(child) => child,
                     Err(err) => {
                         error!("Failed to start Wayland Compositor. Reason '{err}'");
