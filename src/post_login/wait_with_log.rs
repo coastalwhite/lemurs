@@ -107,7 +107,7 @@ impl LemursChild {
     }
 
     pub fn send_sigterm(&self) -> io::Result<()> {
-        let i = unsafe { libc::kill(self.id() as libc::pid_t, libc::SIGTERM) };
+        unsafe { libc::kill(self.id() as libc::pid_t, libc::SIGTERM) };
 
         Ok(())
     }
