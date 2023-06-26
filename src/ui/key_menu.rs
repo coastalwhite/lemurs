@@ -3,7 +3,7 @@ use std::process::{Command, Output};
 use crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Style;
-use ratatui::text::{Span, Line, Text};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
