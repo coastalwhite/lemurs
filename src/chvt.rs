@@ -1,6 +1,11 @@
 //! Adapted From https://github.com/jonay2000/chvt-rs
 
-use libc::{c_int, c_ulong};
+#[cfg(not(target_env = "musl"))]
+type RequestType = libc::c_ulong;
+#[cfg(target_env = "musl")]
+type RequestType = libc::c_int;
+
+use libc::c_int;
 use nix::errno::Errno;
 use nix::fcntl::{self, OFlag};
 use nix::sys::stat::Mode;
@@ -8,11 +13,11 @@ use nix::unistd::close;
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Formatter};
 
-const VT_ACTIVATE: c_ulong = 0x5606;
-const VT_WAITACTIVE: c_ulong = 0x5607;
+const VT_ACTIVATE: RequestType = 0x5606;
+const VT_WAITACTIVE: RequestType = 0x5607;
 
 // Request Number to get Keyboard Type
-const KDGKBTYPE: c_ulong = 0x4B33;
+const KDGKBTYPE: RequestType = 0x4B33;
 
 const KB_101: u8 = 0x02;
 const KB_84: u8 = 0x01;
