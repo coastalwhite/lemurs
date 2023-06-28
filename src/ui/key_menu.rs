@@ -78,6 +78,9 @@ impl KeyMenuWidget {
             ));
         }
 
+        let left_widget = Paragraph::new(Line::from(items));
+        frame.render_widget(left_widget, area);
+
         // Since we only allow Fn keys, this should always match if it's set... because of this, an
         // invalid key is effectively the same as "hidden"
         if let SwitcherVisibility::Keybind(KeyCode::F(n)) = self.switcher_config.switcher_visibility
@@ -91,12 +94,6 @@ impl KeyMenuWidget {
             .style(self.switcher_toggle_style());
             frame.render_widget(right_widget, area);
         }
-
-        let mut text = Text::raw("");
-        text.lines.push(Line::from(items));
-        let left_widget = Paragraph::new(text);
-
-        frame.render_widget(left_widget, area);
     }
 
     pub(crate) fn key_press(&self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
