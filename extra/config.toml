@@ -81,6 +81,19 @@ shell_login_flag = "short"
 # - password: Initially focus on the password field
 focus_behaviour = "default"
 
+# General settings for background style
+[background]
+
+# Control whether to render background widget or not
+show_background = false
+
+[background.style]
+# Allow to set the default background color for the login shell
+color = "black"
+# Settings for the background block's borders
+show_border = true
+border_color = "white"
+
 [power_controls]
 # Allow for the shutdown option to be used
 allow_shutdown = true

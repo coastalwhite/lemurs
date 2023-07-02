@@ -175,10 +175,23 @@ toml_config_struct! { Config, PartialConfig,
 
     focus_behaviour => FocusBehaviour,
 
+    background => BackgroundConfig [PartialBackgroundConfig],
+
     power_controls => PowerControlConfig [PartialPowerControlConfig],
     environment_switcher => SwitcherConfig [PartialSwitcherConfig],
     username_field => UsernameFieldConfig [PartialUsernameFieldConfig],
     password_field => PasswordFieldConfig [PartialPasswordFieldConfig],
+}
+
+toml_config_struct! { BackgroundStyleConfig, PartialBackgroundStyleConfig,
+    color => String,
+    show_border => bool,
+    border_color => String,
+}
+
+toml_config_struct! { BackgroundConfig, PartialBackgroundConfig,
+    show_background => bool,
+    style => BackgroundStyleConfig [PartialBackgroundStyleConfig],
 }
 
 toml_config_struct! { PowerControlConfig, PartialPowerControlConfig,
