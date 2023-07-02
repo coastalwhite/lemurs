@@ -20,6 +20,7 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::{backend::Backend, Frame, Terminal};
 
+mod background;
 mod chunks;
 mod input_field;
 mod key_menu;
@@ -31,6 +32,8 @@ use input_field::{InputFieldDisplayType, InputFieldWidget};
 use key_menu::KeyMenuWidget;
 use status_message::{ErrorStatusMessage, InfoStatusMessage};
 use switcher::{SwitcherItem, SwitcherWidget};
+
+use self::background::BackgroundWidget;
 
 #[derive(Clone)]
 struct LoginFormInputMode(Arc<Mutex<InputMode>>);
@@ -162,6 +165,7 @@ enum UIThreadRequest {
 
 #[derive(Clone)]
 struct Widgets {
+    background: BackgroundWidget,
     key_menu: KeyMenuWidget,
     environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
@@ -280,6 +284,7 @@ impl LoginForm {
         LoginForm {
             preview,
             widgets: Widgets {
+                background: BackgroundWidget::new(config.background.clone()),
                 key_menu: KeyMenuWidget::new(
                     config.power_controls.clone(),
                     config.environment_switcher.clone(),
@@ -341,7 +346,7 @@ impl LoginForm {
             FocusBehaviour::Password => InputMode::Password,
         });
         let status_message = LoginFormStatusMessage::new();
-
+        let background = self.widgets.background.clone();
         let key_menu = self.widgets.key_menu.clone();
         let environment = self.widgets.environment.clone();
         let username = self.widgets.username.clone();
@@ -352,6 +357,7 @@ impl LoginForm {
             login_form_render(
                 f,
                 layout,
+                background.clone(),
                 key_menu.clone(),
                 environment.clone(),
                 username.clone(),
@@ -555,6 +561,7 @@ impl LoginForm {
                         login_form_render(
                             f,
                             layout,
+                            background.clone(),
                             key_menu.clone(),
                             environment.clone(),
                             username.clone(),
@@ -595,6 +602,7 @@ impl LoginForm {
 fn login_form_render<B: Backend>(
     frame: &mut Frame<B>,
     chunks: Chunks,
+    background: BackgroundWidget,
     key_menu: KeyMenuWidget,
     environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
@@ -602,6 +610,7 @@ fn login_form_render<B: Backend>(
     input_mode: InputMode,
     status_message: Option<StatusMessage>,
 ) {
+    background.render(frame);
     key_menu.render(frame, chunks.key_menu);
     environment
         .lock()
