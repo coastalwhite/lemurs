@@ -8,7 +8,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use log::{error, info, warn};
+use log::{error, info};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
@@ -39,39 +39,7 @@ use self::{
     },
 };
 
-const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
-
-fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
-    let load_config_path = config_path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
-
-    match config::PartialConfig::from_file(load_config_path) {
-        Ok(partial_config) => {
-            info!(
-                "Successfully loaded configuration file from '{}'",
-                load_config_path.display()
-            );
-            config.merge_in_partial(partial_config)
-        }
-        Err(err) => {
-            // If we have given it a specific config path, it should crash if this file cannot be
-            // loaded. If it is the default config location just put a warning in the logs.
-            if let Some(config_path) = config_path {
-                eprintln!(
-                    "The config file '{}' cannot be loaded.\nReason: {}",
-                    config_path.display(),
-                    err
-                );
-                process::exit(1);
-            } else {
-                warn!(
-                    "No configuration file loaded from the expected location ({}). Reason: {}",
-                    DEFAULT_CONFIG_PATH, err
-                );
-            }
-        }
-    }
-}
 
 fn setup_logger(log_path: &str) {
     let log_file = Box::new(File::create(log_path).unwrap_or_else(|_| {
@@ -94,8 +62,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
 
     // Load and setup configuration
-    let mut config = Config::default();
-    merge_in_configuration(&mut config, cli.config.as_deref());
+    let load_config_path = cli.config.as_deref();
+    let mut config = Config::load(load_config_path);
 
     if let Some(cmd) = cli.command {
         match cmd {

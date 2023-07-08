@@ -1,13 +1,16 @@
+use crossterm::event::KeyCode;
+use log::{error, info, warn};
+use serde::de::DeserializeOwned;
+use serde::{de::Error, Deserialize};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::Path;
 use std::process;
 
-use crossterm::event::KeyCode;
-use log::error;
-use serde::{de::Error, Deserialize};
-
 use ratatui::style::{Color, Modifier};
+
+const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 
 pub fn get_color(color: &str) -> Color {
     if let Some(color) = str_to_color(color) {
@@ -155,6 +158,17 @@ macro_rules! toml_config_struct {
             }
         }
     }
+}
+
+use std::path::PathBuf;
+#[derive(Debug, Deserialize)]
+pub struct VariablesConfig {
+    pub variables_opt: Option<HashMap<String, String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IncludesConfig {
+    pub includes_opt: Option<Vec<PathBuf>>,
 }
 
 toml_config_struct! { Config, PartialConfig,
@@ -354,22 +368,75 @@ impl Default for Config {
     }
 }
 
-impl PartialConfig {
-    pub fn from_file(path: &Path) -> io::Result<PartialConfig> {
-        let file = File::open(path)?;
+impl Config {
+    pub fn load(path: Option<&Path>) -> Config {
+        let load_config_path = path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
+        let mut config = Config::default();
 
-        let mut buf_reader = BufReader::new(file);
-        let mut contents = String::new();
+        let _includes = from_file::<IncludesConfig>(load_config_path).unwrap();
+        let _vars = from_file::<VariablesConfig>(load_config_path).unwrap();
 
-        buf_reader.read_to_string(&mut contents)?;
+        merge_in_configuration(&mut config, path);
 
-        match toml::from_str(&contents) {
-            Ok(config) => Ok(config),
-            Err(err) => {
-                eprintln!("Given configuration file contains errors:");
-                eprintln!("{err}");
-                std::process::exit(1);
+        config
+    }
+}
+
+fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
+    let load_config_path = config_path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
+
+    match from_file::<PartialConfig>(load_config_path) {
+        Ok(partial_config) => {
+            info!(
+                "Successfully loaded configuration file from '{}'",
+                load_config_path.display()
+            );
+            config.merge_in_partial(partial_config)
+        }
+        Err(err) => {
+            // If we have given it a specific config path, it should crash if this file cannot be
+            // loaded. If it is the default config location just put a warning in the logs.
+
+            // Current control flow will return exit code 1 when a deserialization error occurs
+            if let Some(config_path) = config_path {
+                eprintln!(
+                    "The config file '{}' cannot be loaded.\nReason: {}",
+                    config_path.display(),
+                    err
+                );
+                process::exit(1);
+            } else {
+                warn!(
+                    "No configuration file loaded from the expected location ({}). Reason: {}",
+                    DEFAULT_CONFIG_PATH, err
+                );
             }
+        }
+    }
+}
+
+pub fn read_to_string(path: &Path) -> io::Result<String> {
+    let file = File::open(path)?;
+
+    let mut buf_reader = BufReader::new(file);
+    let mut contents = String::new();
+
+    buf_reader.read_to_string(&mut contents)?;
+    Ok(contents)
+}
+
+pub fn from_file<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
+    let contents = read_to_string(path)?;
+    Ok(from_string(contents))
+}
+
+pub fn from_string<T: DeserializeOwned, S: AsRef<str>>(contents: S) -> T {
+    match toml::from_str::<T>(contents.as_ref()) {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("Given configuration file contains errors:");
+            eprintln!("{err}");
+            std::process::exit(1);
         }
     }
 }
