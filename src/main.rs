@@ -1,6 +1,6 @@
-use std::error::Error;
 use std::fs::File;
 use std::io;
+use std::{error::Error, path::Path};
 
 use crossterm::{
     execute,
@@ -37,6 +37,7 @@ use self::{
     },
 };
 
+const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
 
 fn setup_logger(log_path: &str) {
@@ -60,8 +61,27 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
 
     // Load and setup configuration
-    let load_config_path = cli.config.as_deref();
-    let mut config = Config::load(load_config_path);
+    let mut should_crash = true;
+    let cli_config_path = cli.config.as_deref();
+    let load_config_path = cli_config_path.unwrap_or_else(|| {
+        should_crash = false;
+        Path::new(DEFAULT_CONFIG_PATH)
+    });
+
+    let mut config = match Config::load(load_config_path) {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!(
+                "The config file '{}' cannot be loaded.\nReason: {}",
+                load_config_path.display(),
+                err
+            );
+            if should_crash {
+                std::process::exit(1);
+            }
+            Config::default()
+        }
+    };
 
     if let Some(cmd) = cli.command {
         match cmd {

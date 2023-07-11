@@ -1,5 +1,5 @@
 use crossterm::event::KeyCode;
-use log::{error, info, warn};
+use log::error;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::de::DeserializeOwned;
@@ -13,8 +13,6 @@ use std::process;
 use toml::Value;
 
 use ratatui::style::{Color, Modifier};
-
-const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 
 #[derive(Debug)]
 pub struct VarError {
@@ -387,48 +385,19 @@ impl Default for Config {
 
 impl Config {
     /// Facilitates the loading of the entire configuration
-    pub fn load(path: Option<&Path>) -> Config {
-        let mut should_crash = true;
-        let load_config_path = path.unwrap_or_else(|| {
-            should_crash = false;
-            Path::new(DEFAULT_CONFIG_PATH)
-        });
-
+    pub fn load(path: &Path) -> Result<Config, Box<dyn std::error::Error>> {
         let mut config = Config::default();
 
-        match load_as_parts(load_config_path) {
-            Ok((config_str, var_config)) => {
-                let config_str = apply_variables(config_str, &var_config);
-                let partial = from_string::<PartialConfig, _>(&config_str);
-                info!(
-                    "Successfully loaded configuration file from '{}'",
-                    load_config_path.display()
-                );
-                config.merge_in_partial(partial);
-            }
-            Err(err) => {
-                if should_crash {
-                    eprintln!(
-                        "The config file '{}' cannot be loaded.\nReason: {}",
-                        load_config_path.display(),
-                        err
-                    );
-                    process::exit(1);
-                } else {
-                    warn!(
-                        "No configuration file loaded from the expected location ({}). Reason: {}",
-                        DEFAULT_CONFIG_PATH, err
-                    );
-                }
-            }
-        };
-
-        config
+        let (config_str, var_config) = load_as_parts(path)?;
+        let processed_config = apply_variables(config_str, &var_config)?;
+        let partial = from_string::<PartialConfig, _>(&processed_config);
+        config.merge_in_partial(partial);
+        Ok(config)
     }
 }
 
 /// Substitutes variables present in the configuration string
-fn apply_variables(config_str: String, var_config: &VariablesConfig) -> String {
+fn apply_variables(config_str: String, var_config: &VariablesConfig) -> Result<String, VarError> {
     static VARIABLE_REGEX: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r"\$([a-zA-Z_][a-zA-Z0-9_]*)")
             .expect("Failed to compile the variable substitution regex")
@@ -442,18 +411,10 @@ fn apply_variables(config_str: String, var_config: &VariablesConfig) -> String {
         .map(|m| (m.start(), m.end(), m.as_str()))
     {
         let var_ident = &var[1..var.len()];
-        let var_val = match var_config.variables.get(var_ident) {
-            Some(val) => val,
-            None => {
-                let err = VarError {
-                    variable: var_ident.to_owned(),
-                    pos: start,
-                };
-                eprintln!("Given configuration file contains errors:");
-                eprintln!("Failed to process variables: {}", err);
-                std::process::exit(1);
-            }
-        };
+        let var_val = var_config.variables.get(var_ident).ok_or(VarError {
+            variable: var_ident.to_owned(),
+            pos: start,
+        })?;
         output.push_str(&config_str[last..start - 1]);
 
         // any case that is not a string, will not be wrapped in brackets
@@ -470,7 +431,7 @@ fn apply_variables(config_str: String, var_config: &VariablesConfig) -> String {
         output.push_str(&config_str[last..config_len]);
     }
 
-    output
+    Ok(output)
 }
 
 /// Helper function to facilitate immediate deserialization of variables along passing the original file content
