@@ -1,16 +1,38 @@
 use crossterm::event::KeyCode;
 use log::{error, info, warn};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde::{de::Error, Deserialize};
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::Path;
 use std::process;
+use toml::Value;
 
 use ratatui::style::{Color, Modifier};
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
+
+#[derive(Debug)]
+pub struct VarError {
+    variable: String,
+    pos: usize,
+}
+
+impl std::error::Error for VarError {}
+
+impl Display for VarError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Variable {} not found at position {}",
+            self.variable, self.pos
+        )
+    }
+}
 
 pub fn get_color(color: &str) -> Color {
     if let Some(color) = str_to_color(color) {
@@ -160,15 +182,10 @@ macro_rules! toml_config_struct {
     }
 }
 
-use std::path::PathBuf;
 #[derive(Debug, Deserialize)]
 pub struct VariablesConfig {
-    pub variables_opt: Option<HashMap<String, String>>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct IncludesConfig {
-    pub includes_opt: Option<Vec<PathBuf>>,
+    #[serde(default)]
+    pub variables: HashMap<String, toml::Value>,
 }
 
 toml_config_struct! { Config, PartialConfig,
@@ -369,53 +386,105 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Facilitates the loading of the entire configuration
     pub fn load(path: Option<&Path>) -> Config {
-        let load_config_path = path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
+        let mut should_crash = true;
+        let load_config_path = path.unwrap_or_else(|| {
+            should_crash = false;
+            Path::new(DEFAULT_CONFIG_PATH)
+        });
+
         let mut config = Config::default();
 
-        let _includes = from_file::<IncludesConfig>(load_config_path).unwrap();
-        let _vars = from_file::<VariablesConfig>(load_config_path).unwrap();
-
-        merge_in_configuration(&mut config, path);
+        match load_as_parts(load_config_path) {
+            Ok((config_str, var_config)) => {
+                let config_str = apply_variables(config_str, &var_config);
+                let partial = from_string::<PartialConfig, _>(&config_str);
+                info!(
+                    "Successfully loaded configuration file from '{}'",
+                    load_config_path.display()
+                );
+                config.merge_in_partial(partial);
+            }
+            Err(err) => {
+                if should_crash {
+                    eprintln!(
+                        "The config file '{}' cannot be loaded.\nReason: {}",
+                        load_config_path.display(),
+                        err
+                    );
+                    process::exit(1);
+                } else {
+                    warn!(
+                        "No configuration file loaded from the expected location ({}). Reason: {}",
+                        DEFAULT_CONFIG_PATH, err
+                    );
+                }
+            }
+        };
 
         config
     }
 }
 
-fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
-    let load_config_path = config_path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
+/// Substitutes variables present in the configuration string
+fn apply_variables(config_str: String, var_config: &VariablesConfig) -> String {
+    static VARIABLE_REGEX: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"\$([a-zA-Z_][a-zA-Z0-9_]*)")
+            .expect("Failed to compile the variable substitution regex")
+    });
 
-    match from_file::<PartialConfig>(load_config_path) {
-        Ok(partial_config) => {
-            info!(
-                "Successfully loaded configuration file from '{}'",
-                load_config_path.display()
-            );
-            config.merge_in_partial(partial_config)
-        }
-        Err(err) => {
-            // If we have given it a specific config path, it should crash if this file cannot be
-            // loaded. If it is the default config location just put a warning in the logs.
-
-            // Current control flow will return exit code 1 when a deserialization error occurs
-            if let Some(config_path) = config_path {
-                eprintln!(
-                    "The config file '{}' cannot be loaded.\nReason: {}",
-                    config_path.display(),
-                    err
-                );
-                process::exit(1);
-            } else {
-                warn!(
-                    "No configuration file loaded from the expected location ({}). Reason: {}",
-                    DEFAULT_CONFIG_PATH, err
-                );
+    let mut output = String::new();
+    let mut last = 0;
+    let config_len = config_str.len();
+    for (start, end, var) in VARIABLE_REGEX
+        .find_iter(&config_str)
+        .map(|m| (m.start(), m.end(), m.as_str()))
+    {
+        let var_ident = &var[1..var.len()];
+        let var_val = match var_config.variables.get(var_ident) {
+            Some(val) => val,
+            None => {
+                let err = VarError {
+                    variable: var_ident.to_owned(),
+                    pos: start,
+                };
+                eprintln!("Given configuration file contains errors:");
+                eprintln!("Failed to process variables: {}", err);
+                std::process::exit(1);
             }
+        };
+        output.push_str(&config_str[last..start - 1]);
+
+        // any case that is not a string, will not be wrapped in brackets
+        if let Value::String(var_string) = var_val {
+            output.push_str(&format!("\"{}\"", var_string));
+        } else {
+            output.push_str(&var_val.to_string());
         }
+
+        last = end + 1;
+    }
+
+    if last != config_len {
+        output.push_str(&config_str[last..config_len]);
+    }
+
+    output
+}
+
+/// Helper function to facilitate immediate deserialization of variables along passing the original file content
+fn load_as_parts(path: &Path) -> io::Result<(String, VariablesConfig)> {
+    match read_to_string(path) {
+        Ok(contents) => {
+            let variables = from_string::<VariablesConfig, _>(&contents);
+            Ok((contents, variables))
+        }
+        Err(err) => Err(err),
     }
 }
 
-pub fn read_to_string(path: &Path) -> io::Result<String> {
+fn read_to_string(path: &Path) -> io::Result<String> {
     let file = File::open(path)?;
 
     let mut buf_reader = BufReader::new(file);
@@ -425,12 +494,8 @@ pub fn read_to_string(path: &Path) -> io::Result<String> {
     Ok(contents)
 }
 
-pub fn from_file<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
-    let contents = read_to_string(path)?;
-    Ok(from_string(contents))
-}
-
-pub fn from_string<T: DeserializeOwned, S: AsRef<str>>(contents: S) -> T {
+/// Generic configuration file loading
+fn from_string<T: DeserializeOwned, S: AsRef<str>>(contents: S) -> T {
     match toml::from_str::<T>(contents.as_ref()) {
         Ok(config) => config,
         Err(err) => {
