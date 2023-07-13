@@ -1,7 +1,5 @@
 use crossterm::event::KeyCode;
 use log::error;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde::{de::Error, Deserialize};
 use std::collections::HashMap;
@@ -395,35 +393,60 @@ impl Config {
         Ok(config)
     }
 }
+/// Iterator over variables in a given string
+/// Assumes the presence of quotes
+struct VariableIterator<'a> {
+    inner: &'a str,
+    last: usize,
+}
+
+impl<'a> VariableIterator<'a> {
+    pub fn new(text: &'a str) -> Self {
+        Self {
+            inner: text,
+            last: 0,
+        }
+    }
+}
+impl<'a> Iterator for VariableIterator<'a> {
+    type Item = (usize, usize);
+    fn next(&mut self) -> Option<Self::Item> {
+        const START_PAT: &str = "\"$";
+        const START_PAT_LEN: usize = START_PAT.len();
+
+        let start = match self.inner[self.last..].find(START_PAT) {
+            Some(pos) => self.last + pos,
+            None => return None,
+        };
+
+        let end = self.inner[start + START_PAT_LEN..] // skip the "$ pattern
+            .find(|c: char| !c.is_alphanumeric() && c != '_')
+            .map(|index| start + index + START_PAT_LEN + 1)
+            .unwrap_or_else(|| self.inner.len());
+        self.last = end;
+
+        Some((start, end))
+    }
+}
 
 /// Substitutes variables present in the configuration string
 fn apply_variables(config_str: String, var_config: &VariablesConfig) -> Result<String, VarError> {
-    static VARIABLE_REGEX: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"\$([a-zA-Z_][a-zA-Z0-9_]*)")
-            .expect("Failed to compile the variable substitution regex")
-    });
-
     let mut output = String::new();
     let mut last = 0;
     let config_len = config_str.len();
-    for (start, end, var) in VARIABLE_REGEX
-        .find_iter(&config_str)
-        .map(|m| (m.start(), m.end(), m.as_str()))
-    {
-        let var_ident = &var[1..var.len()];
+    for (start, end) in VariableIterator::new(&config_str) {
+        let var_ident = &config_str[start + 2..end - 1];
         let var_val = var_config.variables.get(var_ident).ok_or(VarError {
             variable: var_ident.to_owned(),
             pos: start,
         })?;
-        output.push_str(&config_str[last..start - 1]);
+        output.push_str(&config_str[last..start]);
 
         // any case that is not a string, will not be wrapped in brackets
-        if let Value::String(var_string) = var_val {
-            output.push_str(&format!("\"{}\"", var_string));
-        } else {
-            output.push_str(&var_val.to_string());
-        }
-
+        match var_val {
+            Value::String(val) => output.push_str(&format!("\"{}\"", val)),
+            _ => output.push_str(&var_val.to_string()),
+        };
         last = end + 1;
     }
 
@@ -463,6 +486,33 @@ fn from_string<T: DeserializeOwned, S: AsRef<str>>(contents: S) -> T {
             eprintln!("Given configuration file contains errors:");
             eprintln!("{err}");
             std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VariableIterator;
+
+    #[test]
+    fn test_variable_iterator() {
+        let test_cases = [
+            (
+                "TESTMEPLS \"$test5\" ME and \"$another\"",
+                2,
+                vec!["\"$test5\"", "\"$another\""],
+            ),
+            (
+                "\"$var1\" \"$var2\" $5var",
+                2,
+                vec!["\"$var1\"", "\"$var2\""],
+            ),
+        ];
+        for (text, count, variables) in test_cases {
+            let iter = VariableIterator::new(text);
+            let collected_vars: Vec<_> = iter.map(|(start, end)| &text[start..end]).collect();
+            assert_eq!(variables, collected_vars);
+            assert_eq!(count, collected_vars.len());
         }
     }
 }
