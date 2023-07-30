@@ -4,8 +4,6 @@ use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 
-use users::get_user_groups;
-
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
@@ -81,15 +79,13 @@ fn lower_command_permissions_to_user(
     user_info: &AuthUserInfo<'_>,
 ) -> Command {
     let uid = user_info.uid;
-    let gid = user_info.gid;
-    let groups: Vec<Gid> = get_user_groups(&user_info.name, gid)
-        .unwrap_or_else(|| {
-            error!("Failed to get user groups. This should not happen here...");
-            std::process::exit(1);
-        })
+    let gid = user_info.primary_gid;
+    let groups = user_info
+        .all_gids
         .iter()
-        .map(|group| Gid::from_raw(group.gid()))
-        .collect();
+        .cloned()
+        .map(|gid| Gid::from_raw(gid))
+        .collect::<Vec<Gid>>();
 
     unsafe {
         command.pre_exec(move || {

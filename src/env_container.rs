@@ -86,7 +86,7 @@ impl Drop for EnvironmentContainer {
             }
         }
 
-        info!("Reverting to working directory before session");
+        info!("Reverting to environment before session");
         if env::set_current_dir(&self.snapshot_pwd).is_err() {
             error!(
                 "Failed to change the working directory back to {}",
