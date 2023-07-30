@@ -35,9 +35,6 @@ pub fn open_session<'a>(
     password: &str,
     pam_service: &str,
 ) -> Result<AuthUserInfo<'a>, AuthenticationError> {
-    let username = username.to_string();
-    let password = password.to_string();
-
     info!("Started opening session");
 
     let mut authenticator = Authenticator::with_password(pam_service)
@@ -48,7 +45,7 @@ pub fn open_session<'a>(
     // Authenticate the user
     authenticator
         .get_handler()
-        .set_credentials(&username, &password);
+        .set_credentials(username, password);
 
     info!("Got handler");
 
@@ -59,7 +56,7 @@ pub fn open_session<'a>(
 
     info!("Validated account");
 
-    let user = users::get_user_by_name(&username).ok_or(AuthenticationError::UsernameNotFound)?;
+    let user = users::get_user_by_name(username).ok_or(AuthenticationError::UsernameNotFound)?;
 
     let uid = user.uid();
     let primary_gid = user.primary_group_id();
