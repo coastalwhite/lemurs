@@ -10,6 +10,27 @@ pub fn set_display(display: &str, process_env: &mut EnvironmentContainer) {
     process_env.set("DISPLAY", display);
 }
 
+pub fn remove_xdg(process_env: &mut EnvironmentContainer) {
+    info!("Clearing XDG preemptively to set later");
+
+    process_env.remove_var("XDG_SESSION_CLASS");
+    process_env.remove_var("XDG_CURRENT_DESKTOP");
+    process_env.remove_var("XDG_SESSION_DESKTOP");
+
+    process_env.remove_var("XDG_SEAT");
+    process_env.remove_var("XDG_VTNR");
+
+    process_env.remove_var("XDG_RUNTIME_DIR");
+    process_env.remove_var("XDG_SESSION_ID");
+
+    process_env.remove_var("XDG_CONFIG_DIR");
+    process_env.remove_var("XDG_CACHE_HOME");
+    process_env.remove_var("XDG_DATA_HOME");
+    process_env.remove_var("XDG_STATE_HOME");
+    process_env.remove_var("XDG_DATA_DIRS");
+    process_env.remove_var("XDG_CONFIG_DIRS");
+}
+
 pub fn set_session_params(
     process_env: &mut EnvironmentContainer,
     post_login_env: &PostLoginEnvironment,
@@ -65,10 +86,10 @@ pub fn set_xdg_common_paths(process_env: &mut EnvironmentContainer, homedir: &st
     info!("Setting XDG Common Paths");
 
     // This is according to https://wiki.archlinux.org/title/XDG_Base_Directory
-    process_env.set("XDG_CONFIG_DIR", &format!("{homedir}/.config"));
-    process_env.set("XDG_CACHE_HOME", &format!("{homedir}/.cache"));
-    process_env.set("XDG_DATA_HOME", &format!("{homedir}/.local/share"));
-    process_env.set("XDG_STATE_HOME", &format!("{homedir}/.local/state"));
-    process_env.set("XDG_DATA_DIRS", "/usr/local/share:/usr/share");
-    process_env.set("XDG_CONFIG_DIRS", "/etc/xdg");
+    process_env.set_or_own("XDG_CONFIG_HOME", &format!("{homedir}/.config"));
+    process_env.set_or_own("XDG_CACHE_HOME", &format!("{homedir}/.cache"));
+    process_env.set_or_own("XDG_DATA_HOME", &format!("{homedir}/.local/share"));
+    process_env.set_or_own("XDG_STATE_HOME", &format!("{homedir}/.local/state"));
+    process_env.set_or_own("XDG_DATA_DIRS", "/usr/local/share:/usr/share");
+    process_env.set_or_own("XDG_CONFIG_DIRS", "/etc/xdg");
 }
