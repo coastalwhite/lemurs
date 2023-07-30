@@ -1,13 +1,17 @@
 use log::info;
 
-use pam::{Authenticator, PasswordConv};
-use pgs_files::passwd::{get_entry_by_name, PasswdEntry};
+use pam::Authenticator;
+use users::os::unix::UserExt;
+
+use crate::auth::AuthUserInfo;
 
 /// All the different errors that can occur during PAM opening an authenticated session
 #[derive(Clone)]
 pub enum AuthenticationError {
     PamService(String),
     AccountValidation,
+    HomeDirInvalidUtf8,
+    ShellInvalidUtf8,
     UsernameNotFound,
     SessionOpen,
 }
@@ -17,6 +21,8 @@ impl ToString for AuthenticationError {
         match self {
             AuthenticationError::PamService(service) => format!("Failed to create authenticator with PAM service '{service}'"),
             AuthenticationError::AccountValidation => "Invalid login credentials".to_string(),
+            AuthenticationError::HomeDirInvalidUtf8 => "User home directory path contains invalid UTF-8".to_string(),
+            AuthenticationError::ShellInvalidUtf8 => "User shell path contains invalid UTF-8".to_string(),
             AuthenticationError::UsernameNotFound => "Login creditionals are valid, but username is not found. This should not be possible :(".to_string(),
             AuthenticationError::SessionOpen => "Failed to open a PAM session".to_string(),
         }
@@ -28,7 +34,7 @@ pub fn open_session<'a>(
     username: &str,
     password: &str,
     pam_service: &str,
-) -> Result<(Authenticator<'a, PasswordConv>, PasswdEntry), AuthenticationError> {
+) -> Result<AuthUserInfo<'a>, AuthenticationError> {
     let username = username.to_string();
     let password = password.to_string();
 
@@ -53,8 +59,23 @@ pub fn open_session<'a>(
 
     info!("Validated account");
 
-    // NOTE: Maybe we should also load all groups here
-    let passwd_entry = get_entry_by_name(&username).ok_or(AuthenticationError::UsernameNotFound)?;
+    let user = users::get_user_by_name(&username).ok_or(AuthenticationError::UsernameNotFound)?;
+
+    let uid = user.uid();
+    let primary_gid = user.primary_group_id();
+    let all_gids = user.groups().map_or_else(Vec::default, |v| {
+        v.into_iter().map(|group| group.gid()).collect()
+    });
+    let home_dir = user
+        .home_dir()
+        .to_str()
+        .ok_or(AuthenticationError::HomeDirInvalidUtf8)?
+        .to_string();
+    let shell = user
+        .shell()
+        .to_str()
+        .ok_or(AuthenticationError::ShellInvalidUtf8)?
+        .to_string();
 
     authenticator
         .open_session()
@@ -62,6 +83,15 @@ pub fn open_session<'a>(
 
     info!("Opened session");
 
-    // NOTE: Logout happens automatically here with `drop` of session and context
-    Ok((authenticator, passwd_entry))
+    // NOTE: Logout happens automatically here with `drop` of authenticator
+    Ok(AuthUserInfo {
+        authenticator,
+
+        username: username.to_string(),
+        uid,
+        primary_gid,
+        all_gids,
+        home_dir,
+        shell,
+    })
 }

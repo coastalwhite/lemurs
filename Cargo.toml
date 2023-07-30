@@ -32,7 +32,6 @@ libc = "0.2"
 
 # Authentication and Fetching User Data
 pam = "0.7.0"
-pgs-files = "0.0.7"
 users = "0.11.0"
 
 # Once Cell

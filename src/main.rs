@@ -263,7 +263,7 @@ fn start_session(
 
     let tty = config.tty;
     let uid = auth_session.uid;
-    let homedir = &auth_session.dir;
+    let homedir = &auth_session.home_dir;
     let shell = &auth_session.shell;
 
     set_seat_vars(&mut process_env, tty);

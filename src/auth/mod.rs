@@ -13,11 +13,11 @@ pub struct AuthUserInfo<'a> {
     #[allow(dead_code)]
     authenticator: Authenticator<'a, PasswordConv>,
 
-    pub name: String,
-    pub uid: u32,
-    pub gid: u32,
-    pub gecos: String,
-    pub dir: String,
+    pub username: String,
+    pub uid: libc::uid_t,
+    pub primary_gid: libc::gid_t,
+    pub all_gids: Vec<libc::gid_t>,
+    pub home_dir: String,
     pub shell: String,
 }
 
@@ -28,22 +28,12 @@ pub fn try_auth<'a>(
 ) -> Result<AuthUserInfo<'a>, AuthenticationError> {
     info!("Login attempt for '{username}'");
 
-    open_session(username, password, pam_service)
-        .map(|(authenticator, entry)| AuthUserInfo {
-            authenticator,
-            name: entry.name,
-            uid: entry.uid,
-            gid: entry.gid,
-            gecos: entry.gecos,
-            dir: entry.dir,
-            shell: entry.shell,
-        })
-        .map_err(|err| {
-            info!(
-                "Authentication failed for '{}'. Reason: {}",
-                username,
-                err.to_string()
-            );
-            err
-        })
+    open_session(username, password, pam_service).map_err(|err| {
+        info!(
+            "Authentication failed for '{}'. Reason: {}",
+            username,
+            err.to_string()
+        );
+        err
+    })
 }

@@ -83,8 +83,11 @@ pub fn setup_x(
     let vtnr_value = env::var("XDG_VTNR").map_err(|_| XSetupError::VTNREnvVar)?;
 
     // Setup xauth
-    let xauth_dir =
-        PathBuf::from(env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| user_info.dir.to_string()));
+    let xauth_dir = if let Ok(config_home) = env::var("XDG_CONFIG_HOME") {
+        PathBuf::from(config_home)
+    } else {
+        PathBuf::from(user_info.home_dir.clone())
+    };
     let xauth_path = xauth_dir.join(".Xauthority");
 
     info!(
@@ -104,7 +107,7 @@ pub fn setup_x(
             mcookie()
         ))
         .uid(user_info.uid)
-        .gid(user_info.gid)
+        .gid(user_info.primary_gid)
         .stdout(Stdio::null()) // TODO: Maybe this should be logged or something?
         .stderr(Stdio::null()) // TODO: Maybe this should be logged or something?
         .status()
