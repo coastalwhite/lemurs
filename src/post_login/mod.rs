@@ -84,7 +84,7 @@ fn lower_command_permissions_to_user(
         .all_gids
         .iter()
         .cloned()
-        .map(|gid| Gid::from_raw(gid))
+        .map(Gid::from_raw)
         .collect::<Vec<Gid>>();
 
     unsafe {
