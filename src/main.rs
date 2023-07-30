@@ -34,8 +34,8 @@ use self::{
     auth::AuthenticationError,
     env_container::EnvironmentContainer,
     post_login::env_variables::{
-        set_basic_variables, set_display, set_seat_vars, set_session_params, set_session_vars,
-        set_xdg_common_paths,
+        remove_xdg, set_basic_variables, set_display, set_seat_vars, set_session_params,
+        set_session_vars, set_xdg_common_paths,
     },
 };
 
@@ -254,6 +254,7 @@ fn start_session(
         set_display(&config.x11_display, &mut process_env);
     }
     set_session_params(&mut process_env, post_login_env);
+    remove_xdg(&mut process_env);
 
     let auth_session = try_auth(username, password, &config.pam_service)?;
 

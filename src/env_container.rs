@@ -55,6 +55,13 @@ impl EnvironmentContainer {
         }
     }
 
+    pub fn remove_var(&mut self, key: &'static str) {
+        if env::var(key).is_ok() {
+            info!("Preemptively removed environment variable '{key}'",);
+            env::remove_var(key);
+        }
+    }
+
     /// Sets the working directory
     pub fn set_current_dir(&mut self, value: impl Into<String>) {
         let value = value.into();
