@@ -14,7 +14,7 @@ pub struct Chunks {
 }
 
 impl Chunks {
-    pub fn new<B: Backend>(frame: &mut Frame<B>) -> Self {
+    pub fn new<B: Backend>(frame: &Frame<B>) -> Self {
         let constraints = [
             Length(1),
             Length(1),
