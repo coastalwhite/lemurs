@@ -30,11 +30,11 @@ Installation follows three steps.
 
 ### Arch Linux
 
-Lemurs can be installed from the [AUR](https://aur.archlinux.org). This will
+Lemurs can be installed from the [AUR](https://aur.archlinux.org/packages/lemurs). This will
 build the package on your local machine.
 
 ```bash
-paru -S lemurs-git # paru can be replaced by any other AUR helper
+paru -S lemurs # paru can be replaced by any other AUR helper
 
 # Not needed if do don't have a window manager yet
 sudo systemctl disable display-manager.service
