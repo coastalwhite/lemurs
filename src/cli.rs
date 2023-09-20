@@ -13,6 +13,7 @@ USAGE: lemurs [OPTIONS] [SUBCOMMAND]
 
 OPTIONS:
     -c, --config <FILE>    A file to replace the default configuration
+    -v, --variables <FILE> A file to replace the set variables
     -h, --help             Print help information
         --no-log
         --preview
@@ -34,6 +35,7 @@ pub struct Cli {
     pub no_log: bool,
     pub tty: Option<u8>,
     pub config: Option<PathBuf>,
+    pub variables: Option<PathBuf>,
     pub command: Option<Commands>,
 }
 
@@ -76,6 +78,7 @@ impl Cli {
             no_log: false,
             tty: None,
             config: None,
+            variables: None,
             command: None,
         };
 
@@ -103,6 +106,11 @@ impl Cli {
                     let (_, arg) = args.next().ok_or(CliError::MissingArgument("config"))?;
                     let arg = PathBuf::from(arg);
                     cli.config = Some(arg);
+                }
+                (_, "--variables") | (_, "-v") => {
+                    let (_, arg) = args.next().ok_or(CliError::MissingArgument("variables"))?;
+                    let arg = PathBuf::from(arg);
+                    cli.variables = Some(arg);
                 }
                 (_, arg) => return Err(CliError::InvalidArgument(arg.to_string())),
             }

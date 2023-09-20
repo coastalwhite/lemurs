@@ -100,11 +100,51 @@ Upon rebooting your new `sway` should show up within Lemurs.
 
 ## Configuration
 
-Many parts for the UI can be configured with the `/etc/lemurs/config.toml`
-file. This file contains all the options and explanations of their purpose.
-The flag `--config <CONFIG FIlE>` can be used to select another configuration
-file instead. An example configuration can be found in the `extra` folder in
-this repository.
+Configuration is done through a [TOML] file. By default, Lemurs searches for a
+`/etc/lemurs/config.toml` file, but an alternative location can be specified
+using the `--config <path/to/config.toml>` flag. The configuration type can
+contain any subset of the available options. All the options and explanations
+as to what they do can be found in the
+[`extra/config.toml`](./extra/config.toml) file. This file also serves as the
+default configuration.
+
+Additionally, there is the possibility of variables in the configuration file.
+By default, Lemurs searches for a `/etc/lemurs/variables.toml` file, but an
+alternative location can be specified using the `--variables
+<path/to/variables.toml`. The `variables.toml` file may contain key-value pairs
+which can be referenced from within the main `config.toml` file. 
+
+Below shows an example of how the `variables.toml` and `config.toml` file
+interact.
+
+```toml
+# variables.toml
+replacement_char = "+"
+show_pw_title = true
+password_title = "Password :)"
+title_color = "white"
+
+# config.toml
+[password_field]
+content_replacement_character = "$replacement_char"
+
+[password_field.style]
+show_title = "$show_pw_title"
+title = "Wow a $password_title"
+title_color = "$title_color"
+```
+
+This will be interpreted as:
+
+```toml
+[password_field]
+content_replacement_character = "+"
+
+[password_field.style]
+show_title = true
+title = "Wow a Password :)"
+title_color = "white"
+```
 
 ## Preview & Debugging
 
@@ -207,3 +247,4 @@ Please report any bugs and possible improvements as an issue within this
 repository. Pull requests are also welcome.
 
 [pam]: https://en.wikipedia.org/wiki/Pluggable_authentication_module
+[TOML]: https://toml.io/

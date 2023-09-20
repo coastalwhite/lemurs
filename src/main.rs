@@ -1,8 +1,6 @@
-use std::error::Error;
 use std::fs::File;
 use std::io;
-use std::path::Path;
-use std::process;
+use std::{error::Error, path::Path};
 
 use crossterm::{
     execute,
@@ -39,13 +37,50 @@ use self::{
     },
 };
 
+const DEFAULT_VARIABLES_PATH: &str = "/etc/lemurs/variables.toml";
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
 
-fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
+fn merge_in_configuration(
+    config: &mut Config,
+    config_path: Option<&Path>,
+    variables_path: Option<&Path>,
+) {
+    let load_variables_path = variables_path.unwrap_or_else(|| Path::new(DEFAULT_VARIABLES_PATH));
+
+    let variables = match config::Variables::from_file(load_variables_path) {
+        Ok(variables) => {
+            info!(
+                "Successfully loaded variables file from '{}'",
+                load_variables_path.display()
+            );
+
+            Some(variables)
+        }
+        Err(err) => {
+            // If we have given it a specific config path, it should crash if this file cannot be
+            // loaded. If it is the default config location just put a warning in the logs.
+            if let Some(variables_path) = variables_path {
+                eprintln!(
+                    "The variables file '{}' cannot be loaded.\nReason: {}",
+                    variables_path.display(),
+                    err
+                );
+                std::process::exit(1);
+            } else {
+                info!(
+                    "No variables file loaded from the default location ({}). Reason: {}",
+                    DEFAULT_CONFIG_PATH, err
+                );
+            }
+
+            None
+        }
+    };
+
     let load_config_path = config_path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
 
-    match config::PartialConfig::from_file(load_config_path) {
+    match config::PartialConfig::from_file(load_config_path, variables.as_ref()) {
         Ok(partial_config) => {
             info!(
                 "Successfully loaded configuration file from '{}'",
@@ -62,7 +97,7 @@ fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
                     config_path.display(),
                     err
                 );
-                process::exit(1);
+                std::process::exit(1);
             } else {
                 warn!(
                     "No configuration file loaded from the expected location ({}). Reason: {}",
@@ -103,9 +138,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::process::exit(2);
     });
 
-    // Load and setup configuration
     let mut config = Config::default();
-    merge_in_configuration(&mut config, cli.config.as_deref());
+    merge_in_configuration(&mut config, cli.config.as_deref(), cli.variables.as_deref());
 
     if let Some(cmd) = cli.command {
         match cmd {
