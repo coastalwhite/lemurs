@@ -96,9 +96,6 @@ jobs:
         # For these target platforms
         include:
         - os: "ubuntu-20.04"
-          dist-args: "--artifacts=local --target=aarch64-unknown-linux-gnu"
-          install-dist: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.2.0/cargo-dist-installer.sh | sh"
-        - os: "ubuntu-20.04"
           dist-args: "--artifacts=local --target=x86_64-unknown-linux-gnu"
           install-dist: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.2.0/cargo-dist-installer.sh | sh"
     runs-on: ${{ matrix.os }}
