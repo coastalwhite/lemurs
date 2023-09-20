@@ -450,7 +450,7 @@ impl LoginForm {
                                 let Some(post_login_env) = environment else {
                                     status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
                                     send_ui_request(UIThreadRequest::Redraw);
-                                    continue
+                                    continue;
                                 };
 
                                 match start_session(
