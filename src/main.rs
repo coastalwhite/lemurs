@@ -73,6 +73,16 @@ fn merge_in_configuration(config: &mut Config, config_path: Option<&Path>) {
     }
 }
 
+pub fn initialize_panic_handler() {
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+        crossterm::terminal::disable_raw_mode().unwrap();
+
+        original_hook(panic_info);
+    }));
+}
+
 fn setup_logger(log_path: &str) {
     let log_file = Box::new(File::create(log_path).unwrap_or_else(|_| {
         eprintln!("Failed to open log file: '{log_path}'");
@@ -169,6 +179,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             error!("Failed to switch tty {}. Reason: {err}", config.tty);
         });
     }
+
+    initialize_panic_handler();
 
     // Start application
     let mut terminal = tui_enable()?;
