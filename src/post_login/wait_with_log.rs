@@ -146,11 +146,17 @@ impl LimitedOutputChild {
         let file = file_options.open(log_path)?;
 
         let Some(stdout) = process.stdout.take() else {
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to grab stdout"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to grab stdout",
+            ));
         };
 
         let Some(stderr) = process.stderr.take() else {
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to grab stderr"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to grab stderr",
+            ));
         };
 
         let mut stdout_receiver = Receiver::from(stdout);
