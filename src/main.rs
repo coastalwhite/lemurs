@@ -160,8 +160,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             std::process::exit(1);
         }
 
-        let uid = users::get_current_uid();
-        if users::get_current_uid() != 0 {
+        let uid = uzers::get_current_uid();
+        if uzers::get_current_uid() != 0 {
             eprintln!("Lemurs needs to be ran as root. Found user id '{uid}'");
             error!("Lemurs not ran as root. Found user id '{uid}'");
             std::process::exit(1);

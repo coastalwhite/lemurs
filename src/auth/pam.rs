@@ -1,7 +1,7 @@
 use log::info;
 
 use pam::Authenticator;
-use users::os::unix::UserExt;
+use uzers::os::unix::UserExt;
 
 use crate::auth::AuthUserInfo;
 
@@ -56,7 +56,7 @@ pub fn open_session<'a>(
 
     info!("Validated account");
 
-    let user = users::get_user_by_name(username).ok_or(AuthenticationError::UsernameNotFound)?;
+    let user = uzers::get_user_by_name(username).ok_or(AuthenticationError::UsernameNotFound)?;
 
     let uid = user.uid();
     let primary_gid = user.primary_group_id();
