@@ -361,7 +361,6 @@ toml_config_struct! { PasswordFieldConfig, PartialPasswordFieldConfig, RoughPass
     style => InputFieldStyle [PartialInputFieldStyle, RoughInputFieldStyle],
 }
 
-
 toml_config_struct! { X11Config, PartialX11Config, RoughX11Config,
     x11_display => String,
 
