@@ -144,7 +144,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(cmd) = cli.command {
         match cmd {
             Commands::Envs => {
-                let envs = post_login::get_envs(config.environment_switcher.include_tty_shell);
+                let envs = post_login::get_envs(&config);
 
                 for (env_name, _) in envs.into_iter() {
                     println!("{env_name}");
