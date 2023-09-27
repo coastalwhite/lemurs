@@ -141,11 +141,14 @@ pub fn setup_x(
 
     let mut child = Command::new(&config.system_shell);
 
-    let log_path = config.do_log.then_some(Path::new(&config.x11.xserver_log_path));
+    let log_path = config
+        .do_log
+        .then_some(Path::new(&config.x11.xserver_log_path));
 
-    child
-        .arg("-c")
-        .arg(format!("{} {display_value} vt{doubledigit_vtnr}", &config.x11.xserver_path));
+    child.arg("-c").arg(format!(
+        "{} {display_value} vt{doubledigit_vtnr}",
+        &config.x11.xserver_path
+    ));
 
     let mut child = LemursChild::spawn(child, log_path).map_err(|err| {
         error!("Failed to start X server. Reason: {}", err);
@@ -162,9 +165,9 @@ pub fn setup_x(
     let start_time = time::SystemTime::now();
     loop {
         if config.x11.xserver_timeout_secs == 0
-            || start_time
-                .elapsed()
-                .map_or(false, |t| t.as_secs() > config.x11.xserver_timeout_secs.into())
+            || start_time.elapsed().map_or(false, |t| {
+                t.as_secs() > config.x11.xserver_timeout_secs.into()
+            })
         {
             break;
         }

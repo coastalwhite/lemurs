@@ -165,7 +165,8 @@ impl PostLoginEnvironment {
             ShellLoginFlag::Long => Some("--login"),
         };
 
-        let mut client = lower_command_permissions_to_user(Command::new(&config.system_shell), user_info);
+        let mut client =
+            lower_command_permissions_to_user(Command::new(&config.system_shell), user_info);
 
         let log_path = config.do_log.then_some(Path::new(&config.client_log_path));
 
@@ -277,7 +278,10 @@ pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
             }
         }
         Err(_) => {
-            warn!("Failed to read from the X folder '{}'", config.x11.scripts_path);
+            warn!(
+                "Failed to read from the X folder '{}'",
+                config.x11.scripts_path
+            );
         }
     }
 
