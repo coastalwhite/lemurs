@@ -102,7 +102,8 @@ pub fn setup_x(
     Command::new(super::SYSTEM_SHELL)
         .arg("-c")
         .arg(format!(
-            "/usr/bin/xauth add {} . {}",
+            "{} add {} . {}",
+            &config.x11.xauth_path,
             display_value,
             mcookie()
         ))
@@ -140,11 +141,11 @@ pub fn setup_x(
 
     let mut child = Command::new(super::SYSTEM_SHELL);
 
-    let log_path = config.do_log.then_some(Path::new(&config.xserver_log_path));
+    let log_path = config.do_log.then_some(Path::new(&config.x11.xserver_log_path));
 
     child
         .arg("-c")
-        .arg(format!("/usr/bin/X {display_value} vt{doubledigit_vtnr}"));
+        .arg(format!("{} {display_value} vt{doubledigit_vtnr}", &config.x11.xserver_path));
 
     let mut child = LemursChild::spawn(child, log_path).map_err(|err| {
         error!("Failed to start X server. Reason: {}", err);
@@ -160,10 +161,10 @@ pub fn setup_x(
     // Wait for XServer to boot-up
     let start_time = time::SystemTime::now();
     loop {
-        if config.xserver_timeout_secs == 0
+        if config.x11.xserver_timeout_secs == 0
             || start_time
                 .elapsed()
-                .map_or(false, |t| t.as_secs() > config.xserver_timeout_secs.into())
+                .map_or(false, |t| t.as_secs() > config.x11.xserver_timeout_secs.into())
         {
             break;
         }

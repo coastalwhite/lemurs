@@ -41,22 +41,12 @@
 # The tty which contains lemurs. This has to be mirrored in the lemurs.service
 tty = 2
 
-# The value of the `DISPLAY` environment variable for X11 sessions
-x11_display = ":1"
-
-# How many seconds to give the X server to start. To make it infinitely, put it
-# to 0.
-xserver_timeout_secs = 60
-
 # Where to log the main lemurs control flow.
 main_log_path = "/var/log/lemurs.log"
 
 # Where to log to for the client. The Client is the Desktop Environment or
 # Window Manager for Xorg, the Compositor for Wayland and the Shell for TTY.
 client_log_path = "/var/log/lemurs.client.log"
-
-# Where to log to for the XServer.
-xserver_log_path = "/var/log/lemurs.xorg.log"
 
 # Disable all logging. This is overwritten by the `--no-log` flag.
 do_log = true
@@ -317,3 +307,20 @@ border_color_focused = "orange"
 use_max_width = true
 # The contraint of the password field's width
 max_width = 48
+
+[x11]
+# Where to log to for the XServer.
+xserver_log_path = "/var/log/lemurs.xorg.log"
+
+# The value of the `DISPLAY` environment variable for X11 sessions
+x11_display = ":1"
+
+# How many seconds to give the X server to start. To make it infinitely, put it
+# to 0.
+xserver_timeout_secs = 60
+
+# Where to find the X11 server binary
+xserver_path = "/usr/bin/X"
+
+# Where to find the X11 xauth binary
+xauth_path = "/usr/bin/xauth"
