@@ -217,6 +217,7 @@ toml_config_struct! { Config, PartialConfig, RoughConfig,
     do_log => bool,
 
     pam_service => String,
+    system_shell => String,
 
     shell_login_flag => ShellLoginFlag,
 

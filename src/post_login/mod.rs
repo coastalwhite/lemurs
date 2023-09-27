@@ -21,8 +21,6 @@ pub(crate) mod env_variables;
 mod wait_with_log;
 mod x;
 
-const SYSTEM_SHELL: &str = "/bin/sh";
-
 #[derive(Debug, Clone)]
 pub enum PostLoginEnvironment {
     X { xinitrc_path: String },
@@ -167,7 +165,7 @@ impl PostLoginEnvironment {
             ShellLoginFlag::Long => Some("--login"),
         };
 
-        let mut client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
+        let mut client = lower_command_permissions_to_user(Command::new(&config.system_shell), user_info);
 
         let log_path = config.do_log.then_some(Path::new(&config.client_log_path));
 
