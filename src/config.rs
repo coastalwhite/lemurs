@@ -211,12 +211,8 @@ pub struct Variables(toml::value::Table);
 toml_config_struct! { Config, PartialConfig, RoughConfig,
     tty => u8,
 
-    x11_display => String,
-    xserver_timeout_secs => u16,
-
     main_log_path => String,
     client_log_path => String,
-    xserver_log_path => String,
 
     do_log => bool,
 
@@ -232,6 +228,19 @@ toml_config_struct! { Config, PartialConfig, RoughConfig,
     environment_switcher => SwitcherConfig [PartialSwitcherConfig, RoughSwitcherConfig],
     username_field => UsernameFieldConfig [PartialUsernameFieldConfig, RoughUsernameFieldConfig],
     password_field => PasswordFieldConfig [PartialPasswordFieldConfig, RoughPasswordFieldConfig],
+
+    x11 => X11Config [PartialX11Config, RoughX11Config],
+}
+
+toml_config_struct! { X11Config, PartialX11Config, RoughX11Config,
+    x11_display => String,
+
+    xserver_timeout_secs => u16,
+
+    xserver_log_path => String,
+
+    xserver_path => String,
+    xauth_path => String,
 }
 
 toml_config_struct! { BackgroundStyleConfig, PartialBackgroundStyleConfig, RoughBackgroundStyleConfig,
