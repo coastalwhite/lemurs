@@ -324,3 +324,11 @@ xserver_path = "/usr/bin/X"
 
 # Where to find the X11 xauth binary
 xauth_path = "/usr/bin/xauth"
+
+# Path to the directory where the startup scripts for the X11 sessions are found
+scripts_path = "/etc/lemurs/wms"
+
+[wayland]
+# Path to the directory where the startup scripts for the Wayland sessions are
+# found
+scripts_path = "/etc/lemurs/wayland"

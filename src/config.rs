@@ -230,17 +230,7 @@ toml_config_struct! { Config, PartialConfig, RoughConfig,
     password_field => PasswordFieldConfig [PartialPasswordFieldConfig, RoughPasswordFieldConfig],
 
     x11 => X11Config [PartialX11Config, RoughX11Config],
-}
-
-toml_config_struct! { X11Config, PartialX11Config, RoughX11Config,
-    x11_display => String,
-
-    xserver_timeout_secs => u16,
-
-    xserver_log_path => String,
-
-    xserver_path => String,
-    xauth_path => String,
+    wayland => WaylandConfig [PartialWaylandConfig, RoughWaylandConfig],
 }
 
 toml_config_struct! { BackgroundStyleConfig, PartialBackgroundStyleConfig, RoughBackgroundStyleConfig,
@@ -368,6 +358,24 @@ toml_config_struct! { UsernameFieldConfig, PartialUsernameFieldConfig, RoughUser
 toml_config_struct! { PasswordFieldConfig, PartialPasswordFieldConfig, RoughPasswordFieldConfig,
     content_replacement_character => char,
     style => InputFieldStyle [PartialInputFieldStyle, RoughInputFieldStyle],
+}
+
+
+toml_config_struct! { X11Config, PartialX11Config, RoughX11Config,
+    x11_display => String,
+
+    xserver_timeout_secs => u16,
+
+    xserver_log_path => String,
+
+    xserver_path => String,
+    xauth_path => String,
+
+    scripts_path => String,
+}
+
+toml_config_struct! { WaylandConfig, PartialWaylandConfig, RoughWaylandConfig,
+    scripts_path => String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
