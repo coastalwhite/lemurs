@@ -99,7 +99,7 @@ pub fn setup_x(
     // a `root` permission `.Xauthority` file there.
     let _ = remove_file(xauth_path.clone());
 
-    Command::new(super::SYSTEM_SHELL)
+    Command::new(&config.system_shell)
         .arg("-c")
         .arg(format!(
             "{} add {} . {}",
@@ -139,7 +139,7 @@ pub fn setup_x(
         libc::signal(SIGUSR1, SIG_IGN);
     }
 
-    let mut child = Command::new(super::SYSTEM_SHELL);
+    let mut child = Command::new(&config.system_shell);
 
     let log_path = config.do_log.then_some(Path::new(&config.x11.xserver_log_path));
 
