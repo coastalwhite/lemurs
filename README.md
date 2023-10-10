@@ -225,6 +225,7 @@ Tested on
 - ArchLinux (Vanilla, ArcoLinux)
 - VoidLinux
 - Ubuntu (make sure to install `build-essential` and `libpam-dev`)
+- OpenSUSE (make sure to install `pam` and `pam-devel`)
 
 ## MSRV Policy
 
