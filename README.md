@@ -3,10 +3,10 @@
 	<img src="./assets/text-icon.svg" height="200px" alt="Lemur Icon by SVGRepo" />
 </p>
 
-Lemurs provides a *Terminal User Interface* (TUI) for a [Display/Login
-Managers](https://wiki.archlinux.org/title/Display_manager) in Rust for most
-GNU/Linux and BSD distributions. It can work both *with or without SystemD*.
-Lemurs works on most Unix systems including Linux, FreeBSD and NetBSD.
+Lemurs is a *Terminal User Interface* (TUI) [Display/Login
+Managers](https://wiki.archlinux.org/title/Display_manager) written in Rust that
+works on most GNU/Linux and BSD distributions. It can work both
+*with or without* SystemD.
 
 ## Goal
 
