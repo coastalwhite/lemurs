@@ -1,6 +1,7 @@
 use crossterm::event::KeyCode;
 use log::error;
 use serde::{de::Error, Deserialize};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::Read;
@@ -246,21 +247,18 @@ toml_config_struct! { BackgroundConfig, PartialBackgroundConfig, RoughBackground
 }
 
 toml_config_struct! { PowerControlConfig, PartialPowerControlConfig, RoughPowerControlConfig,
-    allow_shutdown => bool,
-    shutdown_hint => String,
-    shutdown_hint_color => String,
-    shutdown_hint_modifiers => String,
-    shutdown_key => String,
-    shutdown_cmd => String,
-
-    allow_reboot => bool,
-    reboot_hint => String,
-    reboot_hint_color => String,
-    reboot_hint_modifiers => String,
-    reboot_key => String,
-    reboot_cmd => String,
-
     hint_margin => u16,
+    entries => HashMap<String, PowerControl>,
+}
+
+toml_config_struct! { PowerControl, PartialPowerControl, RoughPowerControl,
+    allow => bool,
+    index => u16,
+    hint => String,
+    hint_color => String,
+    hint_modifiers => String,
+    key => String,
+    cmd => String,
 }
 
 toml_config_struct! { SwitcherConfig, PartialSwitcherConfig, RoughSwitcherConfig,
@@ -397,8 +395,8 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
 
 impl Default for Config {
     fn default() -> Config {
-        toml::from_str(include_str!("../extra/config.toml")).unwrap_or_else(|_| {
-            eprintln!("Default configuration file cannot be properly parsed");
+        toml::from_str(include_str!("../extra/config.toml")).unwrap_or_else(|e| {
+            eprintln!("Default configuration file cannot be properly parsed: {e}");
             process::exit(1);
         })
     }
@@ -493,6 +491,9 @@ enum VariableInsertionError {
         var_ident: String,
         expected_type: &'static str,
     },
+    SubstitutionError {
+        ty: &'static str,
+    },
 }
 
 impl Display for VariableInsertionError {
@@ -513,6 +514,7 @@ impl Display for VariableInsertionError {
             },
             VariableInsertionError::InvalidType { expected, gotten } => write!(f, "Expected type '{expected}'. Got type '{gotten}'."),
             VariableInsertionError::UnexpectedVariableType { var_ident, expected_type } => write!(f, "Needed to use variable '{var_ident}' as a '{expected_type}', but was unable to cast it as such."),
+            VariableInsertionError::SubstitutionError { ty } => write!(f, "Cannot substitute '{ty}'."),
         }
     }
 }
@@ -632,6 +634,16 @@ impl VariableInsertable for String {
     }
 }
 
+impl<K, V> VariableInsertable for HashMap<K, V> {
+    fn insert_with_depth(
+        _value: PossibleVariable<Self>,
+        _variables: &Variables,
+        _depth: u32,
+    ) -> Result<Self, VariableInsertionError> {
+        Err(VariableInsertionError::SubstitutionError { ty: "Map" })
+    }
+}
+
 /// Iterator over variables in a given string
 /// Assumes the presence of quotes
 struct VariableIterator<'a> {
@@ -645,7 +657,7 @@ struct Variable<'a> {
 }
 
 impl<'a> Variable<'a> {
-    const START_SYMBOL: &str = "$";
+    const START_SYMBOL: &'static str = "$";
 
     fn span(&self) -> std::ops::Range<usize> {
         self.start..self.start + Self::START_SYMBOL.len() + self.ident.len()

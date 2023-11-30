@@ -12,21 +12,21 @@ pub enum ErrorStatusMessage {
     NoGraphicalEnvironment,
     FailedGraphicalEnvironment,
     FailedDesktop,
-    FailedShutdown,
-    FailedReboot,
+    FailedPowerControl(String),
 }
 
-impl From<ErrorStatusMessage> for &'static str {
+impl From<ErrorStatusMessage> for Box<str> {
     fn from(err: ErrorStatusMessage) -> Self {
         use ErrorStatusMessage::*;
 
         match err {
-            AuthenticationError(_) => "Authentication failed",
-            NoGraphicalEnvironment => "No graphical environment specified",
-            FailedGraphicalEnvironment => "Failed booting into the graphical environment",
-            FailedDesktop => "Failed booting into desktop environment",
-            FailedShutdown => "Failed to shutdown... Check the logs for more information",
-            FailedReboot => "Failed to reboot... Check the logs for more information",
+            AuthenticationError(_) => "Authentication failed".into(),
+            NoGraphicalEnvironment => "No graphical environment specified".into(),
+            FailedGraphicalEnvironment => "Failed booting into the graphical environment".into(),
+            FailedDesktop => "Failed booting into desktop environment".into(),
+            FailedPowerControl(name) => {
+                format!("Failed to {name}... Check the logs for more information").into()
+            }
         }
     }
 }
@@ -43,13 +43,13 @@ pub enum InfoStatusMessage {
     Authenticating,
 }
 
-impl From<InfoStatusMessage> for &'static str {
+impl From<InfoStatusMessage> for Box<str> {
     fn from(info: InfoStatusMessage) -> Self {
         use InfoStatusMessage::*;
 
         match info {
-            LoggingIn => "Authentication successful. Logging in...",
-            Authenticating => "Verifying credentials",
+            LoggingIn => "Authentication successful. Logging in...".into(),
+            Authenticating => "Verifying credentials".into(),
         }
     }
 }
@@ -66,7 +66,7 @@ pub enum StatusMessage {
     Info(InfoStatusMessage),
 }
 
-impl From<StatusMessage> for &'static str {
+impl From<StatusMessage> for Box<str> {
     fn from(msg: StatusMessage) -> Self {
         use StatusMessage::*;
 
@@ -85,13 +85,14 @@ impl StatusMessage {
 
     pub fn render<B: Backend>(status: Option<Self>, frame: &mut Frame<B>, area: Rect) {
         if let Some(status_message) = status {
-            let widget = Paragraph::new(<&'static str>::from(status_message.clone())).style(
-                Style::default().fg(if status_message.is_error() {
+            let text: Box<str> = status_message.clone().into();
+            let widget = Paragraph::new(text.as_ref()).style(Style::default().fg(
+                if status_message.is_error() {
                     Color::Red
                 } else {
                     Color::Yellow
-                }),
-            );
+                },
+            ));
 
             frame.render_widget(widget, area);
         } else {
