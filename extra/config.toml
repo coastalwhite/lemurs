@@ -99,13 +99,9 @@ border_color = "white"
 hint_margin = 2
 
 # Shutdown option
-[power_controls.entries.shutdown]
-# Allow for the shutdown option to be used
-allow = true
-# Position in list
-index = 0
+[[power_controls.entries]]
 # The text in the top-left to display how to shutdown. The text '%key%' will be
-# replaced with the shutdown_key.
+# replaced with the key.
 hint = "Shutdown %key%"
 
 # The color and modifiers of the hint in the top-left corner
@@ -118,14 +114,9 @@ key = "F1"
 cmd = "systemctl poweroff -l"
 
 # Reboot option
-[power_controls.entries.reboot]
-# Allow for the reboot option to be used
-allow = true
-# Position in list
-index = 1
-
+[[power_controls.entries]]
 # The text in the top-left to display how to reboot. The text '%key%' will be
-# replaced with the shutdown_key.
+# replaced with the key.
 hint = "Reboot %key%"
 
 # The color and modifiers of the hint in the top-left corner
@@ -139,14 +130,9 @@ cmd = "systemctl reboot -l"
 
 # Example
 # Reboot to another os option
-#[power_controls.entries.reboot_os]
-## Allow for the reboot option to be used
-#allow = true
-## Position in list
-#index = 3
-#
+#[[power_controls.entries]]
 ## The text in the top-left to display how to reboot. The text '%key%' will be
-## replaced with the shutdown_key.
+## replaced with the key.
 #hint = "Reboot to OS %key%"
 #
 ## The color and modifiers of the hint in the top-left corner

@@ -248,12 +248,10 @@ toml_config_struct! { BackgroundConfig, PartialBackgroundConfig, RoughBackground
 
 toml_config_struct! { PowerControlConfig, PartialPowerControlConfig, RoughPowerControlConfig,
     hint_margin => u16,
-    entries => HashMap<String, PowerControl>,
+    entries => Vec<PowerControl>,
 }
 
 toml_config_struct! { PowerControl, PartialPowerControl, RoughPowerControl,
-    allow => bool,
-    index => u16,
     hint => String,
     hint_color => String,
     hint_modifiers => String,
@@ -634,13 +632,13 @@ impl VariableInsertable for String {
     }
 }
 
-impl<K, V> VariableInsertable for HashMap<K, V> {
+impl<V> VariableInsertable for Vec<V> {
     fn insert_with_depth(
         _value: PossibleVariable<Self>,
         _variables: &Variables,
         _depth: u32,
     ) -> Result<Self, VariableInsertionError> {
-        Err(VariableInsertionError::SubstitutionError { ty: "Map" })
+        Err(VariableInsertionError::SubstitutionError { ty: "Vec" })
     }
 }
 

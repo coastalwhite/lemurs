@@ -51,10 +51,7 @@ impl KeyMenuWidget {
     pub fn render(&self, frame: &mut Frame<impl ratatui::backend::Backend>, area: Rect) {
         let mut items = Vec::new();
 
-        let mut entries: Vec<_> = self.power_config.entries.values().collect();
-        entries.sort_by_key(|v| v.index);
-
-        for power_control in entries {
+        for power_control in &self.power_config.entries {
             items.push(Span::styled(
                 power_control.hint.replace("%key%", &power_control.key),
                 power_control.style(),
@@ -84,8 +81,8 @@ impl KeyMenuWidget {
 
     pub(crate) fn key_press(&self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         // TODO: Properly handle StdIn
-        for (name, power_control) in &self.power_config.entries {
-            if power_control.allow && key_code == get_key(&power_control.key) {
+        for power_control in &self.power_config.entries {
+            if key_code == get_key(&power_control.key) {
                 let cmd_status = Command::new("bash")
                     .arg("-c")
                     .arg(power_control.cmd.clone())
@@ -94,18 +91,22 @@ impl KeyMenuWidget {
                 match cmd_status {
                     Err(err) => {
                         log::error!("Failed to execute shutdown command: {:?}", err);
-                        return Some(super::ErrorStatusMessage::FailedPowerControl(name.clone()));
+                        return Some(super::ErrorStatusMessage::FailedPowerControl(
+                            power_control.cmd.clone(),
+                        ));
                     }
                     Ok(Output {
                         status,
                         stdout,
                         stderr,
                     }) if !status.success() => {
-                        log::error!("Error while executing {name} command");
+                        log::error!("Error while executing \"{}\"", power_control.cmd);
                         log::error!("STDOUT:\n{:?}", stdout);
                         log::error!("STDERR:\n{:?}", stderr);
 
-                        return Some(super::ErrorStatusMessage::FailedPowerControl(name.clone()));
+                        return Some(super::ErrorStatusMessage::FailedPowerControl(
+                            power_control.cmd.clone(),
+                        ));
                     }
                     _ => {}
                 }
