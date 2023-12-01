@@ -2,7 +2,7 @@ use std::process::{Command, Output};
 
 use crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
@@ -53,7 +53,12 @@ impl KeyMenuWidget {
 
         for power_control in &self.power_config.entries {
             items.push(Span::styled(
-                power_control.hint.replace("%key%", &power_control.key),
+                power_control.key.as_str(),
+                power_control.style().add_modifier(Modifier::UNDERLINED),
+            ));
+            items.push(Span::raw(" "));
+            items.push(Span::styled(
+                power_control.hint.as_str(),
                 power_control.style(),
             ));
 
@@ -92,7 +97,7 @@ impl KeyMenuWidget {
                     Err(err) => {
                         log::error!("Failed to execute shutdown command: {:?}", err);
                         return Some(super::ErrorStatusMessage::FailedPowerControl(
-                            power_control.cmd.clone(),
+                            power_control.hint.clone(),
                         ));
                     }
                     Ok(Output {
@@ -100,12 +105,12 @@ impl KeyMenuWidget {
                         stdout,
                         stderr,
                     }) if !status.success() => {
-                        log::error!("Error while executing \"{}\"", power_control.cmd);
+                        log::error!("Error while executing \"{}\"", power_control.hint);
                         log::error!("STDOUT:\n{:?}", stdout);
                         log::error!("STDERR:\n{:?}", stderr);
 
                         return Some(super::ErrorStatusMessage::FailedPowerControl(
-                            power_control.cmd.clone(),
+                            power_control.hint.clone(),
                         ));
                     }
                     _ => {}

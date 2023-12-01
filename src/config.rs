@@ -1,7 +1,6 @@
 use crossterm::event::KeyCode;
 use log::error;
 use serde::{de::Error, Deserialize};
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::Read;

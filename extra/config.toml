@@ -100,9 +100,8 @@ hint_margin = 2
 
 # Shutdown option
 [[power_controls.entries]]
-# The text in the top-left to display how to shutdown. The text '%key%' will be
-# replaced with the key.
-hint = "Shutdown %key%"
+# The text in the top-left to display how to shutdown.
+hint = "Shutdown"
 
 # The color and modifiers of the hint in the top-left corner
 hint_color = "dark gray"
@@ -115,9 +114,8 @@ cmd = "systemctl poweroff -l"
 
 # Reboot option
 [[power_controls.entries]]
-# The text in the top-left to display how to reboot. The text '%key%' will be
-# replaced with the key.
-hint = "Reboot %key%"
+# The text in the top-left to display how to reboot.
+hint = "Reboot"
 
 # The color and modifiers of the hint in the top-left corner
 hint_color = "dark gray"
@@ -131,9 +129,8 @@ cmd = "systemctl reboot -l"
 # Example
 # Reboot to another os option
 #[[power_controls.entries]]
-## The text in the top-left to display how to reboot. The text '%key%' will be
-## replaced with the key.
-#hint = "Reboot to OS %key%"
+## The text in the top-left to display how to reboot.
+#hint = "Reboot to OS"
 #
 ## The color and modifiers of the hint in the top-left corner
 #hint_color = "dark gray"
