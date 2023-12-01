@@ -95,39 +95,58 @@ show_border = true
 border_color = "white"
 
 [power_controls]
-# Allow for the shutdown option to be used
-allow_shutdown = true
-# The text in the top-left to display how to shutdown. The text '%key%' will be
-# replaced with the shutdown_key.
-shutdown_hint = "Shutdown %key%"
+# The margin between hints
+hint_margin = 2
+
+# There are no additional entries by default
+entries = []
+
+# Example
+# Reboot to another os option
+#[[power_controls.entries]]
+## The text in the top-left to display how to reboot.
+#hint = "Reboot to OS"
+#
+## The color and modifiers of the hint in the top-left corner
+#hint_color = "dark gray"
+#hint_modifiers = ""
+#
+## The key used to reboot. Possibilities are F1 to F12.
+#key = "F3"
+## The command that is executed when the key is pressed
+#cmd = "efibootmgr -n0 && systemctl reboot -l"
+
+
+# If you want to remove the base_entries
+# base_entries = []
+
+# Shutdown option
+[[power_controls.base_entries]]
+# The text in the top-left to display how to shutdown.
+hint = "Shutdown"
 
 # The color and modifiers of the hint in the top-left corner
-shutdown_hint_color = "dark gray"
-shutdown_hint_modifiers = ""
+hint_color = "dark gray"
+hint_modifiers = ""
 
 # The key used to shutdown. Possibilities are F1 to F12.
-shutdown_key = "F1"
+key = "F1"
 # The command that is executed when the key is pressed
-shutdown_cmd = "systemctl poweroff -l"
+cmd = "systemctl poweroff -l"
 
-# Allow for the reboot option to be used
-allow_reboot = true
-
-# The text in the top-left to display how to reboot. The text '%key%' will be
-# replaced with the shutdown_key.
-reboot_hint = "Reboot %key%"
+# Reboot option
+[[power_controls.base_entries]]
+# The text in the top-left to display how to reboot.
+hint = "Reboot"
 
 # The color and modifiers of the hint in the top-left corner
-reboot_hint_color = "dark gray"
-reboot_hint_modifiers = ""
+hint_color = "dark gray"
+hint_modifiers = ""
 
 # The key used to reboot. Possibilities are F1 to F12.
-reboot_key = "F2"
+key = "F2"
 # The command that is executed when the key is pressed
-reboot_cmd = "systemctl reboot -l"
-
-# The margin between the shutdown and reboot hints
-hint_margin = 2
+cmd = "systemctl reboot -l"
 
 # Setting for the selector of the desktop environment you are using.
 [environment_switcher]

@@ -2,13 +2,14 @@ use std::process::{Command, Output};
 
 use crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::config::{
-    get_color, get_key, get_modifiers, PowerControlConfig, SwitcherConfig, SwitcherVisibility,
+    get_color, get_key, get_modifiers, PowerControl, PowerControlConfig, SwitcherConfig,
+    SwitcherVisibility,
 };
 
 #[derive(Clone)]
@@ -17,31 +18,24 @@ pub struct KeyMenuWidget {
     switcher_config: SwitcherConfig,
 }
 
+impl PowerControl {
+    fn style(&self) -> Style {
+        let mut style = Style::default().fg(get_color(&self.hint_color));
+
+        for modifier in get_modifiers(&self.hint_modifiers) {
+            style = style.add_modifier(modifier);
+        }
+
+        style
+    }
+}
+
 impl KeyMenuWidget {
     pub fn new(power_config: PowerControlConfig, switcher_config: SwitcherConfig) -> Self {
         Self {
             power_config,
             switcher_config,
         }
-    }
-    fn shutdown_style(&self) -> Style {
-        let mut style = Style::default().fg(get_color(&self.power_config.shutdown_hint_color));
-
-        for modifier in get_modifiers(&self.power_config.shutdown_hint_modifiers) {
-            style = style.add_modifier(modifier);
-        }
-
-        style
-    }
-
-    fn reboot_style(&self) -> Style {
-        let mut style = Style::default().fg(get_color(&self.power_config.reboot_hint_color));
-
-        for modifier in get_modifiers(&self.power_config.reboot_hint_modifiers) {
-            style = style.add_modifier(modifier);
-        }
-
-        style
     }
 
     fn switcher_toggle_style(&self) -> Style {
@@ -57,25 +51,25 @@ impl KeyMenuWidget {
     pub fn render(&self, frame: &mut Frame<impl ratatui::backend::Backend>, area: Rect) {
         let mut items = Vec::new();
 
-        if self.power_config.allow_shutdown {
+        for power_control in self
+            .power_config
+            .base_entries
+            .0
+            .iter()
+            .chain(self.power_config.entries.0.iter())
+        {
             items.push(Span::styled(
-                self.power_config
-                    .shutdown_hint
-                    .replace("%key%", &self.power_config.shutdown_key),
-                self.shutdown_style(),
+                power_control.key.as_str(),
+                power_control.style().add_modifier(Modifier::UNDERLINED),
+            ));
+            items.push(Span::raw(" "));
+            items.push(Span::styled(
+                power_control.hint.as_str(),
+                power_control.style(),
             ));
 
             // Add margin
             items.push(Span::raw(" ".repeat(self.power_config.hint_margin.into())));
-        }
-
-        if self.power_config.allow_reboot {
-            items.push(Span::styled(
-                self.power_config
-                    .reboot_hint
-                    .replace("%key%", &self.power_config.reboot_key),
-                self.reboot_style(),
-            ));
         }
 
         let left_widget = Paragraph::new(Line::from(items));
@@ -98,55 +92,41 @@ impl KeyMenuWidget {
 
     pub(crate) fn key_press(&self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         // TODO: Properly handle StdIn
-        if self.power_config.allow_shutdown && key_code == get_key(&self.power_config.shutdown_key)
+        for power_control in self
+            .power_config
+            .base_entries
+            .0
+            .iter()
+            .chain(self.power_config.entries.0.iter())
         {
-            let cmd_status = Command::new("bash")
-                .arg("-c")
-                .arg(self.power_config.shutdown_cmd.clone())
-                .output();
+            if key_code == get_key(&power_control.key) {
+                let cmd_status = Command::new("bash")
+                    .arg("-c")
+                    .arg(power_control.cmd.clone())
+                    .output();
 
-            match cmd_status {
-                Err(err) => {
-                    log::error!("Failed to execute shutdown command: {:?}", err);
-                    return Some(super::ErrorStatusMessage::FailedShutdown);
-                }
-                Ok(Output {
-                    status,
-                    stdout,
-                    stderr,
-                }) if !status.success() => {
-                    log::error!("Error while executing shutdown command");
-                    log::error!("STDOUT:\n{:?}", stdout);
-                    log::error!("STDERR:\n{:?}", stderr);
+                match cmd_status {
+                    Err(err) => {
+                        log::error!("Failed to execute shutdown command: {:?}", err);
+                        return Some(super::ErrorStatusMessage::FailedPowerControl(
+                            power_control.hint.clone(),
+                        ));
+                    }
+                    Ok(Output {
+                        status,
+                        stdout,
+                        stderr,
+                    }) if !status.success() => {
+                        log::error!("Error while executing \"{}\"", power_control.hint);
+                        log::error!("STDOUT:\n{:?}", stdout);
+                        log::error!("STDERR:\n{:?}", stderr);
 
-                    return Some(super::ErrorStatusMessage::FailedShutdown);
+                        return Some(super::ErrorStatusMessage::FailedPowerControl(
+                            power_control.hint.clone(),
+                        ));
+                    }
+                    _ => {}
                 }
-                _ => {}
-            }
-        }
-        if self.power_config.allow_reboot && key_code == get_key(&self.power_config.reboot_key) {
-            let cmd_status = Command::new("bash")
-                .arg("-c")
-                .arg(self.power_config.reboot_cmd.clone())
-                .output();
-
-            match cmd_status {
-                Err(err) => {
-                    log::error!("Failed to execute reboot command: {:?}", err);
-                    return Some(super::ErrorStatusMessage::FailedReboot);
-                }
-                Ok(Output {
-                    status,
-                    stdout,
-                    stderr,
-                }) if !status.success() => {
-                    log::error!("Error while executing reboot command");
-                    log::error!("STDOUT:\n{:?}", stdout);
-                    log::error!("STDERR:\n{:?}", stderr);
-
-                    return Some(super::ErrorStatusMessage::FailedReboot);
-                }
-                _ => {}
             }
         }
 

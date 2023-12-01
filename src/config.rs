@@ -246,21 +246,42 @@ toml_config_struct! { BackgroundConfig, PartialBackgroundConfig, RoughBackground
 }
 
 toml_config_struct! { PowerControlConfig, PartialPowerControlConfig, RoughPowerControlConfig,
-    allow_shutdown => bool,
-    shutdown_hint => String,
-    shutdown_hint_color => String,
-    shutdown_hint_modifiers => String,
-    shutdown_key => String,
-    shutdown_cmd => String,
-
-    allow_reboot => bool,
-    reboot_hint => String,
-    reboot_hint_color => String,
-    reboot_hint_modifiers => String,
-    reboot_key => String,
-    reboot_cmd => String,
-
     hint_margin => u16,
+    base_entries => PowerControlVec [PartialPowerControlVec, RoughPowerControlVec],
+    entries => PowerControlVec [PartialPowerControlVec, RoughPowerControlVec],
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct PowerControlVec(pub Vec<PowerControl>);
+#[derive(Clone, Deserialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct PartialPowerControlVec(pub Vec<PartialPowerControl>);
+#[derive(Clone, Debug, Deserialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+struct RoughPowerControlVec(pub Vec<RoughPowerControl>);
+
+toml_config_struct! { PowerControl, PartialPowerControl, RoughPowerControl,
+    hint => String,
+    hint_color => String,
+    hint_modifiers => String,
+    key => String,
+    cmd => String,
+}
+
+impl Default for PowerControl {
+    fn default() -> Self {
+        PowerControl {
+            hint: "".to_string(),
+            hint_color: "dark gray".to_string(),
+            hint_modifiers: "".to_string(),
+            key: "".to_string(),
+            cmd: "true".to_string(),
+        }
+    }
 }
 
 toml_config_struct! { SwitcherConfig, PartialSwitcherConfig, RoughSwitcherConfig,
@@ -397,8 +418,8 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
 
 impl Default for Config {
     fn default() -> Config {
-        toml::from_str(include_str!("../extra/config.toml")).unwrap_or_else(|_| {
-            eprintln!("Default configuration file cannot be properly parsed");
+        toml::from_str(include_str!("../extra/config.toml")).unwrap_or_else(|e| {
+            eprintln!("Default configuration file cannot be properly parsed: {e}");
             process::exit(1);
         })
     }
@@ -514,6 +535,35 @@ impl Display for VariableInsertionError {
             VariableInsertionError::InvalidType { expected, gotten } => write!(f, "Expected type '{expected}'. Got type '{gotten}'."),
             VariableInsertionError::UnexpectedVariableType { var_ident, expected_type } => write!(f, "Needed to use variable '{var_ident}' as a '{expected_type}', but was unable to cast it as such."),
         }
+    }
+}
+
+impl PowerControlVec {
+    pub fn merge_in_partial(&mut self, partial: PartialPowerControlVec) {
+        *self = PowerControlVec(
+            partial
+                .0
+                .into_iter()
+                .map(|partial_elem| {
+                    let mut elem = PowerControl::default();
+                    elem.merge_in_partial(partial_elem);
+                    elem
+                })
+                .collect::<Vec<PowerControl>>(),
+        );
+    }
+}
+
+impl RoughPowerControlVec {
+    pub fn into_partial(
+        self,
+        variables: &Variables,
+    ) -> Result<PartialPowerControlVec, VariableInsertionError> {
+        self.0
+            .into_iter()
+            .map(|rough_elem| rough_elem.into_partial(variables))
+            .collect::<Result<Vec<PartialPowerControl>, VariableInsertionError>>()
+            .map(PartialPowerControlVec)
     }
 }
 
@@ -645,7 +695,7 @@ struct Variable<'a> {
 }
 
 impl<'a> Variable<'a> {
-    const START_SYMBOL: &str = "$";
+    const START_SYMBOL: &'static str = "$";
 
     fn span(&self) -> std::ops::Range<usize> {
         self.start..self.start + Self::START_SYMBOL.len() + self.ident.len()
