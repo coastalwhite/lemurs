@@ -98,33 +98,8 @@ border_color = "white"
 # The margin between hints
 hint_margin = 2
 
-# Shutdown option
-[[power_controls.entries]]
-# The text in the top-left to display how to shutdown.
-hint = "Shutdown"
-
-# The color and modifiers of the hint in the top-left corner
-hint_color = "dark gray"
-hint_modifiers = ""
-
-# The key used to shutdown. Possibilities are F1 to F12.
-key = "F1"
-# The command that is executed when the key is pressed
-cmd = "systemctl poweroff -l"
-
-# Reboot option
-[[power_controls.entries]]
-# The text in the top-left to display how to reboot.
-hint = "Reboot"
-
-# The color and modifiers of the hint in the top-left corner
-hint_color = "dark gray"
-hint_modifiers = ""
-
-# The key used to reboot. Possibilities are F1 to F12.
-key = "F2"
-# The command that is executed when the key is pressed
-cmd = "systemctl reboot -l"
+# There are no additional entries by default
+entries = []
 
 # Example
 # Reboot to another os option
@@ -140,6 +115,38 @@ cmd = "systemctl reboot -l"
 #key = "F3"
 ## The command that is executed when the key is pressed
 #cmd = "efibootmgr -n0 && systemctl reboot -l"
+
+
+# If you want to remove the base_entries
+# base_entries = []
+
+# Shutdown option
+[[power_controls.base_entries]]
+# The text in the top-left to display how to shutdown.
+hint = "Shutdown"
+
+# The color and modifiers of the hint in the top-left corner
+hint_color = "dark gray"
+hint_modifiers = ""
+
+# The key used to shutdown. Possibilities are F1 to F12.
+key = "F1"
+# The command that is executed when the key is pressed
+cmd = "systemctl poweroff -l"
+
+# Reboot option
+[[power_controls.base_entries]]
+# The text in the top-left to display how to reboot.
+hint = "Reboot"
+
+# The color and modifiers of the hint in the top-left corner
+hint_color = "dark gray"
+hint_modifiers = ""
+
+# The key used to reboot. Possibilities are F1 to F12.
+key = "F2"
+# The command that is executed when the key is pressed
+cmd = "systemctl reboot -l"
 
 # Setting for the selector of the desktop environment you are using.
 [environment_switcher]

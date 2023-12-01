@@ -51,7 +51,13 @@ impl KeyMenuWidget {
     pub fn render(&self, frame: &mut Frame<impl ratatui::backend::Backend>, area: Rect) {
         let mut items = Vec::new();
 
-        for power_control in &self.power_config.entries {
+        for power_control in self
+            .power_config
+            .base_entries
+            .0
+            .iter()
+            .chain(self.power_config.entries.0.iter())
+        {
             items.push(Span::styled(
                 power_control.key.as_str(),
                 power_control.style().add_modifier(Modifier::UNDERLINED),
@@ -86,7 +92,13 @@ impl KeyMenuWidget {
 
     pub(crate) fn key_press(&self, key_code: KeyCode) -> Option<super::ErrorStatusMessage> {
         // TODO: Properly handle StdIn
-        for power_control in &self.power_config.entries {
+        for power_control in self
+            .power_config
+            .base_entries
+            .0
+            .iter()
+            .chain(self.power_config.entries.0.iter())
+        {
             if key_code == get_key(&power_control.key) {
                 let cmd_status = Command::new("bash")
                     .arg("-c")

@@ -247,8 +247,22 @@ toml_config_struct! { BackgroundConfig, PartialBackgroundConfig, RoughBackground
 
 toml_config_struct! { PowerControlConfig, PartialPowerControlConfig, RoughPowerControlConfig,
     hint_margin => u16,
-    entries => Vec<PowerControl>,
+    base_entries => PowerControlVec [PartialPowerControlVec, RoughPowerControlVec],
+    entries => PowerControlVec [PartialPowerControlVec, RoughPowerControlVec],
 }
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct PowerControlVec(pub Vec<PowerControl>);
+#[derive(Clone, Deserialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct PartialPowerControlVec(pub Vec<PartialPowerControl>);
+#[derive(Clone, Debug, Deserialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+struct RoughPowerControlVec(pub Vec<RoughPowerControl>);
 
 toml_config_struct! { PowerControl, PartialPowerControl, RoughPowerControl,
     hint => String,
@@ -256,6 +270,18 @@ toml_config_struct! { PowerControl, PartialPowerControl, RoughPowerControl,
     hint_modifiers => String,
     key => String,
     cmd => String,
+}
+
+impl Default for PowerControl {
+    fn default() -> Self {
+        PowerControl {
+            hint: "".to_string(),
+            hint_color: "dark gray".to_string(),
+            hint_modifiers: "".to_string(),
+            key: "".to_string(),
+            cmd: "true".to_string(),
+        }
+    }
 }
 
 toml_config_struct! { SwitcherConfig, PartialSwitcherConfig, RoughSwitcherConfig,
@@ -512,6 +538,35 @@ impl Display for VariableInsertionError {
     }
 }
 
+impl PowerControlVec {
+    pub fn merge_in_partial(&mut self, partial: PartialPowerControlVec) {
+        *self = PowerControlVec(
+            partial
+                .0
+                .into_iter()
+                .map(|partial_elem| {
+                    let mut elem = PowerControl::default();
+                    elem.merge_in_partial(partial_elem);
+                    elem
+                })
+                .collect::<Vec<PowerControl>>(),
+        );
+    }
+}
+
+impl RoughPowerControlVec {
+    pub fn into_partial(
+        self,
+        variables: &Variables,
+    ) -> Result<PartialPowerControlVec, VariableInsertionError> {
+        self.0
+            .into_iter()
+            .map(|rough_elem| rough_elem.into_partial(variables))
+            .collect::<Result<Vec<PartialPowerControl>, VariableInsertionError>>()
+            .map(PartialPowerControlVec)
+    }
+}
+
 impl std::error::Error for VariableInsertionError {}
 
 macro_rules! non_string_var_insert {
@@ -582,7 +637,6 @@ non_string_var_insert! {
     ShellLoginFlag ["shell login flag"],
     FocusBehaviour ["focus behavior"],
     SwitcherVisibility ["switcher visibility"],
-    Vec<PowerControl> ["power controls vector"],
 }
 
 impl VariableInsertable for String {
