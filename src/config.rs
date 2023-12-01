@@ -488,9 +488,6 @@ enum VariableInsertionError {
         var_ident: String,
         expected_type: &'static str,
     },
-    SubstitutionError {
-        ty: &'static str,
-    },
 }
 
 impl Display for VariableInsertionError {
@@ -511,7 +508,6 @@ impl Display for VariableInsertionError {
             },
             VariableInsertionError::InvalidType { expected, gotten } => write!(f, "Expected type '{expected}'. Got type '{gotten}'."),
             VariableInsertionError::UnexpectedVariableType { var_ident, expected_type } => write!(f, "Needed to use variable '{var_ident}' as a '{expected_type}', but was unable to cast it as such."),
-            VariableInsertionError::SubstitutionError { ty } => write!(f, "Cannot substitute '{ty}'."),
         }
     }
 }
@@ -586,6 +582,7 @@ non_string_var_insert! {
     ShellLoginFlag ["shell login flag"],
     FocusBehaviour ["focus behavior"],
     SwitcherVisibility ["switcher visibility"],
+    Vec<PowerControl> ["power controls vector"],
 }
 
 impl VariableInsertable for String {
@@ -628,16 +625,6 @@ impl VariableInsertable for String {
         }
 
         Ok(s)
-    }
-}
-
-impl<V> VariableInsertable for Vec<V> {
-    fn insert_with_depth(
-        _value: PossibleVariable<Self>,
-        _variables: &Variables,
-        _depth: u32,
-    ) -> Result<Self, VariableInsertionError> {
-        Err(VariableInsertionError::SubstitutionError { ty: "Vec" })
     }
 }
 
