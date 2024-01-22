@@ -77,7 +77,7 @@ sxhkd &
 exec bspwm
 ```
 
-Remember to make this script runnable. This is done with the `chmod +x
+Remember to make this script runnable. This is done with the `sudo chmod 755
 /etc/lemurs/wms/bspwm` command.
 
 Upon rebooting your new `bspwm` should show up within Lemurs.
@@ -93,7 +93,7 @@ and added yourself to the `seat` group.
 exec sway
 ```
 
-Remember to make this script runnable. This is done with the `chmod +x
+Remember to make this script runnable. This is done with the `sudo chmod 755
 /etc/lemurs/wayland/sway` command.
 
 Upon rebooting your new `sway` should show up within Lemurs.
