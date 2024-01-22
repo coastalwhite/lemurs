@@ -41,13 +41,6 @@
 # The tty which contains lemurs. This has to be mirrored in the lemurs.service
 tty = 2
 
-# The value of the `DISPLAY` environment variable for X11 sessions
-x11_display = ":1"
-
-# How many seconds to give the X server to start. To make it infinitely, put it
-# to 0.
-xserver_timeout_secs = 60
-
 # Where to log the main lemurs control flow.
 main_log_path = "/var/log/lemurs.log"
 
@@ -55,14 +48,15 @@ main_log_path = "/var/log/lemurs.log"
 # Window Manager for Xorg, the Compositor for Wayland and the Shell for TTY.
 client_log_path = "/var/log/lemurs.client.log"
 
-# Where to log to for the XServer.
-xserver_log_path = "/var/log/lemurs.xorg.log"
-
 # Disable all logging. This is overwritten by the `--no-log` flag.
 do_log = true
 
 # The PAM service that should be used to login
 pam_service = "lemurs"
+
+# Path to system shell that gets used to execute linux commands. In almost all
+# cases, this should refer to a bash shell.
+system_shell = "/usr/sh"
 
 # The type flag that will be appended to the shell that calls the session
 # environment. This may depend on your shell. Options:
@@ -317,3 +311,28 @@ border_color_focused = "orange"
 use_max_width = true
 # The contraint of the password field's width
 max_width = 48
+
+[x11]
+# Where to log to for the XServer.
+xserver_log_path = "/var/log/lemurs.xorg.log"
+
+# The value of the `DISPLAY` environment variable for X11 sessions
+x11_display = ":1"
+
+# How many seconds to give the X server to start. To make it infinitely, put it
+# to 0.
+xserver_timeout_secs = 60
+
+# Where to find the X11 server binary
+xserver_path = "/usr/bin/X"
+
+# Where to find the X11 xauth binary
+xauth_path = "/usr/bin/xauth"
+
+# Path to the directory where the startup scripts for the X11 sessions are found
+scripts_path = "/etc/lemurs/wms"
+
+[wayland]
+# Path to the directory where the startup scripts for the Wayland sessions are
+# found
+scripts_path = "/etc/lemurs/wayland"

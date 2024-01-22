@@ -290,7 +290,7 @@ impl LoginForm {
                     config.environment_switcher.clone(),
                 ),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
-                    crate::post_login::get_envs(config.environment_switcher.include_tty_shell)
+                    crate::post_login::get_envs(&config)
                         .into_iter()
                         .map(|(title, content)| SwitcherItem::new(title, content))
                         .collect(),

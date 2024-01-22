@@ -21,11 +21,6 @@ pub(crate) mod env_variables;
 mod wait_with_log;
 mod x;
 
-const SYSTEM_SHELL: &str = "/bin/sh";
-
-const INITRCS_FOLDER_PATH: &str = "/etc/lemurs/wms";
-const WAYLAND_FOLDER_PATH: &str = "/etc/lemurs/wayland";
-
 #[derive(Debug, Clone)]
 pub enum PostLoginEnvironment {
     X { xinitrc_path: String },
@@ -170,7 +165,8 @@ impl PostLoginEnvironment {
             ShellLoginFlag::Long => Some("--login"),
         };
 
-        let mut client = lower_command_permissions_to_user(Command::new(SYSTEM_SHELL), user_info);
+        let mut client =
+            lower_command_permissions_to_user(Command::new(&config.system_shell), user_info);
 
         let log_path = config.do_log.then_some(Path::new(&config.client_log_path));
 
@@ -238,11 +234,11 @@ impl PostLoginEnvironment {
     }
 }
 
-pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
+pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
     // NOTE: Maybe we can do something smart with `with_capacity` here.
     let mut envs = Vec::new();
 
-    match fs::read_dir(INITRCS_FOLDER_PATH) {
+    match fs::read_dir(&config.x11.scripts_path) {
         Ok(paths) => {
             for path in paths {
                 if let Ok(path) = path {
@@ -282,11 +278,14 @@ pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
             }
         }
         Err(_) => {
-            warn!("Failed to read from the X folder '{}'", INITRCS_FOLDER_PATH);
+            warn!(
+                "Failed to read from the X folder '{}'",
+                config.x11.scripts_path
+            );
         }
     }
 
-    match fs::read_dir(WAYLAND_FOLDER_PATH) {
+    match fs::read_dir(&config.wayland.scripts_path) {
         Ok(paths) => {
             for path in paths {
                 if let Ok(path) = path {
@@ -329,12 +328,12 @@ pub fn get_envs(with_tty_shell: bool) -> Vec<(String, PostLoginEnvironment)> {
         Err(_) => {
             warn!(
                 "Failed to read from the wayland folder '{}'",
-                WAYLAND_FOLDER_PATH
+                config.wayland.scripts_path
             );
         }
     }
 
-    if envs.is_empty() || with_tty_shell {
+    if envs.is_empty() || config.environment_switcher.include_tty_shell {
         envs.push(("TTYSHELL".to_string(), PostLoginEnvironment::Shell));
     }
 

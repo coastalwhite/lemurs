@@ -144,7 +144,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(cmd) = cli.command {
         match cmd {
             Commands::Envs => {
-                let envs = post_login::get_envs(config.environment_switcher.include_tty_shell);
+                let envs = post_login::get_envs(&config);
 
                 for (env_name, _) in envs.into_iter() {
                     println!("{env_name}");
@@ -297,7 +297,7 @@ fn start_session(
     }
 
     if matches!(post_login_env, PostLoginEnvironment::X { .. }) {
-        set_display(&config.x11_display, &mut process_env);
+        set_display(&config.x11.x11_display, &mut process_env);
     }
     set_session_params(&mut process_env, post_login_env);
     remove_xdg(&mut process_env);
