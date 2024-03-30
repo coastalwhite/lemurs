@@ -36,7 +36,7 @@ build the package on your local machine.
 ```bash
 paru -S lemurs # paru can be replaced by any other AUR helper
 
-# Not needed if do don't have a window manager yet
+# Not needed if you don't have a window manager yet
 sudo systemctl disable display-manager.service
 
 sudo systemctl enable lemurs.service
