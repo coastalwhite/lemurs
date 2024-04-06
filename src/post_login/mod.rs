@@ -315,8 +315,7 @@ pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
         }
     }
 
-    match fs::read_dir(&config.wayland.wayland_sessions_path
-    ) {
+    match fs::read_dir(&config.wayland.wayland_sessions_path) {
         Ok(paths) => {
             for path in paths {
                 let Ok(path) = path else {
