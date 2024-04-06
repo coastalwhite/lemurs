@@ -48,6 +48,10 @@ main_log_path = "/var/log/lemurs.log"
 # Window Manager for Xorg, the Compositor for Wayland and the Shell for TTY.
 client_log_path = "/var/log/lemurs.client.log"
 
+# At which point to point the cache. If you want to disable the cache globally
+# you can use `/dev/null`.
+cache_path = "/var/cache/lemurs";
+
 # Disable all logging. This is overwritten by the `--no-log` flag.
 do_log = true
 

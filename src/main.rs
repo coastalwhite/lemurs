@@ -151,14 +151,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             Commands::Cache => {
-                let cached_info = info_caching::get_cached_information();
+                let cached_info = info_caching::get_cached_information(&config);
 
                 let environment = cached_info.environment().unwrap_or("No cached value");
                 let username = cached_info.username().unwrap_or("No cached value");
 
                 println!(
                     "Information currently cached within '{}'\n",
-                    info_caching::CACHE_PATH
+                    config.cache_path
                 );
 
                 println!("environment: '{environment}'");

@@ -213,6 +213,7 @@ toml_config_struct! { Config, PartialConfig, RoughConfig,
 
     main_log_path => String,
     client_log_path => String,
+    cache_path => String,
 
     do_log => bool,
 

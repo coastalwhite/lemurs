@@ -257,14 +257,14 @@ impl LoginForm {
             .then_some(self.widgets.get_username());
 
         info!("Setting cached information");
-        set_cache(selected_env.as_deref(), username.as_deref());
+        set_cache(selected_env.as_deref(), username.as_deref(), &self.config);
     }
 
     fn load_cache(&self) {
         let env_remember = self.config.environment_switcher.remember;
         let username_remember = self.config.username_field.remember;
 
-        let cached = get_cached_information();
+        let cached = get_cached_information(&self.config);
 
         if username_remember {
             if let Some(username) = cached.username() {
