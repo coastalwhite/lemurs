@@ -41,12 +41,11 @@ const DEFAULT_VARIABLES_PATH: &str = "/etc/lemurs/variables.toml";
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
 
-fn merge_in_configuration(
-    config: &mut Config,
-    config_path: Option<&Path>,
-    variables_path: Option<&Path>,
-) {
-    let load_variables_path = variables_path.unwrap_or_else(|| Path::new(DEFAULT_VARIABLES_PATH));
+fn merge_in_configuration(config: &mut Config, cli: &Cli) {
+    let load_variables_path = cli
+        .variables
+        .as_deref()
+        .unwrap_or_else(|| Path::new(DEFAULT_VARIABLES_PATH));
 
     let variables = match config::Variables::from_file(load_variables_path) {
         Ok(variables) => {
@@ -60,7 +59,7 @@ fn merge_in_configuration(
         Err(err) => {
             // If we have given it a specific config path, it should crash if this file cannot be
             // loaded. If it is the default config location just put a warning in the logs.
-            if let Some(variables_path) = variables_path {
+            if let Some(variables_path) = cli.variables.as_ref() {
                 eprintln!(
                     "The variables file '{}' cannot be loaded.\nReason: {}",
                     variables_path.display(),
@@ -78,7 +77,10 @@ fn merge_in_configuration(
         }
     };
 
-    let load_config_path = config_path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
+    let load_config_path = cli
+        .config
+        .as_deref()
+        .unwrap_or_else(|| Path::new(DEFAULT_CONFIG_PATH));
 
     match config::PartialConfig::from_file(load_config_path, variables.as_ref()) {
         Ok(partial_config) => {
@@ -91,7 +93,7 @@ fn merge_in_configuration(
         Err(err) => {
             // If we have given it a specific config path, it should crash if this file cannot be
             // loaded. If it is the default config location just put a warning in the logs.
-            if let Some(config_path) = config_path {
+            if let Some(config_path) = cli.config.as_ref() {
                 eprintln!(
                     "The config file '{}' cannot be loaded.\nReason: {}",
                     config_path.display(),
@@ -105,6 +107,14 @@ fn merge_in_configuration(
                 );
             }
         }
+    }
+
+    if let Some(xsessions) = cli.xsessions.as_ref() {
+        config.x11.xsessions_path = xsessions.display().to_string();
+    }
+
+    if let Some(wlsessions) = cli.wlsessions.as_ref() {
+        config.wayland.wayland_sessions_path = wlsessions.display().to_string();
     }
 }
 
@@ -139,7 +149,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let mut config = Config::default();
-    merge_in_configuration(&mut config, cli.config.as_deref(), cli.variables.as_deref());
+    merge_in_configuration(&mut config, &cli);
 
     if let Some(cmd) = cli.command {
         match cmd {
