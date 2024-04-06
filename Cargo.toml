@@ -34,6 +34,8 @@ unicode-width = "0.1"
 
 mio = { version = "0.8.8", features = [ "os-poll", "os-ext" ] }
 
+deentry = "0.0.1"
+
 # Interacting with the kernel interfaces
 rand = "0.8.4"
 nix = "0.23.1"

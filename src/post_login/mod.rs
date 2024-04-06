@@ -234,9 +234,110 @@ impl PostLoginEnvironment {
     }
 }
 
+fn parse_desktop_entry(path: &Path, _: &Config) -> Result<(String, String), String> {
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(err) => {
+            return Err(format!("file cannot be read. Reason: {err}"));
+        }
+    };
+
+    let desktop_entry = match deentry::DesktopEntry::try_from(&content[..]) {
+        Ok(v) => v,
+        Err(err) => {
+            return Err(format!("file cannot be parsed. Reason: {err}"));
+        }
+    };
+
+    let Some(desktop_entry) = desktop_entry
+        .groups()
+        .iter()
+        .find(|g| g.name() == "Desktop Entry")
+    else {
+        return Err(format!("file does not contain 'Desktop Entry' group"));
+    };
+
+    let Some(exec) = desktop_entry.get("Exec") else {
+        return Err(format!("'Exec' key cannot be found"));
+    };
+
+    let exec = match exec.value().as_string() {
+        Ok(v) => v,
+        Err(err) => {
+            return Err(format!(
+                "'Exec' key does not contain a string. Reason: {err}"
+            ));
+        }
+    };
+
+    let name = match desktop_entry.get("Name") {
+        Some(name) => match name.value().as_string() {
+            Ok(v) => v,
+            Err(err) => {
+                warn!(
+                    "Cannot use 'Name' in '{}' because it does not contain a string. Reason: {err}",
+                    path.display()
+                );
+
+                exec
+            }
+        },
+        None => exec,
+    };
+
+    Ok((name.to_string(), exec.to_string()))
+}
+
 pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
     // NOTE: Maybe we can do something smart with `with_capacity` here.
     let mut envs = Vec::new();
+
+    match fs::read_dir(&config.x11.xsessions_path) {
+        Ok(paths) => {
+            for path in paths {
+                let Ok(path) = path else {
+                    continue;
+                };
+
+                let path = path.path();
+
+                match parse_desktop_entry(&path, config) {
+                    Ok((name, exec)) => {
+                        info!("Added environment '{name}' from xsessions");
+                        envs.push((name, PostLoginEnvironment::X { xinitrc_path: exec }));
+                    }
+                    Err(err) => warn!("Skipping '{}', because {err}", path.display()),
+                }
+            }
+        }
+        Err(err) => {
+            warn!("Failed to read from the xsessions folder '{err}'",);
+        }
+    }
+
+    match fs::read_dir(&config.wayland.wayland_sessions_path
+    ) {
+        Ok(paths) => {
+            for path in paths {
+                let Ok(path) = path else {
+                    continue;
+                };
+
+                let path = path.path();
+
+                match parse_desktop_entry(&path, config) {
+                    Ok((name, exec)) => {
+                        info!("Added environment '{name}' from wayland sessions");
+                        envs.push((name, PostLoginEnvironment::Wayland { script_path: exec }))
+                    }
+                    Err(err) => warn!("Skipping '{}', because {err}", path.display()),
+                }
+            }
+        }
+        Err(err) => {
+            warn!("Failed to read from the wayland sessions folder '{err}'",);
+        }
+    }
 
     match fs::read_dir(&config.x11.scripts_path) {
         Ok(paths) => {
@@ -255,6 +356,7 @@ pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
                             }
                         }
 
+                        info!("Added environment '{file_name}' from lemurs x11 scripts");
                         envs.push((
                             file_name,
                             PostLoginEnvironment::X {
@@ -303,6 +405,7 @@ pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
                             }
                         }
 
+                        info!("Added environment '{file_name}' from lemurs wayland scripts");
                         envs.push((
                             file_name,
                             PostLoginEnvironment::Wayland {
@@ -334,6 +437,10 @@ pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
     }
 
     if envs.is_empty() || config.environment_switcher.include_tty_shell {
+        if envs.is_empty() {
+            info!("Added TTY SHELL because no other environments were found");
+        }
+
         envs.push(("TTYSHELL".to_string(), PostLoginEnvironment::Shell));
     }
 

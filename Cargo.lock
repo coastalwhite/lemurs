@@ -61,6 +61,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "deentry"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "866170d551fbf7e49a7fe5160092933f210fe1853cf0cbf5d81957b941bdb690"
+
+[[package]]
 name = "env_logger"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -92,6 +98,7 @@ name = "lemurs"
 version = "0.3.2"
 dependencies = [
  "crossterm",
+ "deentry",
  "env_logger",
  "libc",
  "log",
