@@ -18,6 +18,8 @@ OPTIONS:
         --no-log
         --preview
         --tty <N>          Override the configured TTY number
+        --xsessions <DIR>  Override the path to /usr/share/xsessions
+        --wlsessions <DIR> Override the path to /usr/share/wayland-sessions
     -V, --version          Print version information
 
 SUBCOMMANDS:
@@ -37,6 +39,8 @@ pub struct Cli {
     pub config: Option<PathBuf>,
     pub variables: Option<PathBuf>,
     pub command: Option<Commands>,
+    pub xsessions: Option<PathBuf>,
+    pub wlsessions: Option<PathBuf>,
 }
 
 pub enum Commands {
@@ -80,6 +84,8 @@ impl Cli {
             config: None,
             variables: None,
             command: None,
+            xsessions: None,
+            wlsessions: None,
         };
 
         let mut args = args().skip(1).enumerate();
@@ -106,6 +112,16 @@ impl Cli {
                     let (_, arg) = args.next().ok_or(CliError::MissingArgument("config"))?;
                     let arg = PathBuf::from(arg);
                     cli.config = Some(arg);
+                }
+                (_, "--xsessions") => {
+                    let (_, arg) = args.next().ok_or(CliError::MissingArgument("xsessions"))?;
+                    let arg = PathBuf::from(arg);
+                    cli.xsessions = Some(arg);
+                }
+                (_, "--wlsessions") => {
+                    let (_, arg) = args.next().ok_or(CliError::MissingArgument("wlsessions"))?;
+                    let arg = PathBuf::from(arg);
+                    cli.wlsessions = Some(arg);
                 }
                 (_, "--variables") | (_, "-v") => {
                     let (_, arg) = args.next().ok_or(CliError::MissingArgument("variables"))?;
