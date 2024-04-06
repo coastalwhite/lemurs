@@ -64,10 +64,21 @@
 
 					config = let
 						lemursConfig = config.services.xserver.displayManager.lemurs;
+            sessionData = config.services.xserver.displayManager.sessionData;
 					in lib.mkIf lemursConfig.enable {
 						environment.systemPackages = [
 							packages.default
 						];
+
+            services.xserver.displayManager.job = {
+              environment = {
+                exec = ''
+                  exec ${packages.default}/bin/lemurs                  \
+                    --xsessions  ${sessionData}/share/xsessions        \
+                    --wlsessions ${sessionData}/share/wayland-sessions
+                '';
+              };
+            };
 					};
 				};
       }
