@@ -74,8 +74,8 @@
               environment = {
                 exec = ''
                   exec ${packages.default}/bin/lemurs                  \
-                    --xsessions  ${sessionData}/share/xsessions        \
-                    --wlsessions ${sessionData}/share/wayland-sessions
+                    --xsessions  ${sessionData.desktops}/share/xsessions        \
+                    --wlsessions ${sessionData.desktops}/share/wayland-sessions
                 '';
               };
             };
