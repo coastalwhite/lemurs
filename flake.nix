@@ -45,7 +45,12 @@
           ];
           
           cargoLock.lockFile = ./Cargo.lock;
-      };
-    }
+        };
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [
+            linux-pam
+          ];
+        };
+      }
   );
 }
