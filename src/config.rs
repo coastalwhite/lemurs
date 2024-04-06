@@ -374,10 +374,12 @@ toml_config_struct! { X11Config, PartialX11Config, RoughX11Config,
 
     scripts_path => String,
     xsetup_path => String,
+    xsessions_path => String,
 }
 
 toml_config_struct! { WaylandConfig, PartialWaylandConfig, RoughWaylandConfig,
     scripts_path => String,
+    wayland_sessions_path => String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

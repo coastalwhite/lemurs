@@ -340,7 +340,13 @@ scripts_path = "/etc/lemurs/wms"
 # window manager.
 xsetup_path = "/etc/lemurs/xsetup.sh"
 
+# The directory to use for desktop entries X11 sessions.
+xsessions_path = "/usr/share/xsessions"
+
 [wayland]
 # Path to the directory where the startup scripts for the Wayland sessions are
 # found
 scripts_path = "/etc/lemurs/wayland"
+
+# The directory to use for desktop entries wayland sessions.
+wayland_sessions_path = "/usr/share/wayland-sessions"
