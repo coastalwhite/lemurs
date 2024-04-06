@@ -372,6 +372,7 @@ toml_config_struct! { X11Config, PartialX11Config, RoughX11Config,
     xauth_path => String,
 
     scripts_path => String,
+    xsetup_path => String,
 }
 
 toml_config_struct! { WaylandConfig, PartialWaylandConfig, RoughWaylandConfig,
