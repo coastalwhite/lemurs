@@ -183,7 +183,7 @@ impl PostLoginEnvironment {
                 let server = setup_x(process_env, user_info, config)
                     .map_err(EnvironmentStartError::XSetup)?;
 
-                client.arg(format!("{} {}", "/etc/lemurs/xsetup.sh", xinitrc_path));
+                client.arg(format!("{} {}", &config.x11.xsetup_path, xinitrc_path));
 
                 let client = match LemursChild::spawn(client, log_path) {
                     Ok(child) => child,

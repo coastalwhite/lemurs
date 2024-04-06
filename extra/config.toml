@@ -332,6 +332,10 @@ xauth_path = "/usr/bin/xauth"
 # Path to the directory where the startup scripts for the X11 sessions are found
 scripts_path = "/etc/lemurs/wms"
 
+# Path to the xsetup script that is needed for the environment setup of the
+# window manager.
+xsetup_path = "/etc/lemurs/xsetup.sh"
+
 [wayland]
 # Path to the directory where the startup scripts for the Wayland sessions are
 # found
