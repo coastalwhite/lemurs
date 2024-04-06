@@ -1,7 +1,8 @@
 use log::{info, warn};
 use std::fs::{read_to_string, write};
 
-pub const CACHE_PATH: &str = "/var/cache/lemurs";
+use crate::config::Config;
+
 const USERNAME_LENGTH_LIMIT: usize = 32;
 
 // Saved in the /var/cache/lemurs file as
@@ -48,13 +49,12 @@ impl CachedInfo {
     }
 }
 
-pub fn get_cached_information() -> CachedInfo {
-    info!(
-        "Attempting to get a cached information from '{}'",
-        CACHE_PATH
-    );
+pub fn get_cached_information(config: &Config) -> CachedInfo {
+    let cache_path = &config.cache_path;
 
-    match read_to_string(CACHE_PATH) {
+    info!("Attempting to get a cached information from '{cache_path}'",);
+
+    match read_to_string(cache_path) {
         Ok(cached) => {
             // Remove any line feeds
             let cached = cached.trim().to_string();
@@ -102,8 +102,10 @@ pub fn get_cached_information() -> CachedInfo {
     }
 }
 
-pub fn set_cache(environment: Option<&str>, username: Option<&str>) {
-    info!("Attempting to set cache");
+pub fn set_cache(environment: Option<&str>, username: Option<&str>, config: &Config) {
+    let cache_path = &config.cache_path;
+
+    info!("Attempting to set cache: {cache_path}");
 
     let username = if let Some(username) = username {
         // Username length check
@@ -129,9 +131,9 @@ pub fn set_cache(environment: Option<&str>, username: Option<&str>) {
         username.unwrap_or_default()
     );
 
-    match write(CACHE_PATH, cache_file_content) {
+    match write(cache_path, cache_file_content) {
         Err(err) => {
-            warn!("Failed to set username to cache file. Reason: '{}'", err);
+            warn!("Failed to set username to cache file. Reason: '{err}'");
         }
         _ => {
             info!("Successfully set username in cache file");
