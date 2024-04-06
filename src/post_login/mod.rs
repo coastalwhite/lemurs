@@ -254,11 +254,11 @@ fn parse_desktop_entry(path: &Path, _: &Config) -> Result<(String, String), Stri
         .iter()
         .find(|g| g.name() == "Desktop Entry")
     else {
-        return Err(format!("file does not contain 'Desktop Entry' group"));
+        return Err("file does not contain 'Desktop Entry' group".to_string());
     };
 
     let Some(exec) = desktop_entry.get("Exec") else {
-        return Err(format!("'Exec' key cannot be found"));
+        return Err("'Exec' key cannot be found".to_string());
     };
 
     let exec = match exec.value().as_string() {
