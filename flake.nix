@@ -24,7 +24,7 @@
           cargo = rustToolchain;
           rustc = rustToolchain;
         };
-      in {
+      in rec {
         packages.default = rustPlatform.buildRustPackage {
           name = packageName;
           src = ./.;
@@ -51,6 +51,25 @@
             linux-pam
           ];
         };
+
+				nixosModules.default = {
+					pkgs,
+					lib,
+					config,
+					...
+				}: {
+					options.services.xserver.displayManager.lemurs = {
+						enable = lib.mkEnableOption "Enable the Lemurs Display Manager";
+					};
+
+					config = let
+						lemursConfig = config.services.xserver.displayManager.lemurs;
+					in lib.mkIf lemursConfig.enable {
+						environment.systemPackages = [
+							packages.default
+						];
+					};
+				};
       }
   );
 }
