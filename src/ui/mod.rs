@@ -352,7 +352,7 @@ impl LoginForm {
         let username = self.widgets.username.clone();
         let password = self.widgets.password.clone();
 
-        match terminal.draw(|f| {
+        let draw_action = terminal.draw(|f| {
             let layout = Chunks::new(f);
             login_form_render(
                 f,
@@ -365,12 +365,11 @@ impl LoginForm {
                 input_mode.get(),
                 status_message.get(),
             );
-        }) {
-            Ok(_) => {}
-            Err(err) => {
-                error!("Failed to draw. Reason: {}", err);
-                std::process::exit(1);
-            }
+        });
+
+        if let Err(err) = draw_action {
+            error!("Failed to draw. Reason: {}", err);
+            std::process::exit(1);
         }
 
         let event_input_mode = input_mode.clone();
@@ -556,7 +555,7 @@ impl LoginForm {
         while let Ok(request) = req_recv_channel.recv() {
             match request {
                 UIThreadRequest::Redraw => {
-                    match terminal.draw(|f| {
+                    let draw_action = terminal.draw(|f| {
                         let layout = Chunks::new(f);
                         login_form_render(
                             f,
@@ -569,9 +568,10 @@ impl LoginForm {
                             input_mode.get(),
                             status_message.get(),
                         );
-                    }) {
-                        Ok(_) => {}
-                        Err(err) => warn!("Failed to draw to screen. Reason: {err}"),
+                    });
+
+                    if let Err(err) = draw_action {
+                        warn!("Failed to draw to screen. Reason: {err}");
                     }
                 }
                 UIThreadRequest::DisableTui => {
