@@ -60,7 +60,7 @@ pam_service = "lemurs"
 
 # Path to system shell that gets used to execute linux commands. In almost all
 # cases, this should refer to a bash shell.
-system_shell = "/usr/sh"
+system_shell = "/bin/sh"
 
 # The type flag that will be appended to the shell that calls the session
 # environment. This may depend on your shell. Options:
