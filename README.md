@@ -41,7 +41,7 @@ sudo systemctl disable display-manager.service
 sudo systemctl enable lemurs.service
 ```
 
-Alternatively, [lemur-git](https://aur.archlinux.org/packages/lemurs-git) is available in the AUR.
+Alternatively, [lemurs-git](https://aur.archlinux.org/packages/lemurs-git) is available in the AUR.
 
 ### Compiling from source
 
