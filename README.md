@@ -99,6 +99,21 @@ Remember to make this script runnable. This is done with the `sudo chmod 755
 
 Upon rebooting your new `sway` should show up within Lemurs.
 
+### Example 3: i3wm
+
+For the [i3wm](https://i3wm.org/) window manager, you might
+add the script `/etc/lemurs/wms/i3wm`.
+
+```bash
+#! /bin/sh
+exec i3
+```
+
+Remember to make this script runnable. This is done with the `sudo chmod 755
+/etc/lemurs/wms/i3wm` command.
+
+Upon rebooting your new `i3wm` should show up within Lemurs.
+
 ## Configuration
 
 Configuration is done through a [TOML] file. By default, Lemurs searches for a
