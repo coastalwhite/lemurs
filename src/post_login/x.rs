@@ -25,6 +25,7 @@ const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 #[derive(Debug, Clone)]
 pub enum XSetupError {
     DisplayEnvVar,
+    HomeEnvVar,
     VTNREnvVar,
     FillingXAuth,
     InvalidUTF8Path,
@@ -37,6 +38,7 @@ impl Display for XSetupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DisplayEnvVar => f.write_str("`DISPLAY` is not set"),
+            Self::HomeEnvVar => f.write_str("`HOME` is not set"),
             Self::VTNREnvVar => f.write_str("`XDG_VTNR` is not set"),
             Self::FillingXAuth => f.write_str("Failed to fill `.Xauthority` file"),
             Self::InvalidUTF8Path => f.write_str("Path that is given is not valid UTF8"),
@@ -83,11 +85,7 @@ pub fn setup_x(
     let vtnr_value = env::var("XDG_VTNR").map_err(|_| XSetupError::VTNREnvVar)?;
 
     // Setup xauth
-    let xauth_dir = if let Ok(config_home) = env::var("XDG_CONFIG_HOME") {
-        PathBuf::from(config_home)
-    } else {
-        PathBuf::from(user_info.home_dir.clone())
-    };
+    let xauth_dir = PathBuf::from(env::var("HOME").map_err(|_| XSetupError::HomeEnvVar)?);
     let xauth_path = xauth_dir.join(".Xauthority");
 
     info!(
@@ -95,9 +93,9 @@ pub fn setup_x(
         xauth_path = xauth_path.display()
     );
 
-    // Make sure that we are generating a new file. This is necessary since sometimes, there may be
+    // Make sure that we are generating a new file. This is necessary sometimes, since there may be
     // a `root` permission `.Xauthority` file there.
-    let _ = remove_file(xauth_path.clone());
+    let _ = remove_file(&xauth_path);
 
     Command::new(&config.system_shell)
         .arg("-c")
