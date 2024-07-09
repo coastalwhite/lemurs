@@ -306,9 +306,9 @@ content_color_focused = "orange"
 
 # Enables showing the borders
 show_border = true
-# The borders' color and modifiers whilst the username field is unfocused
+# The borders' color and modifiers whilst the password field is unfocused
 border_color = "white"
-# The borders' color and modifiers whilst the username field is focused
+# The borders' color and modifiers whilst the password field is focused
 border_color_focused = "orange"
 
 # Constrain the width of the password field
