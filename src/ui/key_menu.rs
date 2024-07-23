@@ -35,7 +35,7 @@ impl KeyMenuWidget {
     pub fn new(
         power_config: PowerControlConfig,
         switcher_config: SwitcherConfig,
-        system_shell: String
+        system_shell: String,
     ) -> Self {
         Self {
             power_config,
