@@ -1,3 +1,5 @@
+use std::fmt;
+
 use log::info;
 
 use pam::Authenticator;
@@ -16,15 +18,15 @@ pub enum AuthenticationError {
     SessionOpen,
 }
 
-impl ToString for AuthenticationError {
-    fn to_string(&self) -> String {
+impl fmt::Display for AuthenticationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AuthenticationError::PamService(service) => format!("Failed to create authenticator with PAM service '{service}'"),
-            AuthenticationError::AccountValidation => "Invalid login credentials".to_string(),
-            AuthenticationError::HomeDirInvalidUtf8 => "User home directory path contains invalid UTF-8".to_string(),
-            AuthenticationError::ShellInvalidUtf8 => "User shell path contains invalid UTF-8".to_string(),
-            AuthenticationError::UsernameNotFound => "Login creditionals are valid, but username is not found. This should not be possible :(".to_string(),
-            AuthenticationError::SessionOpen => "Failed to open a PAM session".to_string(),
+            Self::PamService(service) => write!(f, "Failed to create authenticator with PAM service '{service}'"),
+            Self::AccountValidation => f.write_str("Invalid login credentials"),
+            Self::HomeDirInvalidUtf8 => f.write_str("User home directory path contains invalid UTF-8"),
+            Self::ShellInvalidUtf8 => f.write_str("User shell path contains invalid UTF-8"),
+            Self::UsernameNotFound => f.write_str("Login creditionals are valid, but username is not found. This should not be possible :("),
+            Self::SessionOpen => f.write_str("Failed to open a PAM session"),
         }
     }
 }
