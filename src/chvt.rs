@@ -24,8 +24,8 @@ const KB_84: u8 = 0x01;
 
 #[derive(Debug)]
 pub enum ChvtError {
-    Activate(i32),
-    WaitActive(i32),
+    Activate,
+    WaitActive,
     Close,
     OpenConsole,
     NotAConsole,
@@ -103,12 +103,12 @@ pub unsafe fn chvt(ttynum: i32) -> Result<(), ChvtError> {
 
     let activate = unsafe { libc::ioctl(fd, VT_ACTIVATE, ttynum as c_int) };
     if activate > 0 {
-        return Err(ChvtError::Activate(activate));
+        return Err(ChvtError::Activate);
     }
 
     let wait = unsafe { libc::ioctl(fd, VT_WAITACTIVE, ttynum) };
     if wait > 0 {
-        return Err(ChvtError::WaitActive(wait));
+        return Err(ChvtError::WaitActive);
     }
 
     close(fd).map_err(|_| ChvtError::Close)?;
