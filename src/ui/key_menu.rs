@@ -16,6 +16,7 @@ use crate::config::{
 pub struct KeyMenuWidget {
     power_config: PowerControlConfig,
     switcher_config: SwitcherConfig,
+    system_shell: String,
 }
 
 impl PowerControl {
@@ -31,10 +32,11 @@ impl PowerControl {
 }
 
 impl KeyMenuWidget {
-    pub fn new(power_config: PowerControlConfig, switcher_config: SwitcherConfig) -> Self {
+    pub fn new(power_config: PowerControlConfig, switcher_config: SwitcherConfig, system_shell: String) -> Self {
         Self {
             power_config,
             switcher_config,
+            system_shell,
         }
     }
 
@@ -100,7 +102,7 @@ impl KeyMenuWidget {
             .chain(self.power_config.entries.0.iter())
         {
             if key_code == get_key(&power_control.key) {
-                let cmd_status = Command::new("bash")
+                let cmd_status = Command::new(&self.system_shell)
                     .arg("-c")
                     .arg(power_control.cmd.clone())
                     .output();

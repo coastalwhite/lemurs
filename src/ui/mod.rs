@@ -288,6 +288,7 @@ impl LoginForm {
                 key_menu: KeyMenuWidget::new(
                     config.power_controls.clone(),
                     config.environment_switcher.clone(),
+                    config.system_shell.clone(),
                 ),
                 environment: Arc::new(Mutex::new(SwitcherWidget::new(
                     crate::post_login::get_envs(&config)
