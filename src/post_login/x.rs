@@ -85,8 +85,12 @@ pub fn setup_x(
     let vtnr_value = env::var("XDG_VTNR").map_err(|_| XSetupError::VTNREnvVar)?;
 
     // Setup xauth
-    let xauth_dir = PathBuf::from(env::var("HOME").map_err(|_| XSetupError::HomeEnvVar)?);
-    let xauth_path = xauth_dir.join(".Xauthority");
+    info!("Check if `XAUTHORITY` enviroment variable is set");
+    let xauth_path = match env::var("XAUTHORITY") {
+        Ok(var) => PathBuf::from(env::var(var).map_err(|_| XSetupError::FillingXAuth)?),
+        Err(_) => PathBuf::from(env::var("HOME").map_err(|_| XSetupError::HomeEnvVar)?)
+            .join(".Xauthority"),
+    };
 
     info!(
         "Filling `.Xauthority` file at `{xauth_path}`",
