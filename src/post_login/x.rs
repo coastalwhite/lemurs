@@ -123,7 +123,7 @@ pub fn setup_x(
         })?;
 
     let xauth_path = xauth_path.to_str().ok_or(XSetupError::InvalidUTF8Path)?;
-    process_env.set("XAUTHORITY", xauth_path);
+    process_env.set_or_own("XAUTHORITY", xauth_path);
 
     let doubledigit_vtnr = if vtnr_value.len() == 1 {
         format!("0{vtnr_value}")
