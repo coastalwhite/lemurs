@@ -29,6 +29,7 @@ pub enum XSetupError {
     VTNREnvVar,
     FillingXAuth,
     InvalidUTF8Path,
+    NotUnicode,
     XServerStart,
     XServerTimeout,
     XServerPrematureExit,
@@ -42,6 +43,7 @@ impl Display for XSetupError {
             Self::VTNREnvVar => f.write_str("`XDG_VTNR` is not set"),
             Self::FillingXAuth => f.write_str("Failed to fill `.Xauthority` file"),
             Self::InvalidUTF8Path => f.write_str("Path that is given is not valid UTF8"),
+            Self::NotUnicode => f.write_str("Existing `XAUTHORITY` does not contain valid unicode data"),
             Self::XServerStart => f.write_str("Failed to start X server binary"),
             Self::XServerTimeout => f.write_str("Timeout while waiting for X server to start"),
             Self::XServerPrematureExit => {
@@ -87,7 +89,7 @@ pub fn setup_x(
     // Setup xauth
     info!("Check if `XAUTHORITY` enviroment variable is set");
     let xauth_path = match env::var("XAUTHORITY") {
-        Ok(_) => PathBuf::from(env::var("XAUTHORITY").map_err(|_| XSetupError::InvalidUTF8Path)?),
+        Ok(_) => PathBuf::from(env::var("XAUTHORITY").map_err(|_| XSetupError::NotUnicode)?),
         Err(_) => PathBuf::from(env::var("HOME").map_err(|_| XSetupError::HomeEnvVar)?)
             .join(".Xauthority"),
     };
