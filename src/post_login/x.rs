@@ -87,7 +87,7 @@ pub fn setup_x(
     // Setup xauth
     info!("Check if `XAUTHORITY` enviroment variable is set");
     let xauth_path = match env::var("XAUTHORITY") {
-        Ok(var) => PathBuf::from(env::var(var).map_err(|_| XSetupError::FillingXAuth)?),
+        Ok(_) => PathBuf::from(env::var("XAUTHORITY").map_err(|_| XSetupError::InvalidUTF8Path)?),
         Err(_) => PathBuf::from(env::var("HOME").map_err(|_| XSetupError::HomeEnvVar)?)
             .join(".Xauthority"),
     };
