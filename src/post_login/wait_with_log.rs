@@ -173,58 +173,56 @@ impl LimitedOutputChild {
 
         let mut file_handle = LimitSizeWriter::new(file, LOG_WRITER_SIZE_LIMIT);
 
-        let join_handle = std::thread::spawn(move || {
-            loop {
-                poll.poll(&mut events, None)?;
+        let join_handle = std::thread::spawn(move || loop {
+            poll.poll(&mut events, None)?;
 
-                fn forward_receiver_to_file(
-                    receiver: &mut Receiver,
-                    file_handle: &mut LimitSizeWriter<impl io::Write>,
-                    is_read_closed: bool,
-                ) -> io::Result<()> {
-                    let mut buf = [0u8; 2048];
+            fn forward_receiver_to_file(
+                receiver: &mut Receiver,
+                file_handle: &mut LimitSizeWriter<impl io::Write>,
+                is_read_closed: bool,
+            ) -> io::Result<()> {
+                let mut buf = [0u8; 2048];
 
-                    loop {
-                        if is_read_closed {
-                            let mut v = Vec::new();
-                            receiver.read_to_end(&mut v)?;
-                            file_handle.write_all(&v)?;
+                loop {
+                    if is_read_closed {
+                        let mut v = Vec::new();
+                        receiver.read_to_end(&mut v)?;
+                        file_handle.write_all(&v)?;
 
-                            break;
-                        }
-
-                        match receiver.read(&mut buf) {
-                            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                                break;
-                            }
-                            Err(err) => return Err(err),
-                            Ok(n) => {
-                                file_handle.write_all(&buf[..n])?;
-                            }
-                        }
+                        break;
                     }
 
-                    Ok(())
+                    match receiver.read(&mut buf) {
+                        Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                            break;
+                        }
+                        Err(err) => return Err(err),
+                        Ok(n) => {
+                            file_handle.write_all(&buf[..n])?;
+                        }
+                    }
                 }
 
-                for event in events.iter() {
-                    match event.token() {
-                        x if x == WAKER_TOKEN => {
-                            return Ok(());
-                        }
-                        x if x == STDOUT_PIPE_RECV => forward_receiver_to_file(
-                            &mut stdout_receiver,
-                            &mut file_handle,
-                            event.is_read_closed(),
-                        )?,
-                        x if x == STDERR_PIPE_RECV => forward_receiver_to_file(
-                            &mut stderr_receiver,
-                            &mut file_handle,
-                            event.is_read_closed(),
-                        )?,
-                        _ => {
-                            return Err(io::Error::new(io::ErrorKind::Other, "Invalid event"));
-                        }
+                Ok(())
+            }
+
+            for event in events.iter() {
+                match event.token() {
+                    x if x == WAKER_TOKEN => {
+                        return Ok(());
+                    }
+                    x if x == STDOUT_PIPE_RECV => forward_receiver_to_file(
+                        &mut stdout_receiver,
+                        &mut file_handle,
+                        event.is_read_closed(),
+                    )?,
+                    x if x == STDERR_PIPE_RECV => forward_receiver_to_file(
+                        &mut stderr_receiver,
+                        &mut file_handle,
+                        event.is_read_closed(),
+                    )?,
+                    _ => {
+                        return Err(io::Error::new(io::ErrorKind::Other, "Invalid event"));
                     }
                 }
             }

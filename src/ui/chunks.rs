@@ -1,9 +1,9 @@
-use Constraint::{Length, Min};
 use ratatui::{
-    Frame,
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
+    Frame,
 };
+use Constraint::{Length, Min};
 
 pub struct Chunks {
     pub key_menu: Rect,

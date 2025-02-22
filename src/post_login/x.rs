@@ -1,4 +1,4 @@
-use libc::{SIG_DFL, SIG_IGN, SIGUSR1, signal};
+use libc::{signal, SIGUSR1, SIG_DFL, SIG_IGN};
 use rand::Rng;
 
 use once_cell::sync::Lazy;

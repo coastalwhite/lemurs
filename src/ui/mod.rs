@@ -8,17 +8,17 @@ use std::time::Duration;
 use crate::config::{Config, FocusBehaviour, SwitcherVisibility};
 use crate::info_caching::{get_cached_information, set_cache};
 use crate::post_login::PostLoginEnvironment;
-use crate::{Hooks, StartSessionError, start_session};
+use crate::{start_session, Hooks, StartSessionError};
 use status_message::StatusMessage;
 
 use crossterm::cursor::MoveTo;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{
-    Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+    disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use ratatui::backend::CrosstermBackend;
-use ratatui::{Frame, Terminal, backend::Backend};
+use ratatui::{backend::Backend, Frame, Terminal};
 
 mod background;
 mod chunks;

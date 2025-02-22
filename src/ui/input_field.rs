@@ -8,7 +8,7 @@ use ratatui::{
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::config::{InputFieldStyle, get_color};
+use crate::config::{get_color, InputFieldStyle};
 
 /// The type of the input field display. How are the characters which are typed displayed?
 #[derive(Clone)]

@@ -1,8 +1,8 @@
-use ratatui::Frame;
 use ratatui::backend::Backend;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::auth::AuthenticationError;
 

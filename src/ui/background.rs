@@ -1,10 +1,10 @@
 use ratatui::{
-    Frame,
     style::Style,
     widgets::{Block, Borders},
+    Frame,
 };
 
-use crate::config::{BackgroundConfig, get_color};
+use crate::config::{get_color, BackgroundConfig};
 
 #[derive(Clone)]
 pub struct BackgroundWidget {

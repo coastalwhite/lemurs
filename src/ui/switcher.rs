@@ -8,7 +8,7 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
-use crate::config::{SwitcherConfig, SwitcherVisibility, get_color, get_modifiers};
+use crate::config::{get_color, get_modifiers, SwitcherConfig, SwitcherVisibility};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct SwitcherItem<T> {

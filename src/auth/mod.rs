@@ -4,8 +4,8 @@ pub mod utmpx;
 use ::pam::{Authenticator, PasswordConv};
 use log::info;
 
-pub use crate::auth::pam::AuthenticationError;
 use crate::auth::pam::open_session;
+pub use crate::auth::pam::AuthenticationError;
 
 pub struct AuthUserInfo<'a> {
     // This is used to keep the user session. If the struct is dropped then the user session is
