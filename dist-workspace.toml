@@ -1,6 +1,10 @@
 [workspace]
 members = ["cargo:."]
 
+[workspace.metadata.dist.dependencies.apt]
+build-essential = "*"
+libpam-dev = "*"
+
 # Config for 'dist'
 [dist]
 # The preferred dist version to use in CI (Cargo.toml SemVer syntax)
