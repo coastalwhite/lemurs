@@ -50,6 +50,7 @@
           packages = with pkgs; [
             linux-pam
             rustToolchain
+            cargo-dist
           ];
         };
       }

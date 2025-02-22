@@ -58,14 +58,6 @@ log = "0.4.0"
 toml = "0.5"
 serde = { version = "1.0", features = ["derive"] }
 
-# Config for 'cargo dist'
-[workspace.metadata.dist]
-cargo-dist-version = "0.28.0"
-ci = ["github"]
-installers = []
-targets = ["x86_64-unknown-linux-gnu"]
-include = ["extra"]
-
 # The profile that 'cargo dist' will build with
 [profile.dist]
 inherits = "release"
