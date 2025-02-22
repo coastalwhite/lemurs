@@ -1,10 +1,6 @@
 [workspace]
 members = ["cargo:."]
 
-[workspace.metadata.dist.dependencies.apt]
-build-essential = "*"
-libpam-dev = "*"
-
 # Config for 'dist'
 [dist]
 # The preferred dist version to use in CI (Cargo.toml SemVer syntax)
@@ -17,3 +13,7 @@ installers = []
 targets = ["x86_64-unknown-linux-gnu"]
 # Extra static files to include in each App (path relative to this Cargo.toml's dir)
 include = ["extra"]
+
+[dist.dependencies.apt]
+build-essential = { stage = ["build", "run"] }
+libpam-dev = { stage = ["build", "run"] }
