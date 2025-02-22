@@ -12,15 +12,16 @@ A TUI Display/Login Manager
 USAGE: lemurs [OPTIONS] [SUBCOMMAND]
 
 OPTIONS:
-    -c, --config <FILE>    A file to replace the default configuration
-    -v, --variables <FILE> A file to replace the set variables
-    -h, --help             Print help information
+    -c, --config <FILE>       A file to replace the default configuration
+    -v, --variables <FILE>    A file to replace the set variables
+    -h, --help                Print help information
         --no-log
         --preview
-        --tty <N>          Override the configured TTY number
-        --xsessions <DIR>  Override the path to /usr/share/xsessions
-        --wlsessions <DIR> Override the path to /usr/share/wayland-sessions
-    -V, --version          Print version information
+        --tty <N>             Override the configured TTY number
+        --xsessions <DIR>     Override the path to /usr/share/xsessions
+        --wlsessions <DIR>    Override the path to /usr/share/wayland-sessions
+        --initial-path <PATH> Override the initial value of the PATH variable
+    -V, --version             Print version information
 
 SUBCOMMANDS:
     cache
@@ -41,6 +42,7 @@ pub struct Cli {
     pub command: Option<Commands>,
     pub xsessions: Option<PathBuf>,
     pub wlsessions: Option<PathBuf>,
+    pub initial_path: Option<String>,
 }
 
 pub enum Commands {
@@ -86,6 +88,7 @@ impl Cli {
             command: None,
             xsessions: None,
             wlsessions: None,
+            initial_path: None,
         };
 
         let mut args = args().skip(1).enumerate();
@@ -127,6 +130,10 @@ impl Cli {
                     let (_, arg) = args.next().ok_or(CliError::MissingArgument("variables"))?;
                     let arg = PathBuf::from(arg);
                     cli.variables = Some(arg);
+                }
+                (_, "--initial-path") => {
+                    let (_, arg) = args.next().ok_or(CliError::MissingArgument("initial-path"))?;
+                    cli.initial_path = Some(arg);
                 }
                 (_, arg) => return Err(CliError::InvalidArgument(arg.to_string())),
             }

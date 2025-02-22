@@ -67,6 +67,7 @@ pub fn set_basic_variables(
     username: &str,
     homedir: &str,
     shell: &str,
+    path: &str,
 ) {
     info!("Setting Basic Environment Variables");
 
@@ -77,7 +78,7 @@ pub fn set_basic_variables(
     process_env.set("SHELL", shell);
     process_env.set("USER", username);
     process_env.set("LOGNAME", username);
-    process_env.set("PATH", "/usr/local/sbin:/usr/local/bin:/usr/bin");
+    process_env.set("PATH", path);
 
     // process_env.set("MAIL", "..."); TODO: Add
 }

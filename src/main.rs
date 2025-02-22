@@ -47,6 +47,10 @@ fn merge_in_configuration(config: &mut Config, cli: &Cli) {
         .as_deref()
         .unwrap_or_else(|| Path::new(DEFAULT_VARIABLES_PATH));
 
+    if let Some(initial_path) = &cli.initial_path {
+        config.initial_path = initial_path.clone();
+    }
+
     let variables = match config::Variables::from_file(load_variables_path) {
         Ok(variables) => {
             info!(
@@ -325,7 +329,13 @@ fn start_session(
 
     set_seat_vars(&mut process_env, tty);
     set_session_vars(&mut process_env, uid);
-    set_basic_variables(&mut process_env, username, homedir, shell);
+    set_basic_variables(
+        &mut process_env,
+        username,
+        homedir,
+        shell,
+        &config.initial_path,
+    );
     set_xdg_common_paths(&mut process_env, homedir);
 
     let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, config)?;

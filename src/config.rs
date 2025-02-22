@@ -219,6 +219,7 @@ toml_config_struct! { Config, PartialConfig, RoughConfig,
 
     pam_service => String,
     system_shell => String,
+    initial_path => String,
 
     shell_login_flag => ShellLoginFlag,
 

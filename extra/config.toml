@@ -62,6 +62,9 @@ pam_service = "lemurs"
 # cases, this should refer to a bash shell.
 system_shell = "/bin/sh"
 
+# Initial state of the `PATH` environment variable.
+initial_path = "/usr/local/sbin:/usr/local/bin:/usr/bin"
+
 # The type flag that will be appended to the shell that calls the session
 # environment. This may depend on your shell. Options:
 # - 'none'. Disables calling a login shell
