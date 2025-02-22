@@ -348,8 +348,8 @@ pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
                         if let Ok(metadata) = path.metadata() {
                             if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
                                 warn!(
-                            "'{file_name}' is not executable and therefore not added as an environment",
-                        );
+                                    "'{file_name}' is not executable and therefore not added as an environment",
+                                );
 
                                 continue;
                             }
@@ -396,9 +396,9 @@ pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
                         if let Ok(metadata) = path.metadata() {
                             if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o111 == 0 {
                                 warn!(
-                            "'{}' is not executable and therefore not added as an environment",
-                            file_name
-                        );
+                                    "'{}' is not executable and therefore not added as an environment",
+                                    file_name
+                                );
 
                                 continue;
                             }

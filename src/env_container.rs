@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::env;
+use std::marker::PhantomData;
 
 use log::{error, info};
 
@@ -10,6 +11,9 @@ pub struct EnvironmentContainer {
     snapshot: HashMap<String, String>,
     snapshot_pwd: String,
     owned: HashMap<&'static str, String>,
+
+    // Ensure that this is not send.
+    _no_send: PhantomData<std::sync::MutexGuard<'static, ()>>,
 }
 
 impl EnvironmentContainer {
@@ -26,6 +30,8 @@ impl EnvironmentContainer {
             snapshot: env::vars().collect::<HashMap<String, String>>(),
             owned: HashMap::default(),
             snapshot_pwd: pwd,
+
+            _no_send: Default::default(),
         }
     }
 
@@ -33,7 +39,9 @@ impl EnvironmentContainer {
     pub fn set(&mut self, key: &'static str, value: impl Into<String>) {
         let value = value.into();
 
-        env::set_var(key, &value);
+        // SAFETY: We only even call this from one thread.
+        unsafe { env::set_var(key, &value) };
+
         info!("Set environment variable '{}' to '{}'", key, value);
 
         self.owned.insert(key, value);
@@ -58,7 +66,9 @@ impl EnvironmentContainer {
     pub fn remove_var(&mut self, key: &'static str) {
         if env::var(key).is_ok() {
             info!("Preemptively removed environment variable '{key}'",);
-            env::remove_var(key);
+
+            // SAFETY: We only even call this from one thread.
+            unsafe { env::remove_var(key) };
         }
     }
 
@@ -81,7 +91,8 @@ impl Drop for EnvironmentContainer {
         info!("Removing session environment variables");
         for (key, value) in self.owned.iter() {
             if env::var(key).as_ref() == Ok(value) {
-                env::remove_var(key);
+                // SAFETY: We only even call this from one thread.
+                unsafe { env::remove_var(key) };
             }
         }
 
@@ -89,7 +100,8 @@ impl Drop for EnvironmentContainer {
         info!("Reverting to environment before session");
         for (key, value) in self.snapshot.iter() {
             if env::var(key).is_err() {
-                env::set_var(key, value);
+                // SAFETY: We only even call this from one thread.
+                unsafe { env::set_var(key, value) };
             }
         }
 

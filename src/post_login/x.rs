@@ -1,4 +1,4 @@
-use libc::{signal, SIGUSR1, SIG_DFL, SIG_IGN};
+use libc::{SIG_DFL, SIG_IGN, SIGUSR1, signal};
 use rand::Rng;
 
 use once_cell::sync::Lazy;
@@ -56,8 +56,8 @@ impl Error for XSetupError {}
 fn mcookie() -> String {
     // TODO: Verify that this is actually safe. Maybe just use the mcookie binary?? Is that always
     // available?
-    let mut rng = rand::thread_rng();
-    let cookie: u128 = rng.gen();
+    let mut rng = rand::rng();
+    let cookie: u128 = rng.random();
     format!("{cookie:032x}")
 }
 
@@ -163,9 +163,9 @@ pub fn setup_x(
     let start_time = time::SystemTime::now();
     loop {
         if config.x11.xserver_timeout_secs == 0
-            || start_time.elapsed().map_or(false, |t| {
-                t.as_secs() > config.x11.xserver_timeout_secs.into()
-            })
+            || start_time
+                .elapsed()
+                .is_ok_and(|t| t.as_secs() > config.x11.xserver_timeout_secs.into())
         {
             break;
         }
@@ -176,7 +176,9 @@ pub fn setup_x(
         }
 
         if let Some(status) = child.try_wait().unwrap_or(None) {
-            error!("X server died before signaling it was ready to received connections. Status code: {status}.");
+            error!(
+                "X server died before signaling it was ready to received connections. Status code: {status}."
+            );
 
             return Err(XSetupError::XServerPrematureExit);
         }

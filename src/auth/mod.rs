@@ -4,8 +4,8 @@ pub mod utmpx;
 use ::pam::{Authenticator, PasswordConv};
 use log::info;
 
-use crate::auth::pam::open_session;
 pub use crate::auth::pam::AuthenticationError;
+use crate::auth::pam::open_session;
 
 pub struct AuthUserInfo<'a> {
     // This is used to keep the user session. If the struct is dropped then the user session is
@@ -30,12 +30,11 @@ pub fn try_auth<'a>(
 ) -> Result<AuthUserInfo<'a>, AuthenticationError> {
     info!("Login attempt for '{username}'");
 
-    open_session(username, password, pam_service).map_err(|err| {
+    open_session(username, password, pam_service).inspect_err(|err| {
         info!(
             "Authentication failed for '{}'. Reason: {}",
             username,
             err.to_string()
         );
-        err
     })
 }

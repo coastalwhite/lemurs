@@ -132,7 +132,9 @@ impl Cli {
                     cli.variables = Some(arg);
                 }
                 (_, "--initial-path") => {
-                    let (_, arg) = args.next().ok_or(CliError::MissingArgument("initial-path"))?;
+                    let (_, arg) = args
+                        .next()
+                        .ok_or(CliError::MissingArgument("initial-path"))?;
                     cli.initial_path = Some(arg);
                 }
                 (_, arg) => return Err(CliError::InvalidArgument(arg.to_string())),

@@ -4,11 +4,11 @@ use std::{error::Error, path::Path};
 
 use crossterm::{
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use log::{error, info, warn};
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 mod auth;
 mod chvt;
@@ -203,8 +203,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if !cli.preview {
         if std::env::var("XDG_SESSION_TYPE").is_ok() {
-            eprintln!("Lemurs cannot be ran without `--preview` within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
-            error!("Lemurs cannot be started when within an existing session. Namely, `XDG_SESSION_TYPE` is set.");
+            eprintln!(
+                "Lemurs cannot be ran without `--preview` within an existing session. Namely, `XDG_SESSION_TYPE` is set."
+            );
+            error!(
+                "Lemurs cannot be started when within an existing session. Namely, `XDG_SESSION_TYPE` is set."
+            );
             std::process::exit(1);
         }
 

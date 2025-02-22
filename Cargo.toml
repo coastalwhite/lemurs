@@ -4,7 +4,7 @@ authors = ["Gijs Burghoorn <me@gburghoorn.com>"]
 description = "A TUI Display/Login Manager"
 version = "0.3.2"
 
-edition = "2021"
+edition = "2024"
 
 categories = ["gui", "authentication"]
 keywords = ["display", "login", "desktop"]
@@ -24,7 +24,7 @@ include = [
     "/extra"
 ]
 
-rust-version = "1.70.0"
+rust-version = "1.85.0"
 
 [dependencies]
 # UI and TUI interface
@@ -37,7 +37,7 @@ mio = { version = "0.8.8", features = [ "os-poll", "os-ext" ] }
 deentry = "0.0.1"
 
 # Interacting with the kernel interfaces
-rand = "0.8.4"
+rand = "0.9"
 nix = "0.23.1"
 
 # UTMPX

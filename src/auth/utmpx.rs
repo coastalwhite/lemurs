@@ -13,6 +13,7 @@ pub fn add_utmpx_entry(username: &str, tty: u8, pid: u32) -> UtmpxSession {
     // https://man7.org/linux/man-pages/man0/utmpx.h.0p.html
     // https://github.com/fairyglade/ly/blob/master/src/login.c
     let entry = {
+        // SAFETY: None of the fields in libc::utmpx have a drop implementation.
         let mut s: libc::utmpx = unsafe { std::mem::zeroed() };
 
         // ut_line    --- Device name of tty - "/dev/"
@@ -89,7 +90,7 @@ pub fn add_utmpx_entry(_username: &str, _tty: u8, _pid: u32) -> UtmpxSession {
 #[cfg(target_env = "gnu")]
 impl Drop for UtmpxSession {
     fn drop(&mut self) {
-        let UtmpxSession { session: mut entry } = self;
+        let entry = &mut self.session;
 
         log::info!("Removing UTMPX record");
 
@@ -103,7 +104,7 @@ impl Drop for UtmpxSession {
 
         unsafe {
             libc::setutxent();
-            libc::pututxline(&entry as *const libc::utmpx);
+            libc::pututxline(entry as *const libc::utmpx);
             libc::endutxent();
         }
     }

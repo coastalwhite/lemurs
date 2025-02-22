@@ -8,7 +8,7 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
-use crate::config::{get_color, get_modifiers, SwitcherConfig, SwitcherVisibility};
+use crate::config::{SwitcherConfig, SwitcherVisibility, get_color, get_modifiers};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct SwitcherItem<T> {
@@ -150,17 +150,11 @@ impl<T> SwitcherWidget<T> {
     }
 
     fn left(&mut self) {
-        let Self {
-            ref mut selector, ..
-        } = self;
-        selector.go_prev();
+        self.selector.go_prev();
     }
 
     fn right(&mut self) {
-        let Self {
-            ref mut selector, ..
-        } = self;
-        selector.go_next();
+        self.selector.go_next();
     }
 
     fn cutoff_wm_title_with_padding<'a>(&self, title: &'a str) -> (String, &'a str, String) {

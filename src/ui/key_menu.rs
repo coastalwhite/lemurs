@@ -1,15 +1,15 @@
 use std::process::{Command, Output};
 
 use crossterm::event::KeyCode;
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::config::{
-    get_color, get_key, get_modifiers, PowerControl, PowerControlConfig, SwitcherConfig,
-    SwitcherVisibility,
+    PowerControl, PowerControlConfig, SwitcherConfig, SwitcherVisibility, get_color, get_key,
+    get_modifiers,
 };
 
 #[derive(Clone)]

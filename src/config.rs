@@ -1,6 +1,6 @@
 use crossterm::event::KeyCode;
 use log::error;
-use serde::{de::Error, Deserialize};
+use serde::{Deserialize, de::Error};
 use std::fmt::Display;
 use std::fs::File;
 use std::io::Read;
@@ -428,7 +428,7 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
             key => {
                 let Some(keycode) = get_function_key(key) else {
                     return Err(D::Error::custom(
-                        "Invalid key provided to toggle switcher visibility. Only F1-F12 are allowed"
+                        "Invalid key provided to toggle switcher visibility. Only F1-F12 are allowed",
                     ));
                 };
 
@@ -550,12 +550,20 @@ impl Display for VariableInsertionError {
             ),
             VariableInsertionError::UnsetVariable { var_ident } => {
                 write!(f, "Variable '{var_ident}' is not set")
-            },
+            }
             VariableInsertionError::DepthLimitReached => {
                 write!(f, "Variable evaluation reached the depth limit")
-            },
-            VariableInsertionError::InvalidType { expected, gotten } => write!(f, "Expected type '{expected}'. Got type '{gotten}'."),
-            VariableInsertionError::UnexpectedVariableType { var_ident, expected_type } => write!(f, "Needed to use variable '{var_ident}' as a '{expected_type}', but was unable to cast it as such."),
+            }
+            VariableInsertionError::InvalidType { expected, gotten } => {
+                write!(f, "Expected type '{expected}'. Got type '{gotten}'.")
+            }
+            VariableInsertionError::UnexpectedVariableType {
+                var_ident,
+                expected_type,
+            } => write!(
+                f,
+                "Needed to use variable '{var_ident}' as a '{expected_type}', but was unable to cast it as such."
+            ),
         }
     }
 }
@@ -716,7 +724,7 @@ struct Variable<'a> {
     ident: &'a str,
 }
 
-impl<'a> Variable<'a> {
+impl Variable<'_> {
     const START_SYMBOL: &'static str = "$";
 
     fn span(&self) -> std::ops::Range<usize> {
@@ -741,10 +749,7 @@ impl<'a> Iterator for VariableIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let s = &self.inner[self.offset..];
 
-        let start = match s.find(Variable::START_SYMBOL) {
-            Some(position) => position,
-            None => return None,
-        };
+        let start = s.find(Variable::START_SYMBOL)?;
 
         // skip the "$ pattern
         let s = &s[start + Variable::START_SYMBOL.len()..];
