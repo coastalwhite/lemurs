@@ -227,6 +227,8 @@ toml_config_struct! { Config, PartialConfig, RoughConfig,
 
     background => BackgroundConfig [PartialBackgroundConfig, RoughBackgroundConfig],
 
+    layout => LayoutConfig [PartialLayoutConfig, RoughLayoutConfig],
+
     power_controls => PowerControlConfig [PartialPowerControlConfig, RoughPowerControlConfig],
     environment_switcher => SwitcherConfig [PartialSwitcherConfig, RoughSwitcherConfig],
     username_field => UsernameFieldConfig [PartialUsernameFieldConfig, RoughUsernameFieldConfig],
@@ -240,6 +242,14 @@ toml_config_struct! { BackgroundStyleConfig, PartialBackgroundStyleConfig, Rough
     color => String,
     show_border => bool,
     border_color => String,
+}
+
+toml_config_struct! { LayoutConfig, PartialLayoutConfig, RoughLayoutConfig,
+    pre_power_gap => u16,
+    power_switcher_gap => u16,
+    switcher_username_gap => u16,
+    username_password_gap => u16,
+    password_status_gap => u16,
 }
 
 toml_config_struct! { BackgroundConfig, PartialBackgroundConfig, RoughBackgroundConfig,

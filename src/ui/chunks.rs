@@ -1,3 +1,4 @@
+use crate::config::LayoutConfig;
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -14,18 +15,18 @@ pub struct Chunks {
 }
 
 impl Chunks {
-    pub fn new<B: Backend>(frame: &Frame<B>) -> Self {
+    pub fn new<B: Backend>(frame: &Frame<B>, config: &LayoutConfig) -> Self {
         let constraints = [
-            Length(1),
-            Length(1),
-            Length(2),
-            Length(1),
-            Length(2),
-            Length(3),
-            Length(2),
-            Length(3),
-            Length(2),
-            Length(1),
+            Length(config.pre_power_gap),
+            Length(1), // key menu
+            Length(config.power_switcher_gap),
+            Length(1), // switcher
+            Length(config.switcher_username_gap),
+            Length(3), // username
+            Length(config.username_password_gap),
+            Length(3), // password
+            Length(config.password_status_gap),
+            Length(1), // status
             Min(0),
         ];
 
@@ -37,7 +38,7 @@ impl Chunks {
             .split(frame.size());
 
         Self {
-            key_menu: chunks[0],
+            key_menu: chunks[1],
             switcher: chunks[3],
             username_field: chunks[5],
             password_field: chunks[7],
