@@ -333,7 +333,7 @@ impl InputFieldWidget {
             (KeyCode::Char('l'), KeyModifiers::CONTROL) => self.clear(),
             (KeyCode::Char('a'), KeyModifiers::CONTROL) => self.move_to_begin(),
             (KeyCode::Char('e'), KeyModifiers::CONTROL) => self.move_to_end(),
-            (KeyCode::Char('u'), KeyModifiers::CONTROL) => self.clear_before(),
+            (KeyCode::Char('u'), KeyModifiers::CONTROL) => self.clear(),
             (KeyCode::Char('k'), KeyModifiers::CONTROL) => self.clear_after(),
             (KeyCode::Char('w'), KeyModifiers::CONTROL) => self.clear_before(),
 
