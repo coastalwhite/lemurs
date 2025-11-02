@@ -146,15 +146,13 @@ impl LimitedOutputChild {
         let file = file_options.open(log_path)?;
 
         let Some(stdout) = process.stdout.take() else {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(io::Error::other(
                 "Failed to grab stdout",
             ));
         };
 
         let Some(stderr) = process.stderr.take() else {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(io::Error::other(
                 "Failed to grab stderr",
             ));
         };
@@ -222,7 +220,7 @@ impl LimitedOutputChild {
                         event.is_read_closed(),
                     )?,
                     _ => {
-                        return Err(io::Error::new(io::ErrorKind::Other, "Invalid event"));
+                        return Err(io::Error::other("Invalid event"));
                     }
                 }
             }
