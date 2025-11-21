@@ -65,8 +65,11 @@ echo 'Copy over PAM service'
 inst 'extra/lemurs.pam' '/etc/pam.d/lemurs'
 
 # Cache the current user
-echo 'Caching the current user'
-echo "xinitrc\n$USER" | "$ROOT_CMD" tee /var/cache/lemurs > /dev/null || exit 1
+cache='/var/cache/lemurs'
+if ! [ -s "$cache" ]; then
+    echo 'Caching the current user'
+    echo "xinitrc\n$USER" | "$ROOT_CMD" tee "$cache" > /dev/null || exit 1
+fi
 
 # Disable previous Display Manager
 echo 'Disabling the current display-manager. This might throw an error if no display manager is set up.'
