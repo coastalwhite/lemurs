@@ -23,7 +23,7 @@
 #
 # Note: If the color wasn't recognized, it will default to white.
 # ---------
-# 
+#
 # Modifiers:
 # ---------
 # There is a number of modifiers you can use. These can be combined by
@@ -73,7 +73,7 @@ initial_path = "/usr/local/sbin:/usr/local/bin:/usr/bin"
 shell_login_flag = "short"
 
 # Focus behaviour of fields when Lemurs is initially started
-# 
+#
 # Possible values:
 # - default: Initially focus on first non-cached value
 # - no-focus: No initial focus
@@ -165,21 +165,21 @@ cmd = "systemctl reboot -l"
 #    ^      ^         ^          ^      ^
 #    |      |         |          |      |
 #  mover    |      selected      |    mover
-#           |                    |      
+#           |                    |
 #       neighbour            neighbour
 # ---------
 #
 
-# Control the visiblity of the switcher
+# Control the visibility of the switcher
 # Options:
 # - "visible" - Always show the switcher [default]
 # - "hidden"  - Always hide the switcher
-# - [key]     - F1-F12 to be able to toggle the visiblity
+# - [key]     - F1-F12 to be able to toggle the visibility
 switcher_visibility = "visible"
 
 # The text in the top-left to display how to toggle the switcher. The text
 # '%key%' will be replaced with the switcher_visibility key. This is not shown
-# if switcher_visiblity is set to "visible" or "hidden".
+# if switcher_visibility is set to "visible" or "hidden".
 toggle_hint = "Switcher %key%"
 
 # The color and modifiers of the hint in the top-left corner
@@ -187,8 +187,8 @@ toggle_hint_color = "dark gray"
 toggle_hint_modifiers = ""
 
 
-# Show an option for the TTY shell when logging in as one of the environments. 
-# NOTE: it is always shown when no viable options are found. 
+# Show an option for the TTY shell when logging in as one of the environments.
+# NOTE: it is always shown when no viable options are found.
 include_tty_shell = false
 
 # Remember the selected environment after logging in for the next time
@@ -198,12 +198,12 @@ remember = true
 show_movers = true
 
 # Mover's color and modifiers whilst the selector is unfocused
-mover_color = "dark gray" 
+mover_color = "dark gray"
 mover_modifiers = ""
 
 # Mover's color and modifiers whilst the selector is focused
 mover_color_focused = "orange"
-mover_modifiers_focused = "bold" 
+mover_modifiers_focused = "bold"
 
 # The characters used to display the movers. Suggestions are:
 # -  "<"  ">"
@@ -283,7 +283,7 @@ border_color_focused = "orange"
 
 # Constrain the width of the username field
 use_max_width = true
-# The contraint of the username field's width
+# The constraint of the username field's width
 max_width = 48
 
 [password_field]
@@ -316,7 +316,7 @@ border_color_focused = "orange"
 
 # Constrain the width of the password field
 use_max_width = true
-# The contraint of the password field's width
+# The constraint of the password field's width
 max_width = 48
 
 [x11]
