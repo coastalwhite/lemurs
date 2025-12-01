@@ -494,7 +494,7 @@ impl LoginForm {
                             input_mode.next(switcher_hidden);
                         }
 
-                        // Esc is the overal key to get out of your input mode
+                        // Esc is the overall key to get out of your input mode
                         (KeyCode::Esc, InputMode::Normal, _) => {
                             if self.preview {
                                 info!("Pressed escape in preview mode to exit the application");

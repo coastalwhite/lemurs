@@ -127,7 +127,7 @@ pub fn setup_x(
         vtnr_value
     };
 
-    // Here we explicitely ignore the first USR defined signal. Xorg looks at whether this signal
+    // Here we explicitly ignore the first USR defined signal. Xorg looks at whether this signal
     // is ignored or not. If it is ignored, it will send that signal to the parent when it ready to
     // receive connections. This is also how xinit does it.
     //
