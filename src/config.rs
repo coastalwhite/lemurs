@@ -1,5 +1,6 @@
 use crossterm::event::KeyCode;
 use log::error;
+use ratatui::style::{Color, Modifier};
 use serde::{de::Error, Deserialize};
 use std::fmt::Display;
 use std::fs::File;
@@ -7,26 +8,6 @@ use std::io::Read;
 use std::path::Path;
 use std::process;
 use toml::Value;
-
-use ratatui::style::{Color, Modifier};
-
-#[derive(Debug)]
-pub struct VarError {
-    variable: String,
-    pos: usize,
-}
-
-impl std::error::Error for VarError {}
-
-impl Display for VarError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Variable {} not found at position {}",
-            self.variable, self.pos
-        )
-    }
-}
 
 pub fn get_color(color: &str) -> Color {
     if let Some(color) = str_to_color(color) {
