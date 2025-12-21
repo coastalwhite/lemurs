@@ -354,7 +354,7 @@ impl LoginForm {
         let password = self.widgets.password.clone();
 
         let draw_action = terminal.draw(|f| {
-            let layout = Chunks::new(f);
+            let layout = Chunks::new(f, &(self.config.layout));
             login_form_render(
                 f,
                 layout,
@@ -375,6 +375,7 @@ impl LoginForm {
 
         let event_input_mode = input_mode.clone();
         let event_status_message = status_message.clone();
+        let layout_config = self.config.layout.clone();
 
         let (req_send_channel, req_recv_channel) = channel();
         std::thread::spawn(move || {
@@ -557,7 +558,7 @@ impl LoginForm {
             match request {
                 UIThreadRequest::Redraw => {
                     let draw_action = terminal.draw(|f| {
-                        let layout = Chunks::new(f);
+                        let layout = Chunks::new(f, &layout_config);
                         login_form_render(
                             f,
                             layout,
