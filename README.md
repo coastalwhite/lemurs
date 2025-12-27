@@ -113,7 +113,7 @@ Additionally, there is the possibility of variables in the configuration file.
 By default, Lemurs searches for a `/etc/lemurs/variables.toml` file, but an
 alternative location can be specified using the `--variables
 <path/to/variables.toml`. The `variables.toml` file may contain key-value pairs
-which can be referenced from within the main `config.toml` file. 
+which can be referenced from within the main `config.toml` file.
 
 Below shows an example of how the `variables.toml` and `config.toml` file
 interact.
@@ -227,6 +227,7 @@ Tested on
 - VoidLinux
 - Ubuntu (make sure to install `build-essential` and `libpam-dev`)
 - OpenSUSE (make sure to install `pam` and `pam-devel`)
+- NixOS (via `services.displayManager.lemurs.enable = true;`)
 
 ## MSRV Policy
 
