@@ -86,7 +86,10 @@ focus_behaviour = "default"
 [background]
 
 # Control whether to render background widget or not
-show_background = false
+show_background = true
+
+# Path to the background image. If empty, the background color will be used.
+image = ""
 
 [background.style]
 # Allow to set the default background color for the login shell
@@ -94,6 +97,20 @@ color = "black"
 # Settings for the background block's borders
 show_border = true
 border_color = "white"
+
+[panel]
+# Control whether to render the panel
+show_panel = true
+
+# The color of the panel background
+color = "white"
+
+# The color of the panel border
+border_color = "cyan"
+
+# The position of the panel. Options:
+# center, top-left, top-center, top-right, center-left, center-right, bottom-left, bottom-center, bottom-right
+position = "bottom-right"
 
 [power_controls]
 # The margin between hints

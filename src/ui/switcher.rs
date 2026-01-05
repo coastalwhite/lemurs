@@ -3,7 +3,7 @@ use log::warn;
 use ratatui::{
     layout::{Alignment, Rect},
     style::Style,
-    terminal::Frame,
+    Frame,
     text::{Line, Span, Text},
     widgets::{Block, Paragraph},
 };
@@ -275,7 +275,7 @@ impl<T> SwitcherWidget<T> {
 
     pub fn render(
         &self,
-        frame: &mut Frame<impl ratatui::backend::Backend>,
+        frame: &mut Frame,
         area: Rect,
         is_focused: bool,
     ) {

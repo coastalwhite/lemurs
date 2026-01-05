@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
     layout::Rect,
     style::Style,
-    terminal::Frame,
+    Frame,
     text::Span,
     widgets::{Block, Borders, Paragraph},
 };
@@ -290,7 +290,7 @@ impl InputFieldWidget {
 
     pub fn render(
         &mut self,
-        frame: &mut Frame<impl ratatui::backend::Backend>,
+        frame: &mut Frame,
         area: Rect,
         is_focused: bool,
     ) {
@@ -306,7 +306,7 @@ impl InputFieldWidget {
         if is_focused {
             let Rect { x, y, .. } = inner;
             let cursor_offset = get_byte_offset_of_char_offset(&show_string, self.cursor.into());
-            frame.set_cursor(x + show_string[..cursor_offset].width() as u16, y);
+            frame.set_cursor_position((x + show_string[..cursor_offset].width() as u16, y));
         }
 
         let widget = Paragraph::new(show_string)

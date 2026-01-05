@@ -54,7 +54,7 @@ impl KeyMenuWidget {
         style
     }
 
-    pub fn render(&self, frame: &mut Frame<impl ratatui::backend::Backend>, area: Rect) {
+    pub fn render(&self, frame: &mut Frame, area: Rect) {
         let mut items = Vec::new();
 
         for power_control in self

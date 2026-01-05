@@ -192,7 +192,9 @@ want to tweak details for their own installation.
 |  |- ui: TUI code
 |  |  |- mod.rs: UI calling logic, separated over 2 threads
 |  |  |- chunks.rs: Division of the TUI screen
+|  |  |- background.rs: Background logic
 |  |  |- input_field.rs: TUI input field used for username and password
+|  |  |- panel.rs: Panel logic for speration between login information and background
 |  |  |- power_menu.rs: Shutdown and Reboot options UI
 |  |  |- status_message.rs: UI for error and information messages
 |  |  |- switcher.rs: UI for environment switcher

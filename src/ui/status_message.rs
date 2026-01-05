@@ -1,4 +1,3 @@
-use ratatui::backend::Backend;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::Paragraph;
@@ -83,7 +82,7 @@ impl StatusMessage {
         matches!(self, Self::Error(_))
     }
 
-    pub fn render<B: Backend>(status: Option<Self>, frame: &mut Frame<B>, area: Rect) {
+    pub fn render(status: Option<Self>, frame: &mut Frame, area: Rect) {
         if let Some(status_message) = status {
             let text: Box<str> = status_message.clone().into();
             let widget = Paragraph::new(text.as_ref()).style(Style::default().fg(

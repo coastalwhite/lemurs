@@ -207,6 +207,7 @@ toml_config_struct! { Config, PartialConfig, RoughConfig,
     focus_behaviour => FocusBehaviour,
 
     background => BackgroundConfig [PartialBackgroundConfig, RoughBackgroundConfig],
+    panel => PanelConfig [PartialPanelConfig, RoughPanelConfig],
 
     power_controls => PowerControlConfig [PartialPowerControlConfig, RoughPowerControlConfig],
     environment_switcher => SwitcherConfig [PartialSwitcherConfig, RoughSwitcherConfig],
@@ -226,6 +227,36 @@ toml_config_struct! { BackgroundStyleConfig, PartialBackgroundStyleConfig, Rough
 toml_config_struct! { BackgroundConfig, PartialBackgroundConfig, RoughBackgroundConfig,
     show_background => bool,
     style => BackgroundStyleConfig [PartialBackgroundStyleConfig, RoughBackgroundStyleConfig],
+    image => String,
+}
+
+toml_config_struct! { PanelConfig, PartialPanelConfig, RoughPanelConfig,
+    show_panel => bool,
+    color => String,
+    border_color => String,
+    position => PanelPosition,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub enum PanelPosition {
+    #[serde(rename = "center")]
+    Center,
+    #[serde(rename = "top-left")]
+    TopLeft,
+    #[serde(rename = "top-center")]
+    TopCenter,
+    #[serde(rename = "top-right")]
+    TopRight,
+    #[serde(rename = "center-left")]
+    CenterLeft,
+    #[serde(rename = "center-right")]
+    CenterRight,
+    #[serde(rename = "bottom-left")]
+    BottomLeft,
+    #[serde(rename = "bottom-center")]
+    BottomCenter,
+    #[serde(rename = "bottom-right")]
+    BottomRight,
 }
 
 toml_config_struct! { PowerControlConfig, PartialPowerControlConfig, RoughPowerControlConfig,
@@ -401,9 +432,9 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
     where
         D: serde::Deserializer<'de>,
     {
-        let s: &str = Deserialize::deserialize(deserializer)?;
+        let s: String = Deserialize::deserialize(deserializer)?;
 
-        Ok(match s {
+        Ok(match s.as_str() {
             "visible" => Self::Visible,
             "hidden" => Self::Hidden,
             key => {
@@ -648,6 +679,7 @@ non_string_var_insert! {
     ShellLoginFlag ["shell login flag"],
     FocusBehaviour ["focus behavior"],
     SwitcherVisibility ["switcher visibility"],
+    PanelPosition ["panel position"],
 }
 
 impl VariableInsertable for String {

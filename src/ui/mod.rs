@@ -18,12 +18,13 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use ratatui::backend::CrosstermBackend;
-use ratatui::{backend::Backend, Frame, Terminal};
+use ratatui::{Frame, Terminal};
 
 mod background;
 mod chunks;
 mod input_field;
 mod key_menu;
+mod panel;
 mod status_message;
 mod switcher;
 
@@ -34,6 +35,7 @@ use status_message::{ErrorStatusMessage, InfoStatusMessage};
 use switcher::{SwitcherItem, SwitcherWidget};
 
 use self::background::BackgroundWidget;
+use self::panel::PanelWidget;
 
 #[derive(Clone)]
 struct LoginFormInputMode(Arc<Mutex<InputMode>>);
@@ -166,6 +168,7 @@ enum UIThreadRequest {
 #[derive(Clone)]
 struct Widgets {
     background: BackgroundWidget,
+    panel: PanelWidget,
     key_menu: KeyMenuWidget,
     environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
@@ -285,6 +288,7 @@ impl LoginForm {
             preview,
             widgets: Widgets {
                 background: BackgroundWidget::new(config.background.clone()),
+                panel: PanelWidget::new(config.panel.clone()),
                 key_menu: KeyMenuWidget::new(
                     config.power_controls.clone(),
                     config.environment_switcher.clone(),
@@ -348,17 +352,20 @@ impl LoginForm {
         });
         let status_message = LoginFormStatusMessage::new();
         let background = self.widgets.background.clone();
+        let panel = self.widgets.panel.clone();
         let key_menu = self.widgets.key_menu.clone();
         let environment = self.widgets.environment.clone();
         let username = self.widgets.username.clone();
         let password = self.widgets.password.clone();
+        let panel_position = self.config.panel.position.clone();
 
         let draw_action = terminal.draw(|f| {
-            let layout = Chunks::new(f);
+            let layout = Chunks::new(f, panel_position.clone());
             login_form_render(
                 f,
                 layout,
                 background.clone(),
+                panel.clone(),
                 key_menu.clone(),
                 environment.clone(),
                 username.clone(),
@@ -557,11 +564,12 @@ impl LoginForm {
             match request {
                 UIThreadRequest::Redraw => {
                     let draw_action = terminal.draw(|f| {
-                        let layout = Chunks::new(f);
+                        let layout = Chunks::new(f, panel_position.clone());
                         login_form_render(
                             f,
                             layout,
                             background.clone(),
+                            panel.clone(),
                             key_menu.clone(),
                             environment.clone(),
                             username.clone(),
@@ -600,10 +608,11 @@ impl LoginForm {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn login_form_render<B: Backend>(
-    frame: &mut Frame<B>,
+fn login_form_render(
+    frame: &mut Frame,
     chunks: Chunks,
     background: BackgroundWidget,
+    panel: PanelWidget,
     key_menu: KeyMenuWidget,
     environment: Arc<Mutex<SwitcherWidget<PostLoginEnvironment>>>,
     username: Arc<Mutex<InputFieldWidget>>,
@@ -612,6 +621,7 @@ fn login_form_render<B: Backend>(
     status_message: Option<StatusMessage>,
 ) {
     background.render(frame);
+    panel.render(frame, chunks.panel_root);
     key_menu.render(frame, chunks.key_menu);
     environment
         .lock()
