@@ -258,15 +258,15 @@ fn parse_desktop_entry(path: &Path, _: &Config) -> Result<(String, String), Stri
     };
 
     let hidden = match desktop_entry.get("Hidden") {
-	Some(hidden_value) => hidden_value.value().clone().as_boolean().unwrap_or(false),
-	None => false
+        Some(hidden_value) => hidden_value.value().clone().as_boolean().unwrap_or(false),
+        None => false,
     };
     let no_display = match desktop_entry.get("NoDisplay") {
-	Some(no_disp_value) => no_disp_value.value().clone().as_boolean().unwrap_or(false),
-	None => false
+        Some(no_disp_value) => no_disp_value.value().clone().as_boolean().unwrap_or(false),
+        None => false,
     };
     if hidden || no_display {
-	return Err("Desktop Entry is marked as hidden".to_string());
+        return Err("Desktop Entry is marked as hidden".to_string());
     };
 
     let Some(exec) = desktop_entry.get("Exec") else {
