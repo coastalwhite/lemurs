@@ -181,6 +181,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             Commands::Help => {
                 cli::usage();
             }
+            Commands::ShowConfig => {
+                println!("{}", toml::to_string(&config)?);
+            }
             Commands::Version => {
                 println!("{}", env!("CARGO_PKG_VERSION"));
             }
