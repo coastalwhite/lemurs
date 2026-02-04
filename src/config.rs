@@ -1,8 +1,8 @@
 use crossterm::event::KeyCode;
 use log::error;
 use ratatui::style::{Color, Modifier};
-use serde::{de::Error, Deserialize};
-use std::fmt::Display;
+use serde::{de::Error, Deserialize, Serialize, Serializer};
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -150,7 +150,7 @@ macro_rules! toml_config_struct {
         struct $rough_name {
             $($field_name: Option<partial_struct_field!(PossibleVariable<$field_type>$(, $rough_field_type)?)>,)+
         }
-        #[derive(Debug, Clone, Deserialize)]
+        #[derive(Debug, Clone, Deserialize, Serialize)]
         pub struct $struct_name {
             $(pub $field_name: $field_type,)+
         }
@@ -234,7 +234,7 @@ toml_config_struct! { PowerControlConfig, PartialPowerControlConfig, RoughPowerC
     entries => PowerControlVec [PartialPowerControlVec, RoughPowerControlVec],
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(transparent)]
 #[repr(transparent)]
 pub struct PowerControlVec(pub Vec<PowerControl>);
@@ -364,7 +364,7 @@ toml_config_struct! { WaylandConfig, PartialWaylandConfig, RoughWaylandConfig,
     wayland_sessions_path => String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum FocusBehaviour {
     #[serde(rename = "default")]
     FirstNonCached,
@@ -378,7 +378,7 @@ pub enum FocusBehaviour {
     Password,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum ShellLoginFlag {
     #[serde(rename = "none")]
     None,
@@ -394,6 +394,21 @@ pub enum SwitcherVisibility {
     Hidden,
     Keybind(KeyCode),
 }
+impl Serialize for SwitcherVisibility {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match &self {
+            SwitcherVisibility::Visible => serializer.serialize_str("visible"),
+            SwitcherVisibility::Hidden => serializer.serialize_str("hidden"),
+            SwitcherVisibility::Keybind(kc) => match kc {
+                KeyCode::F(i) => serializer.serialize_str(format!("F{}", i).as_str()),
+                _ => serializer.serialize_str("error"),
+            },
+        }
+    }
+}
 
 /// Deserialise from a string of "visible", "hidden", or the keybind ("F1"-"F12")
 impl<'de> Deserialize<'de> for SwitcherVisibility {
@@ -401,9 +416,9 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
     where
         D: serde::Deserializer<'de>,
     {
-        let s: &str = Deserialize::deserialize(deserializer)?;
+        let s: String = Deserialize::deserialize(deserializer)?;
 
-        Ok(match s {
+        Ok(match s.as_str() {
             "visible" => Self::Visible,
             "hidden" => Self::Hidden,
             key => {
@@ -519,7 +534,7 @@ enum VariableInsertionError {
     },
 }
 
-impl Display for VariableInsertionError {
+impl fmt::Display for VariableInsertionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             VariableInsertionError::ImpossibleVariableCast {
