@@ -1,6 +1,7 @@
 use log::{error, info, warn};
 
 use std::io;
+use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
@@ -8,7 +9,7 @@ use std::time::Duration;
 use crate::config::{Config, FocusBehaviour, SwitcherVisibility};
 use crate::info_caching::{get_cached_information, set_cache};
 use crate::post_login::PostLoginEnvironment;
-use crate::{start_session, Hooks, StartSessionError};
+use crate::{start_session_child, Hooks, StartSessionError};
 use status_message::StatusMessage;
 
 use crossterm::cursor::MoveTo;
@@ -233,6 +234,8 @@ pub struct LoginForm {
 
     /// The configuration for the app
     config: Config,
+
+    config_path: Option<PathBuf>,
 }
 
 impl LoginForm {
@@ -280,9 +283,10 @@ impl LoginForm {
         }
     }
 
-    pub fn new(config: Config, preview: bool) -> LoginForm {
+    pub fn new(config: Config, preview: bool, config_path: Option<PathBuf>) -> LoginForm {
         LoginForm {
             preview,
+            config_path,
             widgets: Widgets {
                 background: BackgroundWidget::new(config.background.clone()),
                 key_menu: KeyMenuWidget::new(
@@ -445,7 +449,6 @@ impl LoginForm {
                                     self.widgets.get_environment().map(|(_, content)| content);
                                 let username = self.widgets.get_username();
                                 let password = self.widgets.get_password();
-                                let config = self.config.clone();
 
                                 let Some(post_login_env) = environment else {
                                     status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
@@ -453,12 +456,13 @@ impl LoginForm {
                                     continue;
                                 };
 
-                                match start_session(
+                                match start_session_child(
                                     &username,
                                     &password,
                                     &post_login_env,
+                                    &self.config,
+                                    self.config_path.as_deref(),
                                     &hooks,
-                                    &config,
                                 ) {
                                     Ok(()) => {}
                                     Err(StartSessionError::AuthenticationError(err)) => {
