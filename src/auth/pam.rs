@@ -3,12 +3,13 @@ use std::fmt;
 use log::info;
 
 use pam::Authenticator;
+use serde::{Deserialize, Serialize};
 use uzers::os::unix::UserExt;
 
 use crate::auth::AuthUserInfo;
 
 /// All the different errors that can occur during PAM opening an authenticated session
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum AuthenticationError {
     PamService(String),
     AccountValidation,

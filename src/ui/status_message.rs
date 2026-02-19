@@ -1,3 +1,6 @@
+use std::io;
+use std::sync::Arc;
+
 use ratatui::backend::Backend;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
@@ -9,6 +12,7 @@ use crate::auth::AuthenticationError;
 #[derive(Clone)]
 pub enum ErrorStatusMessage {
     AuthenticationError(AuthenticationError),
+    ChildIo(Arc<io::Error>),
     NoGraphicalEnvironment,
     FailedGraphicalEnvironment,
     FailedDesktop,
@@ -21,6 +25,7 @@ impl From<ErrorStatusMessage> for Box<str> {
 
         match err {
             AuthenticationError(_) => "Authentication failed".into(),
+            ChildIo(_) => "Subprocess error".into(),
             NoGraphicalEnvironment => "No graphical environment specified".into(),
             FailedGraphicalEnvironment => "Failed booting into the graphical environment".into(),
             FailedDesktop => "Failed booting into desktop environment".into(),

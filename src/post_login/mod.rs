@@ -1,4 +1,5 @@
 use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt::Display;
 use std::fs;
@@ -18,10 +19,10 @@ use self::wait_with_log::LemursChild;
 use self::x::XSetupError;
 
 pub(crate) mod env_variables;
-mod wait_with_log;
+pub(crate) mod wait_with_log;
 mod x;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostLoginEnvironment {
     X { xinitrc_path: String },
     Wayland { script_path: String },
@@ -43,7 +44,7 @@ impl PostLoginEnvironment {
     // }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EnvironmentStartError {
     WaylandStart,
     XSetup(XSetupError),

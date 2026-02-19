@@ -2,6 +2,7 @@ use libc::{signal, SIGUSR1, SIG_DFL, SIG_IGN};
 use rand::Rng;
 
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 
 use std::env;
 use std::error::Error;
@@ -22,7 +23,7 @@ use crate::post_login::wait_with_log::LemursChild;
 
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum XSetupError {
     DisplayEnvVar,
     HomeEnvVar,

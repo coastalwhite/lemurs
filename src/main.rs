@@ -1,6 +1,7 @@
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, stdin, stdout, Read, Write};
 use std::process::{Command, Stdio};
+use std::thread;
 use std::{error::Error, path::Path};
 
 use crossterm::{
@@ -23,6 +24,8 @@ mod ui;
 use auth::try_auth;
 use config::Config;
 use post_login::{EnvironmentStartError, PostLoginEnvironment};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     auth::utmpx::add_utmpx_entry,
@@ -185,26 +188,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Commands::Version => {
                 println!("{}", env!("CARGO_PKG_VERSION"));
             }
-            Commands::Session { session_type, script_path } => {
-                if let Some(tty) = cli.tty {
-                    config.tty = tty;
-                }
-                if !cli.no_log {
-                    setup_logger(&config.main_log_path);
-                }
-
-                let post_login_env = match session_type.as_str() {
-                    "x11" => PostLoginEnvironment::X { xinitrc_path: script_path },
-                    "wayland" => PostLoginEnvironment::Wayland { script_path },
-                    _ => PostLoginEnvironment::Shell,
-                };
-
-                match start_session(&post_login_env, &config) {
-                    Ok(()) => std::process::exit(0),
-                    // TODO: Error should be passed to the parent instead
-                    Err(_) => std::process::exit(1),
-                }
-            }
+            Commands::Session => start_session(),
         }
 
         return Ok(());
@@ -257,7 +241,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Start application
     let mut terminal = tui_enable()?;
-    let login_form = ui::LoginForm::new(config, cli.preview, cli.config);
+    let login_form = ui::LoginForm::new(config, cli.preview);
     login_form.run(&mut terminal)?;
     tui_disable(terminal)?;
 
@@ -299,6 +283,7 @@ struct Hooks<'a> {
 pub enum StartSessionError {
     AuthenticationError(AuthenticationError),
     EnvironmentStartError(EnvironmentStartError),
+    ChildIo(io::Error),
 }
 
 impl From<EnvironmentStartError> for StartSessionError {
@@ -312,13 +297,73 @@ impl From<AuthenticationError> for StartSessionError {
         Self::AuthenticationError(value)
     }
 }
+impl From<io::Error> for StartSessionError {
+    fn from(value: io::Error) -> Self {
+        Self::ChildIo(value)
+    }
+}
+
+fn webext_write<T: Serialize, W: Write>(mut w: W, t: T) -> io::Result<()> {
+    let serialized = serde_json::to_vec(&t).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let len = (serialized.len() as u32).to_be_bytes();
+    w.write_all(&len)?;
+    w.write_all(&serialized)?;
+    Ok(())
+}
+
+fn webext_read<T: DeserializeOwned, R: Read>(mut r: R) -> io::Result<T> {
+    let mut len = [0u8; 4];
+    r.read_exact(&mut len)?;
+    let len = u32::from_be_bytes(len) as usize;
+    if len > 65535 {
+        // Realistically, none of the subprocess messages should exceed this size
+        // Subprocess invokes pam, and theoretically, rogue pam module might output something to stdout (it shouldn't, but it might)
+        // and it would be very bad it its response will cause us to allocate too much
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "corrupted response: len",
+        ));
+    }
+
+    let mut serialized = vec![0u8; len];
+    r.read_exact(&mut serialized)?;
+
+    let t: T =
+        serde_json::from_slice(&serialized).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+    Ok(t)
+}
+
+fn webext_request<O: DeserializeOwned, I: Serialize, W: Write, R: Read>(
+    w: W,
+    r: R,
+    i: I,
+) -> io::Result<O> {
+    webext_write(w, i)?;
+    webext_read(r)
+}
+
+#[derive(Serialize, Deserialize)]
+enum ChildRequest {
+    Config,
+    PostLoginEnv,
+    Username,
+    Password,
+    PreAuth,
+    PreEnvironment,
+
+    AuthenticationError(AuthenticationError),
+    EnvironmentStartError(EnvironmentStartError),
+    ChildIo(String),
+    // After this signal stopping processing child stdout, as it may contain child session things
+    SessionExec,
+}
 
 fn start_session_child(
     username: &str,
     password: &str,
     post_login_env: &PostLoginEnvironment,
     config: &Config,
-    config_path: Option<&Path>,
     hooks: &Hooks<'_>,
 ) -> Result<(), StartSessionError> {
     let exe = std::env::current_exe().map_err(|e| {
@@ -326,23 +371,14 @@ fn start_session_child(
         StartSessionError::EnvironmentStartError(EnvironmentStartError::WaylandStart)
     })?;
 
-    let (session_type, script_path) = match post_login_env {
-        PostLoginEnvironment::X { xinitrc_path } => ("x11", xinitrc_path.as_str()),
-        PostLoginEnvironment::Wayland { script_path } => ("wayland", script_path.as_str()),
-        PostLoginEnvironment::Shell => ("shell", ""),
-    };
-
     let mut cmd = Command::new(exe);
-    cmd.arg("session")
-        .arg("--type").arg(session_type)
-        .arg("--script").arg(script_path)
-        .arg("--tty").arg(config.tty.to_string());
-    if let Some(path) = config_path {
-        cmd.arg("--config").arg(path);
+    cmd.arg("session");
+
+    if let Some(pre_validate_hook) = hooks.pre_validate {
+        pre_validate_hook();
     }
-    if !config.do_log {
-        cmd.arg("--no-log");
-    }
+
+    // TODO: Use LemursChild
     let mut child = cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -353,50 +389,68 @@ fn start_session_child(
         })?;
 
     let mut child_stdin = child.stdin.take().unwrap();
-    let child_stdout = child.stdout.take().unwrap();
+    let mut child_stdout = child.stdout.take().unwrap();
 
-    let reader = io::BufRead::lines(io::BufReader::new(child_stdout));
-    for line in reader {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => break,
-        };
-        match line.as_str() {
-            "request_username" => {
-                let _ = writeln!(child_stdin, "{}", username);
+    let success = loop {
+        let r: ChildRequest = webext_read(&mut child_stdout)?;
+        match r {
+            ChildRequest::Config => {
+                webext_write(&mut child_stdin, config)?;
             }
-            "request_password" => {
-                let _ = writeln!(child_stdin, "{}", password);
+            ChildRequest::PostLoginEnv => {
+                webext_write(&mut child_stdin, post_login_env)?;
             }
-            "pre_validate" => {
-                if let Some(pre_validate_hook) = hooks.pre_validate {
-                    pre_validate_hook();
-                }
+            ChildRequest::Username => {
+                webext_write(&mut child_stdin, username)?;
             }
-            "pre_auth" => {
+            ChildRequest::Password => {
+                webext_write(&mut child_stdin, password)?;
+            }
+            ChildRequest::PreAuth => {
                 if let Some(pre_auth_hook) = hooks.pre_auth {
                     pre_auth_hook();
                 }
-            },
-            "pre_environment" => {
+            }
+            ChildRequest::PreEnvironment => {
                 if let Some(pre_environment_hook) = hooks.pre_environment {
                     pre_environment_hook();
                 }
-            },
-            "pre_wait" => {
+            }
+            ChildRequest::SessionExec => {
                 if let Some(pre_wait_hook) = hooks.pre_wait {
                     pre_wait_hook();
                 }
-            },
-            // TODO: After session subcommand is switched to forking instead of spawning, there should be a command, after which all commands should be ignored as orignating from underlying session
-            other => info!("unknown session command: {other}"),
+                break true;
+            }
+            ChildRequest::AuthenticationError(authentication_error) => {
+                return Err(StartSessionError::AuthenticationError(authentication_error))
+            }
+            ChildRequest::EnvironmentStartError(environment_start_error) => {
+                return Err(StartSessionError::EnvironmentStartError(
+                    environment_start_error,
+                ))
+            }
+            ChildRequest::ChildIo(e) => {
+                return Err(StartSessionError::ChildIo(io::Error::other(e)))
+            }
         }
-    }
+    };
 
-    let status = child.wait().map_err(|e| {
-        // TODO: idk
-        StartSessionError::EnvironmentStartError(EnvironmentStartError::WaylandStart)
-    })?;
+    thread::spawn(move || {
+        drop(child_stdin);
+        if success {
+            // SessionExec was called, we no longer expect child to output anything, but we don't want the stdout to be clogged
+            // Should we redirect it somewhere?..
+            //
+            // TODO: Redirect it to log path, as LemursChild does that
+            let _ = io::copy(&mut child_stdout, &mut io::sink());
+        } else {
+            // Let the child die with sigpipe, should not happen
+            drop(child_stdout);
+        }
+    });
+
+    let status = child.wait()?;
 
     if let Some(pre_return_hook) = hooks.pre_return {
         pre_return_hook();
@@ -404,36 +458,56 @@ fn start_session_child(
 
     match status.code() {
         Some(0) => Ok(()),
-        // TODO: Restore error from the child process
-        Some(_) => Err(StartSessionError::AuthenticationError(
-            AuthenticationError::AccountValidation,
-        )),
+        v => Err(StartSessionError::ChildIo(io::Error::other(format!(
+            "unexpected exit code: {v:?}"
+        )))),
     }
 }
 
-fn session_request(request: &str) {
-    println!("{request}");
-    let _ = io::Write::flush(&mut io::stdout());
+fn start_session() {
+    let Err(e) = start_session_inner() else {
+        return;
+    };
+    let mut stdout = stdout().lock();
+    match e {
+        StartSessionError::AuthenticationError(authentication_error) => {
+            let _ = webext_write(
+                &mut stdout,
+                ChildRequest::AuthenticationError(authentication_error),
+            );
+        }
+        StartSessionError::EnvironmentStartError(environment_start_error) => {
+            let _ = webext_write(
+                &mut stdout,
+                ChildRequest::EnvironmentStartError(environment_start_error),
+            );
+        }
+        StartSessionError::ChildIo(error) => {
+            let _ = webext_write(&mut stdout, ChildRequest::ChildIo(error.to_string()));
+        }
+    }
 }
 
-fn session_request_line(request: &str) -> String {
-    session_request(request);
-    let mut response = String::new();
-    io::stdin().read_line(&mut response).unwrap_or(0);
-    response.truncate(response.trim_end_matches('\n').len());
-    response
-}
+fn start_session_inner() -> Result<(), StartSessionError> {
+    let mut stdin = stdin().lock();
+    let mut stdout = stdout().lock();
+    let username =
+        &webext_request::<String, _, _, _>(&mut stdout, &mut stdin, ChildRequest::Username)?;
+    let password =
+        &webext_request::<String, _, _, _>(&mut stdout, &mut stdin, ChildRequest::Password)?;
 
-fn start_session(
-    post_login_env: &PostLoginEnvironment,
-    config: &Config,
-) -> Result<(), StartSessionError> {
-    let username = &session_request_line("request_username");
-    let password = &session_request_line("request_password");
+    let config = &webext_request::<Config, _, _, _>(&mut stdout, &mut stdin, ChildRequest::Config)?;
 
-    info!("Starting new session for '{}' in environment '{:?}'", username, post_login_env);
+    let post_login_env = &webext_request::<PostLoginEnvironment, _, _, _>(
+        &mut stdout,
+        &mut stdin,
+        ChildRequest::PostLoginEnv,
+    )?;
 
-    session_request("pre_validate");
+    info!(
+        "Starting new session for '{}' in environment '{:?}'",
+        username, post_login_env
+    );
 
     let mut process_env = EnvironmentContainer::take_snapshot();
 
@@ -444,11 +518,11 @@ fn start_session(
     remove_xdg(&mut process_env);
     set_seat_vars(&mut process_env, config.tty);
 
-    session_request("pre_auth");
+    webext_write(&mut stdout, ChildRequest::PreAuth)?;
 
     let auth_session = try_auth(username, password, &config.pam_service)?;
 
-    session_request("pre_environment");
+    webext_write(&mut stdout, ChildRequest::PreEnvironment)?;
 
     let tty = config.tty;
     let uid = auth_session.uid;
@@ -465,8 +539,10 @@ fn start_session(
     );
     set_xdg_common_paths(&mut process_env, homedir);
 
+    webext_write(&mut stdout, ChildRequest::SessionExec)?;
+
     // TODO: Use exec instead, current pid should be added to utmpx instead
-    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, config)?;
+    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, &config)?;
 
     let pid = spawned_environment.pid();
 
@@ -474,8 +550,6 @@ fn start_session(
     drop(process_env);
 
     info!("Waiting for environment to terminate");
-
-    session_request("pre_wait");
 
     spawned_environment.wait();
 

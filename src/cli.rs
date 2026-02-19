@@ -50,10 +50,7 @@ pub enum Commands {
     Cache,
     Help,
     Version,
-    Session {
-        session_type: String,
-        script_path: String,
-    },
+    Session,
 }
 
 #[derive(Debug)]
@@ -101,44 +98,8 @@ impl Cli {
                 (0, "envs") => cli.command = Some(Commands::Envs),
                 (0, "cache") => cli.command = Some(Commands::Cache),
                 (0, "help") | (_, "--help") | (_, "-h") => cli.command = Some(Commands::Help),
+                (0, "session") => cli.command = Some(Commands::Session),
                 (_, "--version") | (_, "-V") => cli.command = Some(Commands::Version),
-                (0, "session") => {
-                    let mut session_type = None;
-                    let mut script_path = None;
-                    while let Some((_, arg)) = args.next() {
-                        match arg.trim() {
-                            "--type" => {
-                                let (_, val) = args.next().ok_or(CliError::MissingArgument("type"))?;
-                                session_type = Some(val);
-                            }
-                            "--script" => {
-                                let (_, val) = args.next().ok_or(CliError::MissingArgument("script"))?;
-                                script_path = Some(val);
-                            }
-                            "--config" | "-c" => {
-                                let (_, val) = args.next().ok_or(CliError::MissingArgument("config"))?;
-                                cli.config = Some(PathBuf::from(val));
-                            }
-                            "--tty" => {
-                                let (_, val) = args.next().ok_or(CliError::MissingArgument("tty"))?;
-                                let val = val.parse().map_err(|_| CliError::InvalidTTY)?;
-                                if val == 0 || val > 12 {
-                                    return Err(CliError::InvalidTTY);
-                                }
-                                cli.tty = Some(val);
-                            }
-                            "--no-log" => {
-                                cli.no_log = true;
-                            }
-                            a => return Err(CliError::InvalidArgument(a.to_string())),
-                        }
-                    }
-                    let session_type = session_type.ok_or(CliError::MissingArgument("type"))?;
-                    cli.command = Some(Commands::Session {
-                        session_type,
-                        script_path: script_path.unwrap_or_default(),
-                    });
-                }
 
                 (_, "--preview") => cli.preview = true,
                 (_, "--no-log") => cli.no_log = true,

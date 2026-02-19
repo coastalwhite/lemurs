@@ -1,7 +1,6 @@
 use log::{error, info, warn};
 
 use std::io;
-use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
@@ -234,8 +233,6 @@ pub struct LoginForm {
 
     /// The configuration for the app
     config: Config,
-
-    config_path: Option<PathBuf>,
 }
 
 impl LoginForm {
@@ -283,10 +280,9 @@ impl LoginForm {
         }
     }
 
-    pub fn new(config: Config, preview: bool, config_path: Option<PathBuf>) -> LoginForm {
+    pub fn new(config: Config, preview: bool) -> LoginForm {
         LoginForm {
             preview,
-            config_path,
             widgets: Widgets {
                 background: BackgroundWidget::new(config.background.clone()),
                 key_menu: KeyMenuWidget::new(
@@ -461,10 +457,14 @@ impl LoginForm {
                                     &password,
                                     &post_login_env,
                                     &self.config,
-                                    self.config_path.as_deref(),
                                     &hooks,
                                 ) {
                                     Ok(()) => {}
+                                    Err(StartSessionError::ChildIo(err)) => {
+                                        status_message
+                                            .set(ErrorStatusMessage::ChildIo(Arc::new(err)));
+                                        send_ui_request(UIThreadRequest::Redraw);
+                                    }
                                     Err(StartSessionError::AuthenticationError(err)) => {
                                         status_message
                                             .set(ErrorStatusMessage::AuthenticationError(err));
