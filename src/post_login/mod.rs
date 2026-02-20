@@ -16,7 +16,6 @@ use crate::post_login::x::setup_x;
 
 use nix::unistd::{Gid, Uid};
 
-use self::wait_with_log::LemursChild;
 use self::x::XSetupError;
 
 pub(crate) mod env_variables;

@@ -309,7 +309,7 @@ impl From<io::Error> for StartSessionError {
 }
 
 fn webext_write<T: Serialize, W: Write>(w: &mut W, t: T) -> io::Result<()> {
-    let serialized = serde_json::to_vec(&t).map_err(|e| io::Error::other(e))?;
+    let serialized = serde_json::to_vec(&t).map_err(io::Error::other)?;
     let len = (serialized.len() as u32).to_be_bytes();
     w.write_all(&len)?;
     w.write_all(&serialized)?;
@@ -330,7 +330,7 @@ fn webext_read<T: DeserializeOwned, R: Read>(r: &mut R) -> io::Result<T> {
     let mut serialized = vec![0u8; len];
     r.read_exact(&mut serialized)?;
 
-    let t: T = serde_json::from_slice(&serialized).map_err(|e| io::Error::other(e))?;
+    let t: T = serde_json::from_slice(&serialized).map_err(io::Error::other)?;
 
     Ok(t)
 }
@@ -520,6 +520,6 @@ fn start_session_inner(ipc: &mut UnixStream) -> Result<(), StartSessionError> {
 
     webext_write(ipc, ChildRequest::PreWait)?;
 
-    post_login_env.exec(&auth_session, &mut process_env, &config)?;
+    post_login_env.exec(&auth_session, &mut process_env, config)?;
     unreachable!("exec() should not return")
 }
