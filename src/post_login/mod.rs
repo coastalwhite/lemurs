@@ -48,19 +48,15 @@ impl PostLoginEnvironment {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EnvironmentStartError {
     ExecIo(String),
-    WaylandStart,
     XSetup(XSetupError),
     XStartEnv,
-    TTYStart,
 }
 
 impl Display for EnvironmentStartError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::WaylandStart => f.write_str("Failed to start Wayland compositor"),
             Self::XSetup(err) => write!(f, "Failed to setup X11 server. Reason: '{err}'"),
             Self::XStartEnv => f.write_str("Failed to start X11 client"),
-            Self::TTYStart => f.write_str("Failed to start TTY"),
             Self::ExecIo(err) => write!(f, "Fork for underlying session failed. Reason: '{err}'"),
         }
     }

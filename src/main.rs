@@ -365,10 +365,7 @@ fn start_session_child(
     config: &Config,
     hooks: &Hooks<'_>,
 ) -> Result<(), StartSessionError> {
-    let exe = std::env::current_exe().map_err(|e| {
-        error!("Failed to get current executable path: {e}");
-        StartSessionError::EnvironmentStartError(EnvironmentStartError::WaylandStart)
-    })?;
+    let exe = std::env::current_exe()?;
 
     if let Some(pre_validate_hook) = hooks.pre_validate {
         pre_validate_hook();
