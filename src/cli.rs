@@ -1,6 +1,7 @@
 use std::env::args;
 use std::error::Error;
 use std::fmt::Display;
+use std::os::fd::RawFd;
 use std::path::PathBuf;
 
 pub fn usage() {
@@ -50,7 +51,7 @@ pub enum Commands {
     Cache,
     Help,
     Version,
-    Session,
+    Session { fd: RawFd },
 }
 
 #[derive(Debug)]
@@ -98,7 +99,14 @@ impl Cli {
                 (0, "envs") => cli.command = Some(Commands::Envs),
                 (0, "cache") => cli.command = Some(Commands::Cache),
                 (0, "help") | (_, "--help") | (_, "-h") => cli.command = Some(Commands::Help),
-                (0, "session") => cli.command = Some(Commands::Session),
+                (0, "session") => {
+                    let (_, fd) = args
+                        .next()
+                        .expect("internal session subcommand requires fd as an argument");
+                    let fd: RawFd = fd.parse().expect("fd argument is valid");
+
+                    cli.command = Some(Commands::Session { fd })
+                }
                 (_, "--version") | (_, "-V") => cli.command = Some(Commands::Version),
 
                 (_, "--preview") => cli.preview = true,
