@@ -90,7 +90,8 @@ fn lower_command_permissions_to_user(
     unsafe {
         command.pre_exec(move || {
             // NOTE: The order here is very vital, otherwise permission errors occur
-            // This is basically a copy of how the nightly standard library does it.
+            // This is basically a copy of how the nightly standard library does it:
+            // https://github.com/rust-lang/rust/issues/90747
             nix::unistd::setgroups(&groups)
                 .and(nix::unistd::setgid(Gid::from_raw(gid)))
                 .and(nix::unistd::setuid(Uid::from_raw(uid)))
