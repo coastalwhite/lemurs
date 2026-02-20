@@ -1,12 +1,13 @@
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use std::error::Error;
 use std::fmt::Display;
-use std::fs;
 use std::path::Path;
+use std::{fs, io, process};
 
 use std::os::unix::process::CommandExt;
-use std::process::{Child, Command, Stdio};
+use std::process::Command;
 
 use crate::auth::AuthUserInfo;
 use crate::config::{Config, ShellLoginFlag};
@@ -46,6 +47,7 @@ impl PostLoginEnvironment {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EnvironmentStartError {
+    ExecIo(String),
     WaylandStart,
     XSetup(XSetupError),
     XStartEnv,
@@ -59,6 +61,7 @@ impl Display for EnvironmentStartError {
             Self::XSetup(err) => write!(f, "Failed to setup X11 server. Reason: '{err}'"),
             Self::XStartEnv => f.write_str("Failed to start X11 client"),
             Self::TTYStart => f.write_str("Failed to start TTY"),
+            Self::ExecIo(err) => write!(f, "Fork for underlying session failed. Reason: '{err}'"),
         }
     }
 }
@@ -67,6 +70,11 @@ impl Error for EnvironmentStartError {}
 impl From<XSetupError> for EnvironmentStartError {
     fn from(value: XSetupError) -> Self {
         Self::XSetup(value)
+    }
+}
+impl From<io::Error> for EnvironmentStartError {
+    fn from(value: io::Error) -> Self {
+        Self::ExecIo(value.to_string())
     }
 }
 
@@ -97,69 +105,13 @@ fn lower_command_permissions_to_user(
     command
 }
 
-pub enum SpawnedEnvironment {
-    X11 {
-        server: LemursChild,
-        client: LemursChild,
-    },
-    Wayland(LemursChild),
-    Tty(Child),
-}
-
-impl SpawnedEnvironment {
-    pub fn pid(&self) -> u32 {
-        match self {
-            Self::X11 { client, .. } | Self::Wayland(client) => client.id(),
-            Self::Tty(client) => client.id(),
-        }
-    }
-
-    pub fn wait(self) {
-        info!("Waiting for client to exit");
-
-        match self {
-            Self::X11 {
-                mut client,
-                mut server,
-            } => {
-                match client.wait() {
-                    Ok(exit_code) => info!("Client exited with exit code `{exit_code}`"),
-                    Err(err) => {
-                        error!("Failed to wait for client. Reason: {err}");
-                    }
-                };
-
-                info!("Telling X server to shut down");
-                match server.send_sigterm() {
-                    Ok(_) => {}
-                    Err(err) => error!("Failed to terminate X11. Reason: {err}"),
-                }
-
-                info!("Waiting for X server");
-                match server.wait() {
-                    Ok(_) => {}
-                    Err(err) => error!("Failed to wait for X11. Reason: {err}"),
-                }
-            }
-            Self::Wayland(mut client) => match client.wait() {
-                Ok(exit_code) => info!("Client exited with exit code `{exit_code}`"),
-                Err(err) => error!("Failed to wait for client. Reason: {err}"),
-            },
-            Self::Tty(mut client) => match client.wait() {
-                Ok(exit_code) => info!("Client exited with exit code `{exit_code}`"),
-                Err(err) => error!("Failed to wait for client. Reason: {err}"),
-            },
-        }
-    }
-}
-
 impl PostLoginEnvironment {
-    pub fn spawn(
+    pub fn exec(
         &self,
         user_info: &AuthUserInfo<'_>,
         process_env: &mut EnvironmentContainer,
         config: &Config,
-    ) -> Result<SpawnedEnvironment, EnvironmentStartError> {
+    ) -> Result<Infallible, EnvironmentStartError> {
         let shell_login_flag = match config.shell_login_flag {
             ShellLoginFlag::None => None,
             ShellLoginFlag::Short => Some("-l"),
@@ -181,12 +133,12 @@ impl PostLoginEnvironment {
             PostLoginEnvironment::X { xinitrc_path } => {
                 info!("Starting X11 session");
 
-                let server = setup_x(process_env, user_info, config)
+                let mut server = setup_x(process_env, user_info, config)
                     .map_err(EnvironmentStartError::XSetup)?;
 
                 client.arg(format!("{} {}", &config.x11.xsetup_path, xinitrc_path));
 
-                let client = match LemursChild::spawn(client, log_path) {
+                let mut client = match LemursChild::spawn(client, log_path) {
                     Ok(child) => child,
                     Err(err) => {
                         error!("Failed to start X11 environment. Reason '{}'", err);
@@ -194,42 +146,39 @@ impl PostLoginEnvironment {
                     }
                 };
 
-                Ok(SpawnedEnvironment::X11 { server, client })
+                match client.wait() {
+                    Ok(exit_code) => info!("Client exited with exit code `{exit_code}`"),
+                    Err(err) => {
+                        error!("Failed to wait for client. Reason: {err}");
+                    }
+                };
+
+                info!("Telling X server to shut down");
+                match server.send_sigterm() {
+                    Ok(_) => {}
+                    Err(err) => error!("Failed to terminate X11. Reason: {err}"),
+                }
+
+                info!("Waiting for X server");
+                match server.wait() {
+                    Ok(_) => {}
+                    Err(err) => error!("Failed to wait for X11. Reason: {err}"),
+                }
+                process::exit(0);
             }
             PostLoginEnvironment::Wayland { script_path } => {
                 info!("Starting Wayland session");
 
                 client.arg(script_path);
 
-                let child = match LemursChild::spawn(client, log_path) {
-                    Ok(child) => child,
-                    Err(err) => {
-                        error!("Failed to start Wayland Compositor. Reason '{err}'");
-                        return Err(EnvironmentStartError::WaylandStart);
-                    }
-                };
-
-                Ok(SpawnedEnvironment::Wayland(child))
+                Err(client.exec().into())
             }
             PostLoginEnvironment::Shell => {
                 info!("Starting TTY shell");
 
                 let shell = &user_info.shell;
-                let child = match client
-                    .arg(shell)
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .stdin(Stdio::inherit())
-                    .spawn()
-                {
-                    Ok(child) => child,
-                    Err(err) => {
-                        error!("Failed to start TTY shell. Reason '{err}'");
-                        return Err(EnvironmentStartError::TTYStart);
-                    }
-                };
 
-                Ok(SpawnedEnvironment::Tty(child))
+                Err(client.arg(shell).exec().into())
             }
         }
     }

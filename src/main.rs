@@ -30,6 +30,7 @@ use post_login::{EnvironmentStartError, PostLoginEnvironment};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::auth::utmpx::UtmpxSession;
 use crate::post_login::wait_with_log::LemursChild;
 use crate::{
     auth::utmpx::add_utmpx_entry,
@@ -387,6 +388,7 @@ fn start_session_child(
 
     drop(ipc_child);
 
+    let mut _utmpx_session = None::<UtmpxSession>;
     loop {
         let r: ChildRequest = match webext_read(&mut ipc) {
             Ok(r) => r,
@@ -418,6 +420,8 @@ fn start_session_child(
                 }
             }
             ChildRequest::PreWait => {
+                _utmpx_session = Some(add_utmpx_entry(username, config.tty, child.id()));
+
                 if let Some(pre_wait_hook) = hooks.pre_wait {
                     pre_wait_hook();
                 }
@@ -503,7 +507,6 @@ fn start_session_inner(ipc: &mut UnixStream) -> Result<(), StartSessionError> {
 
     webext_write(ipc, ChildRequest::PreEnvironment)?;
 
-    let tty = config.tty;
     let uid = auth_session.uid;
     let homedir = &auth_session.home_dir;
     let shell = &auth_session.shell;
@@ -518,22 +521,8 @@ fn start_session_inner(ipc: &mut UnixStream) -> Result<(), StartSessionError> {
     );
     set_xdg_common_paths(&mut process_env, homedir);
 
-    // TODO: Use exec instead, current pid should be added to utmpx instead
-    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, &config)?;
+    webext_write(ipc, ChildRequest::PreWait)?;
 
-    let pid = spawned_environment.pid();
-
-    let utmpx_session = add_utmpx_entry(username, tty, pid);
-    drop(process_env);
-
-    info!("Waiting for environment to terminate");
-
-    spawned_environment.wait();
-
-    info!("Environment terminated. Returning to Lemurs...");
-
-    drop(utmpx_session);
-    drop(auth_session);
-
-    Ok(())
+    post_login_env.exec(&auth_session, &mut process_env, &config)?;
+    unreachable!("exec() should not return")
 }
