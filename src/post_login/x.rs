@@ -2,6 +2,7 @@ use libc::{signal, SIGUSR1, SIG_DFL, SIG_IGN};
 use rand::Rng;
 
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 
 use std::env;
 use std::error::Error;
@@ -22,7 +23,7 @@ use crate::post_login::wait_with_log::LemursChild;
 
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum XSetupError {
     DisplayEnvVar,
     HomeEnvVar,
@@ -68,7 +69,7 @@ fn handle_sigusr1(_: i32) {
     X_HAS_STARTED.store(true, std::sync::atomic::Ordering::SeqCst);
 
     unsafe {
-        signal(SIGUSR1, handle_sigusr1 as usize);
+        signal(SIGUSR1, handle_sigusr1 as *const () as usize);
     }
 }
 
@@ -156,7 +157,7 @@ pub fn setup_x(
     // See note above
     unsafe {
         libc::signal(SIGUSR1, SIG_DFL);
-        signal(SIGUSR1, handle_sigusr1 as usize);
+        signal(SIGUSR1, handle_sigusr1 as *const () as usize);
     }
 
     // Wait for XServer to boot-up

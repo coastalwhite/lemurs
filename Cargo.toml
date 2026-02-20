@@ -21,7 +21,7 @@ include = [
     "/README.md",
     "/LICENSE-MIT",
     "/LICENSE-APACHE",
-    "/extra"
+    "/extra",
 ]
 
 rust-version = "1.84.0"
@@ -32,7 +32,7 @@ ratatui = "0.21.0"
 crossterm = "0.26"
 unicode-width = "0.1"
 
-mio = { version = "0.8.8", features = [ "os-poll", "os-ext" ] }
+mio = { version = "0.8.8", features = ["os-poll", "os-ext"] }
 
 deentry = "0.0.1"
 
@@ -51,12 +51,17 @@ uzers = "0.11"
 once_cell = "1.17.1"
 
 # Logging
-env_logger = { version = "0.9.0", default-features = false, features = ["humantime"] }
+env_logger = { version = "0.9.0", default-features = false, features = [
+    "humantime",
+] }
 log = "0.4.0"
 
 # Configuration File Parsing
 toml = "0.5"
 serde = { version = "1.0", features = ["derive"] }
+
+# IPC
+serde_json = "1.0.149"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

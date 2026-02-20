@@ -8,7 +8,7 @@ use std::time::Duration;
 use crate::config::{Config, FocusBehaviour, SwitcherVisibility};
 use crate::info_caching::{get_cached_information, set_cache};
 use crate::post_login::PostLoginEnvironment;
-use crate::{start_session, Hooks, StartSessionError};
+use crate::{start_session_child, Hooks, StartSessionError};
 use status_message::StatusMessage;
 
 use crossterm::cursor::MoveTo;
@@ -445,7 +445,6 @@ impl LoginForm {
                                     self.widgets.get_environment().map(|(_, content)| content);
                                 let username = self.widgets.get_username();
                                 let password = self.widgets.get_password();
-                                let config = self.config.clone();
 
                                 let Some(post_login_env) = environment else {
                                     status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
@@ -453,14 +452,19 @@ impl LoginForm {
                                     continue;
                                 };
 
-                                match start_session(
+                                match start_session_child(
                                     &username,
                                     &password,
                                     &post_login_env,
+                                    &self.config,
                                     &hooks,
-                                    &config,
                                 ) {
                                     Ok(()) => {}
+                                    Err(StartSessionError::ChildIo(err)) => {
+                                        status_message
+                                            .set(ErrorStatusMessage::ChildIo(Arc::new(err)));
+                                        send_ui_request(UIThreadRequest::Redraw);
+                                    }
                                     Err(StartSessionError::AuthenticationError(err)) => {
                                         status_message
                                             .set(ErrorStatusMessage::AuthenticationError(err));

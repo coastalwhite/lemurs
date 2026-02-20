@@ -1,7 +1,7 @@
 use crossterm::event::KeyCode;
 use log::error;
 use ratatui::style::{Color, Modifier};
-use serde::{de::Error, Deserialize};
+use serde::{de::Error, Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs::File;
 use std::io::Read;
@@ -150,7 +150,7 @@ macro_rules! toml_config_struct {
         struct $rough_name {
             $($field_name: Option<partial_struct_field!(PossibleVariable<$field_type>$(, $rough_field_type)?)>,)+
         }
-        #[derive(Debug, Clone, Deserialize)]
+        #[derive(Debug, Clone, Serialize, Deserialize)]
         pub struct $struct_name {
             $(pub $field_name: $field_type,)+
         }
@@ -234,7 +234,7 @@ toml_config_struct! { PowerControlConfig, PartialPowerControlConfig, RoughPowerC
     entries => PowerControlVec [PartialPowerControlVec, RoughPowerControlVec],
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 #[repr(transparent)]
 pub struct PowerControlVec(pub Vec<PowerControl>);
@@ -364,7 +364,7 @@ toml_config_struct! { WaylandConfig, PartialWaylandConfig, RoughWaylandConfig,
     wayland_sessions_path => String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FocusBehaviour {
     #[serde(rename = "default")]
     FirstNonCached,
@@ -378,7 +378,7 @@ pub enum FocusBehaviour {
     Password,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ShellLoginFlag {
     #[serde(rename = "none")]
     None,
@@ -416,6 +416,16 @@ impl<'de> Deserialize<'de> for SwitcherVisibility {
                 Self::Keybind(keycode)
             }
         })
+    }
+}
+impl Serialize for SwitcherVisibility {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // TODO: Not used by child process... Drop all of this, create
+        // a config subset for childprocess initialization
+        "visible".serialize(serializer)
     }
 }
 

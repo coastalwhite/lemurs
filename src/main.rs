@@ -1,5 +1,8 @@
 use std::fs::File;
-use std::io;
+use std::io::{self, ErrorKind, Read, Write};
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
+use std::os::unix::net::UnixStream;
+use std::process::Command;
 use std::{error::Error, path::Path};
 
 use crossterm::{
@@ -7,6 +10,8 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use log::{error, info, warn};
+use nix::fcntl::FdFlag;
+use nix::fcntl::{fcntl, FcntlArg};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
@@ -22,7 +27,11 @@ mod ui;
 use auth::try_auth;
 use config::Config;
 use post_login::{EnvironmentStartError, PostLoginEnvironment};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
+use crate::auth::utmpx::UtmpxSession;
+use crate::post_login::wait_with_log::LemursChild;
 use crate::{
     auth::utmpx::add_utmpx_entry,
     cli::{Cli, Commands},
@@ -184,6 +193,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Commands::Version => {
                 println!("{}", env!("CARGO_PKG_VERSION"));
             }
+            Commands::Session { fd } => start_session(fd),
         }
 
         return Ok(());
@@ -278,6 +288,7 @@ struct Hooks<'a> {
 pub enum StartSessionError {
     AuthenticationError(AuthenticationError),
     EnvironmentStartError(EnvironmentStartError),
+    ChildIo(io::Error),
 }
 
 impl From<EnvironmentStartError> for StartSessionError {
@@ -291,47 +302,212 @@ impl From<AuthenticationError> for StartSessionError {
         Self::AuthenticationError(value)
     }
 }
+impl From<io::Error> for StartSessionError {
+    fn from(value: io::Error) -> Self {
+        Self::ChildIo(value)
+    }
+}
 
-fn start_session(
+fn webext_write<T: Serialize, W: Write>(w: &mut W, t: T) -> io::Result<()> {
+    let serialized = serde_json::to_vec(&t).map_err(io::Error::other)?;
+    let len = (serialized.len() as u32).to_be_bytes();
+    w.write_all(&len)?;
+    w.write_all(&serialized)?;
+    Ok(())
+}
+
+fn webext_read<T: DeserializeOwned, R: Read>(r: &mut R) -> io::Result<T> {
+    let mut len = [0u8; 4];
+    r.read_exact(&mut len)?;
+    let len = u32::from_be_bytes(len) as usize;
+    if len > 65535 {
+        // Realistically, none of the subprocess messages should exceed this size
+        // Subprocess invokes pam, and theoretically, rogue pam module might output something to stdout (it shouldn't, but it might)
+        // and it would be very bad it its response will cause us to allocate too much
+        return Err(io::Error::other("corrupted response: len"));
+    }
+
+    let mut serialized = vec![0u8; len];
+    r.read_exact(&mut serialized)?;
+
+    let t: T = serde_json::from_slice(&serialized).map_err(io::Error::other)?;
+
+    Ok(t)
+}
+
+fn webext_request<O: DeserializeOwned, I: Serialize, W: Write + Read>(
+    w: &mut W,
+    i: I,
+) -> io::Result<O> {
+    webext_write(w, i)?;
+    webext_read(w)
+}
+
+#[derive(Serialize, Deserialize)]
+enum ChildRequest {
+    Config,
+    PostLoginEnv,
+    Username,
+    Password,
+    PreAuth,
+    PreEnvironment,
+    PreWait,
+
+    AuthenticationError(AuthenticationError),
+    EnvironmentStartError(EnvironmentStartError),
+    ChildIo(String),
+}
+
+fn start_session_child(
     username: &str,
     password: &str,
     post_login_env: &PostLoginEnvironment,
-    hooks: &Hooks<'_>,
     config: &Config,
+    hooks: &Hooks<'_>,
 ) -> Result<(), StartSessionError> {
-    info!(
-        "Starting new session for '{}' in environment '{:?}'",
-        username, post_login_env
-    );
+    let exe = std::env::current_exe()?;
 
     if let Some(pre_validate_hook) = hooks.pre_validate {
         pre_validate_hook();
     }
 
-    let mut process_env = EnvironmentContainer::take_snapshot();
+    let (mut ipc, ipc_child) = UnixStream::pair()?;
+    // Rust stdlib uses CLOEXEC for UnixStream::pair, meaning it will die when passed to the child process
+    // CLOEXEC will be returned by the childprocess, so the socket will be closed when the childprocess switches to the underlying session command
+    fcntl(ipc_child.as_raw_fd(), FcntlArg::F_SETFD(FdFlag::empty()))
+        .map_err(|e| io::Error::other(format!("fnctl: {e}")))?;
 
-    if let Some(pre_auth_hook) = hooks.pre_auth {
-        pre_auth_hook();
+    let mut cmd = Command::new(exe);
+    cmd.arg("session").arg(ipc_child.as_raw_fd().to_string());
+
+    let log_path = config.do_log.then_some(Path::new(&config.client_log_path));
+    let mut child = LemursChild::spawn(cmd, log_path)?;
+
+    drop(ipc_child);
+
+    let mut _utmpx_session = None::<UtmpxSession>;
+    loop {
+        let r: ChildRequest = match webext_read(&mut ipc) {
+            Ok(r) => r,
+            // Reading len would fail with UnexpectedEof when the child socket is closed (session grandchild is started)
+            Err(e) if e.kind() == ErrorKind::UnexpectedEof => break,
+            Err(e) => return Err(e.into()),
+        };
+        match r {
+            ChildRequest::Config => {
+                webext_write(&mut ipc, config)?;
+            }
+            ChildRequest::PostLoginEnv => {
+                webext_write(&mut ipc, post_login_env)?;
+            }
+            ChildRequest::Username => {
+                webext_write(&mut ipc, username)?;
+            }
+            ChildRequest::Password => {
+                webext_write(&mut ipc, password)?;
+            }
+            ChildRequest::PreAuth => {
+                if let Some(pre_auth_hook) = hooks.pre_auth {
+                    pre_auth_hook();
+                }
+            }
+            ChildRequest::PreEnvironment => {
+                if let Some(pre_environment_hook) = hooks.pre_environment {
+                    pre_environment_hook();
+                }
+            }
+            ChildRequest::PreWait => {
+                _utmpx_session = Some(add_utmpx_entry(username, config.tty, child.id()));
+
+                if let Some(pre_wait_hook) = hooks.pre_wait {
+                    pre_wait_hook();
+                }
+            }
+            ChildRequest::AuthenticationError(authentication_error) => {
+                return Err(StartSessionError::AuthenticationError(authentication_error))
+            }
+            ChildRequest::EnvironmentStartError(environment_start_error) => {
+                return Err(StartSessionError::EnvironmentStartError(
+                    environment_start_error,
+                ))
+            }
+            ChildRequest::ChildIo(e) => {
+                return Err(StartSessionError::ChildIo(io::Error::other(e)))
+            }
+        }
     }
+
+    let status = child.wait()?;
+
+    if let Some(pre_return_hook) = hooks.pre_return {
+        pre_return_hook();
+    }
+
+    match status.code() {
+        Some(0) => Ok(()),
+        v => Err(StartSessionError::ChildIo(io::Error::other(format!(
+            "unexpected exit code: {v:?}"
+        )))),
+    }
+}
+
+fn start_session(fd: RawFd) {
+    // SAFETY: We don't care for IO safety here,
+    // if the parent has given us the wrong fd - we can just die
+    let ipc = &mut unsafe { UnixStream::from_raw_fd(fd) };
+    fcntl(ipc.as_raw_fd(), FcntlArg::F_SETFD(FdFlag::FD_CLOEXEC)).expect("cloexec flag return");
+    let Err(e) = start_session_inner(ipc) else {
+        return;
+    };
+    match e {
+        StartSessionError::AuthenticationError(authentication_error) => {
+            let _ = webext_write(ipc, ChildRequest::AuthenticationError(authentication_error));
+        }
+        StartSessionError::EnvironmentStartError(environment_start_error) => {
+            let _ = webext_write(
+                ipc,
+                ChildRequest::EnvironmentStartError(environment_start_error),
+            );
+        }
+        StartSessionError::ChildIo(error) => {
+            let _ = webext_write(ipc, ChildRequest::ChildIo(error.to_string()));
+        }
+    }
+}
+
+fn start_session_inner(ipc: &mut UnixStream) -> Result<(), StartSessionError> {
+    let username = &webext_request::<String, _, _>(ipc, ChildRequest::Username)?;
+    let password = &webext_request::<String, _, _>(ipc, ChildRequest::Password)?;
+
+    let config = &webext_request::<Config, _, _>(ipc, ChildRequest::Config)?;
+
+    let post_login_env =
+        &webext_request::<PostLoginEnvironment, _, _>(ipc, ChildRequest::PostLoginEnv)?;
+
+    info!(
+        "Starting new session for '{}' in environment '{:?}'",
+        username, post_login_env
+    );
+
+    let mut process_env = EnvironmentContainer::take_snapshot();
 
     if matches!(post_login_env, PostLoginEnvironment::X { .. }) {
         set_display(&config.x11.x11_display, &mut process_env);
     }
     set_session_params(&mut process_env, post_login_env);
     remove_xdg(&mut process_env);
+    set_seat_vars(&mut process_env, config.tty);
+
+    webext_write(ipc, ChildRequest::PreAuth)?;
 
     let auth_session = try_auth(username, password, &config.pam_service)?;
 
-    if let Some(pre_environment_hook) = hooks.pre_environment {
-        pre_environment_hook();
-    }
+    webext_write(ipc, ChildRequest::PreEnvironment)?;
 
-    let tty = config.tty;
     let uid = auth_session.uid;
     let homedir = &auth_session.home_dir;
     let shell = &auth_session.shell;
 
-    set_seat_vars(&mut process_env, tty);
     set_session_vars(&mut process_env, uid);
     set_basic_variables(
         &mut process_env,
@@ -342,29 +518,8 @@ fn start_session(
     );
     set_xdg_common_paths(&mut process_env, homedir);
 
-    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, config)?;
+    webext_write(ipc, ChildRequest::PreWait)?;
 
-    let pid = spawned_environment.pid();
-
-    let utmpx_session = add_utmpx_entry(username, tty, pid);
-    drop(process_env);
-
-    info!("Waiting for environment to terminate");
-
-    if let Some(pre_wait_hook) = hooks.pre_wait {
-        pre_wait_hook();
-    }
-
-    spawned_environment.wait();
-
-    info!("Environment terminated. Returning to Lemurs...");
-
-    if let Some(pre_return_hook) = hooks.pre_return {
-        pre_return_hook();
-    }
-
-    drop(utmpx_session);
-    drop(auth_session);
-
-    Ok(())
+    post_login_env.exec(&auth_session, &mut process_env, config)?;
+    unreachable!("exec() should not return")
 }
