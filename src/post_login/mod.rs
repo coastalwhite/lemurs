@@ -7,7 +7,7 @@ use std::path::Path;
 use std::{fs, io, process};
 
 use std::os::unix::process::CommandExt;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::auth::AuthUserInfo;
 use crate::config::{Config, ShellLoginFlag};
@@ -118,8 +118,6 @@ impl PostLoginEnvironment {
         let mut client =
             lower_command_permissions_to_user(Command::new(&config.system_shell), user_info);
 
-        let log_path = config.do_log.then_some(Path::new(&config.client_log_path));
-
         if let Some(shell_login_flag) = shell_login_flag {
             client.arg(shell_login_flag);
         }
@@ -135,7 +133,13 @@ impl PostLoginEnvironment {
 
                 client.arg(format!("{} {}", &config.x11.xsetup_path, xinitrc_path));
 
-                let mut client = match LemursChild::spawn(client, log_path) {
+                // Log redirection is done by the parent process
+                let mut client = match client
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                {
                     Ok(child) => child,
                     Err(err) => {
                         error!("Failed to start X11 environment. Reason '{}'", err);
