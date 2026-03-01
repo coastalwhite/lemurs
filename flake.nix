@@ -63,6 +63,9 @@
             cargo-dist
           ];
         };
+				checks = {
+					able-to-login = pkgs.callPackage ./tests/able-to-login.nix { inherit self; };
+				};
       }
     );
 }
