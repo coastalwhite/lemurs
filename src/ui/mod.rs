@@ -43,7 +43,7 @@ impl LoginFormInputMode {
         Self(Arc::new(Mutex::new(mode)))
     }
 
-    fn get_guard(&self) -> MutexGuard<InputMode> {
+    fn get_guard(&self) -> MutexGuard<'_, InputMode> {
         let Self(mutex) = self;
 
         match mutex.lock() {
@@ -78,7 +78,7 @@ impl LoginFormStatusMessage {
         Self(Arc::new(Mutex::new(None)))
     }
 
-    fn get_guard(&self) -> MutexGuard<Option<StatusMessage>> {
+    fn get_guard(&self) -> MutexGuard<'_, Option<StatusMessage>> {
         let Self(mutex) = self;
 
         match mutex.lock() {
@@ -173,7 +173,7 @@ struct Widgets {
 }
 
 impl Widgets {
-    fn environment_guard(&self) -> MutexGuard<SwitcherWidget<PostLoginEnvironment>> {
+    fn environment_guard(&self) -> MutexGuard<'_, SwitcherWidget<PostLoginEnvironment>> {
         match self.environment.lock() {
             Ok(guard) => guard,
             Err(err) => {
@@ -182,7 +182,7 @@ impl Widgets {
             }
         }
     }
-    fn username_guard(&self) -> MutexGuard<InputFieldWidget> {
+    fn username_guard(&self) -> MutexGuard<'_, InputFieldWidget> {
         match self.username.lock() {
             Ok(guard) => guard,
             Err(err) => {
@@ -191,7 +191,7 @@ impl Widgets {
             }
         }
     }
-    fn password_guard(&self) -> MutexGuard<InputFieldWidget> {
+    fn password_guard(&self) -> MutexGuard<'_, InputFieldWidget> {
         match self.password.lock() {
             Ok(guard) => guard,
             Err(err) => {

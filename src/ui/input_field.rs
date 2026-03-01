@@ -244,7 +244,7 @@ impl InputFieldWidget {
         }
     }
 
-    fn get_block(&self, is_focused: bool) -> Block {
+    fn get_block(&self, is_focused: bool) -> Block<'_> {
         let (title_style, border_style) = if is_focused {
             (
                 Style::default().fg(get_color(&self.style.title_color_focused)),

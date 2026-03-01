@@ -8,23 +8,31 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = { self, nixpkgs, utils, rust-overlay }:
-    utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      utils,
+      rust-overlay,
+    }:
+    utils.lib.eachDefaultSystem (
+      system:
       let
         packageName = "lemurs";
-        
+
         pkgs = import nixpkgs {
           inherit system;
           overlays = [ rust-overlay.overlays.default ];
         };
-  
+
         rustToolchain = pkgs.rust-bin.stable.latest.default;
-  
+
         rustPlatform = pkgs.makeRustPlatform {
           cargo = rustToolchain;
           rustc = rustToolchain;
         };
-      in {
+      in
+      {
         packages.default = rustPlatform.buildRustPackage {
           name = packageName;
           src = ./.;
@@ -43,7 +51,9 @@
           buildInputs = [
             pkgs.linux-pam
           ];
-          
+
+          meta.mainProgram = "lemurs";
+
           cargoLock.lockFile = ./Cargo.lock;
         };
         devShells.default = pkgs.mkShell {
@@ -54,5 +64,5 @@
           ];
         };
       }
-  );
+    );
 }

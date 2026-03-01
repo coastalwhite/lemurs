@@ -68,7 +68,7 @@ fn handle_sigusr1(_: i32) {
     X_HAS_STARTED.store(true, std::sync::atomic::Ordering::SeqCst);
 
     unsafe {
-        signal(SIGUSR1, handle_sigusr1 as usize);
+        signal(SIGUSR1, handle_sigusr1 as *const () as usize);
     }
 }
 
@@ -156,7 +156,7 @@ pub fn setup_x(
     // See note above
     unsafe {
         libc::signal(SIGUSR1, SIG_DFL);
-        signal(SIGUSR1, handle_sigusr1 as usize);
+        signal(SIGUSR1, handle_sigusr1 as *const () as usize);
     }
 
     // Wait for XServer to boot-up
