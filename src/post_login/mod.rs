@@ -9,7 +9,6 @@ use std::process::{Child, Command, Stdio};
 
 use crate::auth::AuthUserInfo;
 use crate::config::{Config, ShellLoginFlag};
-use crate::env_container::EnvironmentContainer;
 use crate::post_login::x::setup_x;
 
 use nix::unistd::{Gid, Uid};
@@ -156,7 +155,6 @@ impl PostLoginEnvironment {
     pub fn spawn(
         &self,
         user_info: &AuthUserInfo<'_>,
-        process_env: &mut EnvironmentContainer,
         config: &Config,
     ) -> Result<SpawnedEnvironment, EnvironmentStartError> {
         let shell_login_flag = match config.shell_login_flag {
@@ -180,7 +178,7 @@ impl PostLoginEnvironment {
             PostLoginEnvironment::X { xinitrc_path } => {
                 info!("Starting X11 session");
 
-                let server = setup_x(process_env, user_info, config)
+                let server = setup_x(user_info, config)
                     .map_err(EnvironmentStartError::XSetup)?;
 
                 client.arg(format!("{} {}", &config.x11.xsetup_path, xinitrc_path));

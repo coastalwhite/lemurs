@@ -17,7 +17,6 @@ use log::{error, info};
 
 use crate::auth::AuthUserInfo;
 use crate::config::Config;
-use crate::env_container::EnvironmentContainer;
 use crate::post_login::wait_with_log::LemursChild;
 
 const XSTART_CHECK_INTERVAL_MILLIS: u64 = 100;
@@ -73,7 +72,6 @@ fn handle_sigusr1(_: i32) {
 }
 
 pub fn setup_x(
-    process_env: &mut EnvironmentContainer,
     user_info: &AuthUserInfo,
     config: &Config,
 ) -> Result<LemursChild, XSetupError> {
@@ -119,7 +117,7 @@ pub fn setup_x(
         })?;
 
     let xauth_path = xauth_path.to_str().ok_or(XSetupError::InvalidUTF8Path)?;
-    process_env.set("XAUTHORITY", xauth_path);
+    std::env::set_var("XAUTHORITY", xauth_path);
 
     let doubledigit_vtnr = if vtnr_value.len() == 1 {
         format!("0{vtnr_value}")

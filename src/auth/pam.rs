@@ -5,7 +5,7 @@ use log::info;
 use pam::Authenticator;
 use uzers::os::unix::UserExt;
 
-use crate::auth::AuthUserInfo;
+use crate::auth::{AuthUserInfo, ValidatedCredentials};
 
 /// All the different errors that can occur during PAM opening an authenticated session
 #[derive(Clone)]
@@ -31,13 +31,13 @@ impl fmt::Display for AuthenticationError {
     }
 }
 
-/// Open a PAM authenticated session
-pub fn open_session<'a>(
+/// Validate credentials and look up user info, but do not yet open a PAM session.
+pub fn validate_credentials<'a>(
     username: &str,
     password: &str,
     pam_service: &str,
-) -> Result<AuthUserInfo<'a>, AuthenticationError> {
-    info!("Started opening session");
+) -> Result<ValidatedCredentials<'a>, AuthenticationError> {
+    info!("Started credential validation");
 
     let mut authenticator = Authenticator::with_password(pam_service)
         .map_err(|_| AuthenticationError::PamService(pam_service.to_string()))?;
@@ -76,21 +76,43 @@ pub fn open_session<'a>(
         .ok_or(AuthenticationError::ShellInvalidUtf8)?
         .to_string();
 
+    Ok(ValidatedCredentials {
+        authenticator,
+        username: username.to_string(),
+        uid,
+        primary_gid,
+        all_gids,
+        home_dir,
+        shell,
+    })
+}
+
+/// Open a PAM session using already-validated credentials.
+pub fn open_session<'a>(
+    creds: ValidatedCredentials<'a>,
+) -> Result<AuthUserInfo<'a>, AuthenticationError> {
+    let ValidatedCredentials {
+        mut authenticator,
+        username,
+        uid,
+        primary_gid,
+        all_gids,
+        home_dir: _,
+        shell,
+    } = creds;
+
     authenticator
         .open_session()
         .map_err(|_| AuthenticationError::SessionOpen)?;
 
     info!("Opened session");
 
-    // NOTE: Logout happens automatically here with `drop` of authenticator
     Ok(AuthUserInfo {
         authenticator,
-
-        username: username.to_string(),
+        username,
         uid,
         primary_gid,
         all_gids,
-        home_dir,
         shell,
     })
 }

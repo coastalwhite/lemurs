@@ -31,9 +31,12 @@
           cargo = rustToolchain;
           rustc = rustToolchain;
         };
+
+        # Use nixpkgs' built-in rustPlatform for sandboxed builds (e.g. NixOS tests)
+        nixpkgsRustPlatform = pkgs.rustPlatform;
       in
       {
-        packages.default = rustPlatform.buildRustPackage {
+        packages.default = nixpkgsRustPlatform.buildRustPackage {
           name = packageName;
           src = ./.;
 
@@ -59,13 +62,14 @@
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             linux-pam
-            rustToolchain
+            rustToolchain  # use overlay toolchain in dev shell
             cargo-dist
           ];
         };
 				checks = {
 					able-to-login = pkgs.callPackage ./tests/able-to-login.nix { inherit self; };
 					graphical-sway-login = pkgs.callPackage ./tests/graphical-sway-login.nix { inherit self; };
+					relogin = pkgs.callPackage ./tests/relogin.nix { inherit self; };
 				};
       }
     );
