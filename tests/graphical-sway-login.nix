@@ -10,6 +10,7 @@ pkgs.testers.nixosTest {
       services.displayManager.enable = true;
       services.displayManager.lemurs = {
         enable = true;
+        package = self.packages.${pkgs.system}.default;
       };
 
       virtualisation.qemu.options = [ "-vga none -device virtio-gpu-pci" ];
@@ -57,7 +58,7 @@ pkgs.testers.nixosTest {
     machine.send_chars('test123\n', 0.2)
 
     # Wait for sway to start, run foot, touch the file, and exit
-    machine.wait_for_file("/tmp/sway-test-file", 60)
+    machine.wait_for_file("/tmp/sway-test-file", 30)
     machine.screenshot("after_sway")
   '';
 }

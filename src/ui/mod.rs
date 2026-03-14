@@ -466,11 +466,8 @@ impl LoginForm {
                                             .set(ErrorStatusMessage::AuthenticationError(err));
                                         send_ui_request(UIThreadRequest::Redraw);
                                     }
-                                    Err(StartSessionError::EnvironmentStartError(err)) => {
-                                        error!(
-                                            "Starting post-login environment failed. Reason: '{}'",
-                                            err
-                                        );
+                                    Err(StartSessionError::ForkFailed) => {
+                                        error!("Failed to fork session child process");
                                         send_ui_request(UIThreadRequest::EnableTui);
 
                                         status_message

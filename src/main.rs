@@ -14,14 +14,13 @@ mod auth;
 mod chvt;
 mod cli;
 mod config;
-mod env_container;
 mod info_caching;
 mod post_login;
 mod ui;
 
-use auth::try_auth;
+use auth::try_validate;
 use config::Config;
-use post_login::{EnvironmentStartError, PostLoginEnvironment};
+use post_login::PostLoginEnvironment;
 
 use crate::{
     auth::utmpx::add_utmpx_entry,
@@ -29,8 +28,7 @@ use crate::{
 };
 
 use self::{
-    auth::AuthenticationError,
-    env_container::EnvironmentContainer,
+    auth::{open_session, AuthenticationError, ValidatedCredentials},
     post_login::env_variables::{
         remove_xdg, set_basic_variables, set_display, set_seat_vars, set_session_params,
         set_session_vars, set_xdg_common_paths,
@@ -280,13 +278,7 @@ struct Hooks<'a> {
 
 pub enum StartSessionError {
     AuthenticationError(AuthenticationError),
-    EnvironmentStartError(EnvironmentStartError),
-}
-
-impl From<EnvironmentStartError> for StartSessionError {
-    fn from(value: EnvironmentStartError) -> Self {
-        Self::EnvironmentStartError(value)
-    }
+    ForkFailed,
 }
 
 impl From<AuthenticationError> for StartSessionError {
@@ -311,63 +303,107 @@ fn start_session(
         pre_validate_hook();
     }
 
-    let mut process_env = EnvironmentContainer::take_snapshot();
-
     if let Some(pre_auth_hook) = hooks.pre_auth {
         pre_auth_hook();
     }
 
-    if matches!(post_login_env, PostLoginEnvironment::X { .. }) {
-        set_display(&config.x11.x11_display, &mut process_env);
-    }
-    set_session_params(&mut process_env, post_login_env);
-    remove_xdg(&mut process_env);
-
-    let auth_session = try_auth(username, password, &config.pam_service)?;
+    // Validate credentials before opening a session. 
+    let creds = try_validate(username, password, &config.pam_service)?;
 
     if let Some(pre_environment_hook) = hooks.pre_environment {
         pre_environment_hook();
     }
 
-    let tty = config.tty;
-    let uid = auth_session.uid;
-    let homedir = &auth_session.home_dir;
-    let shell = &auth_session.shell;
+    // Fork the session. The session is opened inside the child process after fork(), so that the
+    // session lifetime is coupled to the child PID.  For systemd-logind, it sees the
+    // session-leader PID gone and cleans up immediately.
+    let child_pid = unsafe { libc::fork() };
+    if child_pid == -1 {
+        error!("fork() failed ({})", unsafe { *libc::__errno_location() });
+        return Err(StartSessionError::ForkFailed);
+    }
+    
+    if child_pid == 0 {
+        session_child(creds, post_login_env, username, config);
+    }
 
-    set_seat_vars(&mut process_env, tty);
-    set_session_vars(&mut process_env, uid);
-    set_basic_variables(
-        &mut process_env,
-        username,
-        homedir,
-        shell,
-        &config.initial_path,
-    );
-    set_xdg_common_paths(&mut process_env, homedir);
-
-    let spawned_environment = post_login_env.spawn(&auth_session, &mut process_env, config)?;
-
-    let pid = spawned_environment.pid();
-
-    let utmpx_session = add_utmpx_entry(username, tty, pid);
-    drop(process_env);
-
-    info!("Waiting for environment to terminate");
+    // The creditionals (i.e. the PAM handle) should be forgotten. The child owns it.
+    std::mem::forget(creds);
 
     if let Some(pre_wait_hook) = hooks.pre_wait {
         pre_wait_hook();
     }
 
-    spawned_environment.wait();
+    info!("Waiting for session child (pid {child_pid}) to exit");
 
-    info!("Environment terminated. Returning to Lemurs...");
+    let mut status: libc::c_int = 0;
+    unsafe { libc::waitpid(child_pid, &mut status, 0) };
+
+    info!("Session child exited. Returning to Lemurs...");
 
     if let Some(pre_return_hook) = hooks.pre_return {
         pre_return_hook();
     }
 
+    Ok(())
+}
+
+/// Body of the forked child process.
+///
+/// Opens the PAM session (so logind registers this PID as the session leader),
+/// spawns the compositor, waits for it to exit, then terminates.  The `-> !`
+/// return type makes explicit that this function never returns to the caller.
+fn session_child(
+    creds: ValidatedCredentials<'_>,
+    post_login_env: &PostLoginEnvironment,
+    username: &str,
+    config: &Config,
+) -> ! {
+    let tty = config.tty;
+    let uid = creds.uid;
+    let homedir = creds.home_dir.clone();
+    let shell = creds.shell.clone();
+
+    // Set the vars pam_systemd needs to register the session on the right
+    // seat/VT before calling open_session.
+    if matches!(post_login_env, PostLoginEnvironment::X { .. }) {
+        set_display(&config.x11.x11_display);
+    }
+    remove_xdg();
+    set_session_params(post_login_env);
+    set_seat_vars(tty);
+
+    let auth_session = match open_session(creds) {
+        Ok(s) => s,
+        Err(err) => {
+            error!("Child: failed to open PAM session: {err}");
+            std::process::exit(1);
+        }
+    };
+
+    // Set the remaining variables after pam_open_session has run — pam_systemd
+    // populates XDG_RUNTIME_DIR and XDG_SESSION_ID, which set_session_vars /
+    // set_xdg_common_paths adopt via set_or_own.
+    set_session_vars(uid);
+    set_basic_variables(username, &homedir, &shell, &config.initial_path);
+    set_xdg_common_paths(&homedir);
+
+    let spawned_environment = match post_login_env.spawn(&auth_session, config) {
+        Ok(env) => env,
+        Err(err) => {
+            error!("Child: failed to start environment: {err}");
+            std::process::exit(1);
+        }
+    };
+
+    let pid = spawned_environment.pid();
+    let utmpx_session = add_utmpx_entry(username, tty, pid);
+
+    info!("Child: waiting for environment to terminate");
+    spawned_environment.wait();
+    info!("Child: environment terminated");
+
     drop(utmpx_session);
     drop(auth_session);
-
-    Ok(())
+    std::process::exit(0);
 }

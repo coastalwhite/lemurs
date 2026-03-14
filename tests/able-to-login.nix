@@ -9,6 +9,7 @@ pkgs.testers.nixosTest {
     services.displayManager.enable = true;
     services.displayManager.lemurs = {
       enable = true;
+      package = self.packages.${pkgs.system}.default;
     };
 		virtualisation.qemu.options = [ "-vga none -device virtio-gpu-pci" ];
     services.seatd.enable = true;
