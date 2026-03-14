@@ -70,6 +70,7 @@
 					able-to-login = pkgs.callPackage ./tests/able-to-login.nix { inherit self; };
 					graphical-sway-login = pkgs.callPackage ./tests/graphical-sway-login.nix { inherit self; };
 					relogin = pkgs.callPackage ./tests/relogin.nix { inherit self; };
+				terminate-session = pkgs.callPackage ./tests/terminate-session.nix { inherit self; };
 				};
       }
     );
