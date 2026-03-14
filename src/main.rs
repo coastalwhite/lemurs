@@ -307,7 +307,7 @@ fn start_session(
         pre_auth_hook();
     }
 
-    // Validate credentials before opening a session. 
+    // Validate credentials before opening a session.
     let creds = try_validate(username, password, &config.pam_service)?;
 
     if let Some(pre_environment_hook) = hooks.pre_environment {
@@ -322,7 +322,7 @@ fn start_session(
         error!("fork() failed ({})", unsafe { *libc::__errno_location() });
         return Err(StartSessionError::ForkFailed);
     }
-    
+
     if child_pid == 0 {
         session_child(creds, post_login_env, username, config);
     }
