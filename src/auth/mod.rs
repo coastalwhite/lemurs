@@ -4,9 +4,9 @@ pub mod utmpx;
 use ::pam::{Authenticator, PasswordConv};
 use log::info;
 
+pub use crate::auth::pam::open_session;
 use crate::auth::pam::validate_credentials;
 pub use crate::auth::pam::AuthenticationError;
-pub use crate::auth::pam::open_session;
 
 /// Holds an authenticated (but not yet session-opened) PAM handle plus user account info.
 ///

@@ -71,10 +71,7 @@ fn handle_sigusr1(_: i32) {
     }
 }
 
-pub fn setup_x(
-    user_info: &AuthUserInfo,
-    config: &Config,
-) -> Result<LemursChild, XSetupError> {
+pub fn setup_x(user_info: &AuthUserInfo, config: &Config) -> Result<LemursChild, XSetupError> {
     use std::os::unix::process::CommandExt;
 
     info!("Start setup of X server");

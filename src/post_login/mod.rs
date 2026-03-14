@@ -178,8 +178,7 @@ impl PostLoginEnvironment {
             PostLoginEnvironment::X { xinitrc_path } => {
                 info!("Starting X11 session");
 
-                let server = setup_x(user_info, config)
-                    .map_err(EnvironmentStartError::XSetup)?;
+                let server = setup_x(user_info, config).map_err(EnvironmentStartError::XSetup)?;
 
                 client.arg(format!("{} {}", &config.x11.xsetup_path, xinitrc_path));
 
