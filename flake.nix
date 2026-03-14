@@ -65,6 +65,7 @@
         };
 				checks = {
 					able-to-login = pkgs.callPackage ./tests/able-to-login.nix { inherit self; };
+					graphical-sway-login = pkgs.callPackage ./tests/graphical-sway-login.nix { inherit self; };
 				};
       }
     );
