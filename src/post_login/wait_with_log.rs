@@ -8,7 +8,7 @@ use std::thread::JoinHandle;
 
 use std::io::Read;
 
-use log::info;
+use log::{info, error};
 use mio::unix::pipe::Receiver;
 use mio::{Events, Interest, Poll, Token, Waker};
 
@@ -168,7 +168,14 @@ impl LimitedOutputChild {
         let mut file_handle = LimitSizeWriter::new(file, LOG_WRITER_SIZE_LIMIT);
 
         let join_handle = std::thread::spawn(move || loop {
-            poll.poll(&mut events, None)?;
+            if let Err(e) = poll.poll(&mut events, None) {
+                if e.kind() == io::ErrorKind::Interrupted {
+                    // EINTR is expected during suspend/resume, just retry
+                    continue;
+                }
+                error!("poll() error: {}", e);
+                continue;
+            }
 
             fn forward_receiver_to_file(
                 receiver: &mut Receiver,
