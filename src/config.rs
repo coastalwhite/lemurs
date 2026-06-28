@@ -681,11 +681,7 @@ impl VariableInsertable for String {
             PossibleVariable::Value(s) | PossibleVariable::Variable(s) => s,
         };
 
-        loop {
-            let Some(var) = VariableIterator::new(&s).next() else {
-                break;
-            };
-
+        while let Some(var) = VariableIterator::new(&s).next() {
             let value = <PossibleVariable<String>>::try_from(
                 variables
                     .0
