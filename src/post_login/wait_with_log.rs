@@ -8,7 +8,7 @@ use std::thread::JoinHandle;
 
 use std::io::Read;
 
-use log::{info, error};
+use log::{error, info};
 use mio::unix::pipe::Receiver;
 use mio::{Events, Interest, Poll, Token, Waker};
 
