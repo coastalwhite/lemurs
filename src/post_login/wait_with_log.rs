@@ -174,7 +174,7 @@ impl LimitedOutputChild {
                     continue;
                 }
                 error!("poll() error: {}", e);
-                continue;
+                return Err(e);
             }
 
             fn forward_receiver_to_file(
