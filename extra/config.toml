@@ -95,6 +95,20 @@ color = "black"
 show_border = true
 border_color = "white"
 
+# Customizations for where on the screen each element is placed
+[layout]
+# Lines from the top of the screen to the power menu
+pre_power_gap = 0
+# Lines between the power menu and the environment switcher
+power_switcher_gap = 3
+# Lines between the switcher and the username field
+switcher_username_gap = 2
+# Lines between the username field and the password field
+username_password_gap = 2
+# Lines between the password field and the status message
+password_status_gap = 2
+
+
 [power_controls]
 # The margin between hints
 hint_margin = 2
