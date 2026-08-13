@@ -15,6 +15,19 @@ use mio::{Events, Interest, Poll, Token, Waker};
 /// 64MB
 const LOG_WRITER_SIZE_LIMIT: usize = 67_108_864;
 
+/// Whether an error returned by [`Poll::poll`] should be retried rather than
+/// propagated.
+///
+/// `mio` surfaces an interrupted syscall (`EINTR`) as
+/// [`io::ErrorKind::Interrupted`] instead of retrying it internally. This most
+/// notably happens when the kernel process freezer interrupts the poll during a
+/// system suspend/hibernate cycle. Propagating it would make the client `wait`
+/// fail spuriously and tear down an otherwise-healthy session on resume, so such
+/// an error is retried; all other errors are propagated.
+fn should_retry_poll(err: &io::Error) -> bool {
+    err.kind() == io::ErrorKind::Interrupted
+}
+
 struct LimitSizeWriter<W: io::Write> {
     writer: BufWriter<W>,
     current_byte_count: usize,
@@ -168,7 +181,16 @@ impl LimitedOutputChild {
         let mut file_handle = LimitSizeWriter::new(file, LOG_WRITER_SIZE_LIMIT);
 
         let join_handle = std::thread::spawn(move || loop {
-            poll.poll(&mut events, None)?;
+            // `poll` may be interrupted by a signal (`EINTR`), most notably by
+            // the kernel process freezer during a system suspend/hibernate
+            // cycle. Retry in that case instead of tearing down the session; see
+            // `should_retry_poll`.
+            if let Err(err) = poll.poll(&mut events, None) {
+                if should_retry_poll(&err) {
+                    continue;
+                }
+                return Err(err);
+            }
 
             fn forward_receiver_to_file(
                 receiver: &mut Receiver,
@@ -271,5 +293,31 @@ impl LimitedOutputChild {
 
     pub fn id(&self) -> u32 {
         self.process.id()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_retry_poll;
+    use std::io;
+
+    #[test]
+    fn retries_poll_on_interrupt() {
+        // An interrupted syscall (`EINTR`), e.g. from the kernel process freezer
+        // during suspend/hibernate, must be retried rather than propagated.
+        let interrupted = io::Error::from_raw_os_error(libc::EINTR);
+        assert_eq!(interrupted.kind(), io::ErrorKind::Interrupted);
+        assert!(should_retry_poll(&interrupted));
+    }
+
+    #[test]
+    fn propagates_other_poll_errors() {
+        for err in [
+            io::Error::from(io::ErrorKind::BrokenPipe),
+            io::Error::from(io::ErrorKind::PermissionDenied),
+            io::Error::from_raw_os_error(libc::EBADF),
+        ] {
+            assert!(!should_retry_poll(&err), "unexpectedly retried {err:?}");
+        }
     }
 }
