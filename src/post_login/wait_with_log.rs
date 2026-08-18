@@ -15,6 +15,32 @@ use mio::{Events, Interest, Poll, Token, Waker};
 /// 64MB
 const LOG_WRITER_SIZE_LIMIT: usize = 67_108_864;
 
+/// Whether an error returned by [`Poll::poll`] should be retried rather than
+/// propagated.
+///
+/// `mio` surfaces an interrupted syscall (`EINTR`) as
+/// [`io::ErrorKind::Interrupted`] instead of retrying it internally. This most
+/// notably happens when the kernel process freezer interrupts the poll during a
+/// system suspend/hibernate cycle. Propagating it would make the client `wait`
+/// fail spuriously and tear down an otherwise-healthy session on resume, so such
+/// an error is retried; all other errors are propagated.
+fn should_retry_poll(err: &io::Error) -> bool {
+    err.kind() == io::ErrorKind::Interrupted
+}
+
+/// Runs `poll_once` (a single [`Poll::poll`] call), automatically retrying when
+/// it fails with a retryable interrupt (see [`should_retry_poll`]) and
+/// propagating any other error. Returns once a poll completes, so the caller can
+/// process the readiness events.
+fn poll_retrying_on_interrupt(mut poll_once: impl FnMut() -> io::Result<()>) -> io::Result<()> {
+    loop {
+        match poll_once() {
+            Err(err) if should_retry_poll(&err) => continue,
+            other => return other,
+        }
+    }
+}
+
 struct LimitSizeWriter<W: io::Write> {
     writer: BufWriter<W>,
     current_byte_count: usize,
@@ -168,7 +194,11 @@ impl LimitedOutputChild {
         let mut file_handle = LimitSizeWriter::new(file, LOG_WRITER_SIZE_LIMIT);
 
         let join_handle = std::thread::spawn(move || loop {
-            poll.poll(&mut events, None)?;
+            // `poll` may be interrupted by a signal (`EINTR`), most notably by
+            // the kernel process freezer during a system suspend/hibernate
+            // cycle. Retry in that case instead of tearing down the session; see
+            // `poll_retrying_on_interrupt`.
+            poll_retrying_on_interrupt(|| poll.poll(&mut events, None))?;
 
             fn forward_receiver_to_file(
                 receiver: &mut Receiver,
@@ -271,5 +301,72 @@ impl LimitedOutputChild {
 
     pub fn id(&self) -> u32 {
         self.process.id()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{poll_retrying_on_interrupt, should_retry_poll};
+    use std::io;
+
+    #[test]
+    fn retries_poll_on_interrupt() {
+        // An interrupted syscall (`EINTR`), e.g. from the kernel process freezer
+        // during suspend/hibernate, must be retried rather than propagated.
+        let interrupted = io::Error::from_raw_os_error(libc::EINTR);
+        assert_eq!(interrupted.kind(), io::ErrorKind::Interrupted);
+        assert!(should_retry_poll(&interrupted));
+    }
+
+    #[test]
+    fn propagates_other_poll_errors() {
+        for err in [
+            io::Error::from(io::ErrorKind::BrokenPipe),
+            io::Error::from(io::ErrorKind::PermissionDenied),
+            io::Error::from_raw_os_error(libc::EBADF),
+        ] {
+            assert!(!should_retry_poll(&err), "unexpectedly retried {err:?}");
+        }
+    }
+
+    #[test]
+    fn poll_loop_proceeds_immediately_on_ok() {
+        let mut calls = 0;
+        let outcome = poll_retrying_on_interrupt(|| {
+            calls += 1;
+            Ok(())
+        });
+        assert!(outcome.is_ok());
+        assert_eq!(calls, 1);
+    }
+
+    #[test]
+    fn poll_loop_retries_on_interrupt_then_proceeds() {
+        // Scripted poll results, consumed front-to-back via `pop`: two interrupts
+        // then a success. The loop should swallow both interrupts and return once
+        // the poll succeeds.
+        let mut remaining = vec![
+            Ok(()),
+            Err(io::Error::from_raw_os_error(libc::EINTR)),
+            Err(io::Error::from_raw_os_error(libc::EINTR)),
+        ];
+        let mut calls = 0;
+        let outcome = poll_retrying_on_interrupt(|| {
+            calls += 1;
+            remaining.pop().unwrap()
+        });
+        assert!(outcome.is_ok());
+        assert_eq!(calls, 3, "expected the two interrupts to be retried");
+    }
+
+    #[test]
+    fn poll_loop_propagates_non_interrupt_error_without_retrying() {
+        let mut calls = 0;
+        let outcome = poll_retrying_on_interrupt(|| {
+            calls += 1;
+            Err(io::Error::from(io::ErrorKind::BrokenPipe))
+        });
+        assert_eq!(outcome.unwrap_err().kind(), io::ErrorKind::BrokenPipe);
+        assert_eq!(calls, 1, "a non-interrupt error must not be retried");
     }
 }
