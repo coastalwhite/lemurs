@@ -168,7 +168,22 @@ impl LimitedOutputChild {
         let mut file_handle = LimitSizeWriter::new(file, LOG_WRITER_SIZE_LIMIT);
 
         let join_handle = std::thread::spawn(move || loop {
-            poll.poll(&mut events, None)?;
+            // `poll(2)` is never restarted after a signal, even with SA_RESTART
+            // (see signal(7)), and mio surfaces the resulting EINTR to the
+            // caller rather than retrying it.
+            //
+            // Returning here is not harmless: unwinding this closure drops
+            // `stdout_receiver`/`stderr_receiver`, which closes the read ends of
+            // the session process' stdout/stderr pipes. The session process then
+            // takes SIGPIPE on its next write and dies. Signals are routinely
+            // delivered around suspend/resume, which makes this reachable during
+            // ordinary use, and the resulting error is only surfaced much later
+            // by `stop_logging()`, long after the session is gone.
+            match poll.poll(&mut events, None) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => return Err(err),
+            }
 
             fn forward_receiver_to_file(
                 receiver: &mut Receiver,
@@ -190,6 +205,9 @@ impl LimitedOutputChild {
                         Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
                             break;
                         }
+                        // Same reasoning as the `poll()` call above: a signal
+                        // must not tear down the pipes.
+                        Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
                         Err(err) => return Err(err),
                         Ok(n) => {
                             file_handle.write_all(&buf[..n])?;
