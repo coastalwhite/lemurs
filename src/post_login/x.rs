@@ -138,8 +138,12 @@ pub fn setup_x(user_info: &AuthUserInfo, config: &Config) -> Result<LemursChild,
         .do_log
         .then_some(Path::new(&config.x11.xserver_log_path));
 
+    // `exec` so the shell is replaced by the X server instead of forking it. Xorg sends SIGUSR1 to
+    // its parent, which has to be us; shells like dash (Debian/Ubuntu `/bin/sh`) fork for `-c`, so
+    // the signal would go to the shell instead. It also makes `child` the X server itself, so the
+    // kill on timeout below actually stops it.
     child.arg("-c").arg(format!(
-        "{} {display_value} vt{doubledigit_vtnr}",
+        "exec {} {display_value} vt{doubledigit_vtnr}",
         config.x11.xserver_path
     ));
 
