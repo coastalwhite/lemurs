@@ -96,7 +96,7 @@ pub fn setup_x(user_info: &AuthUserInfo, config: &Config) -> Result<LemursChild,
         .arg("-c")
         .arg(format!(
             "{} add {} . {}",
-            &config.x11.xauth_path,
+            config.x11.xauth_path,
             display_value,
             mcookie()
         ))
@@ -140,7 +140,7 @@ pub fn setup_x(user_info: &AuthUserInfo, config: &Config) -> Result<LemursChild,
 
     child.arg("-c").arg(format!(
         "{} {display_value} vt{doubledigit_vtnr}",
-        &config.x11.xserver_path
+        config.x11.xserver_path
     ));
 
     let mut child = LemursChild::spawn(child, log_path).map_err(|err| {
