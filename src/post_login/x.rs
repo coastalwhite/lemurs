@@ -138,8 +138,11 @@ pub fn setup_x(user_info: &AuthUserInfo, config: &Config) -> Result<LemursChild,
         .do_log
         .then_some(Path::new(&config.x11.xserver_log_path));
 
+    // `-noreset`: by default Xorg resets whenever its last client disconnects, discarding state
+    // such as `xrdb` resources and `xkbcomp` keymaps. We never hold a connection ourselves (xinit
+    // and LightDM do), so every short-lived client run during session setup would trigger a reset.
     child.arg("-c").arg(format!(
-        "{} {display_value} vt{doubledigit_vtnr}",
+        "{} {display_value} vt{doubledigit_vtnr} -noreset",
         config.x11.xserver_path
     ));
 
