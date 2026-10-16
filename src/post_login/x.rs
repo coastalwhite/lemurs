@@ -142,8 +142,11 @@ pub fn setup_x(user_info: &AuthUserInfo, config: &Config) -> Result<LemursChild,
     // its parent, which has to be us; shells like dash (Debian/Ubuntu `/bin/sh`) fork for `-c`, so
     // the signal would go to the shell instead. It also makes `child` the X server itself, so the
     // kill on timeout below actually stops it.
+    // `-noreset`: by default Xorg resets whenever its last client disconnects, discarding state
+    // such as `xrdb` resources and `xkbcomp` keymaps. We never hold a connection ourselves (xinit
+    // and LightDM do), so every short-lived client run during session setup would trigger a reset.
     child.arg("-c").arg(format!(
-        "exec {} {display_value} vt{doubledigit_vtnr}",
+        "exec {} {display_value} vt{doubledigit_vtnr} -noreset",
         config.x11.xserver_path
     ));
 
