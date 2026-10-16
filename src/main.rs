@@ -290,6 +290,7 @@ impl From<AuthenticationError> for StartSessionError {
 fn start_session(
     username: &str,
     password: &str,
+    pam_service: &str,
     post_login_env: &PostLoginEnvironment,
     hooks: &Hooks<'_>,
     config: &Config,
@@ -308,7 +309,7 @@ fn start_session(
     }
 
     // Validate credentials before opening a session.
-    let creds = try_validate(username, password, &config.pam_service)?;
+    let creds = try_validate(username, password, pam_service)?;
 
     if let Some(pre_environment_hook) = hooks.pre_environment {
         pre_environment_hook();

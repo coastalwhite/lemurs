@@ -199,12 +199,17 @@ toml_config_struct! { Config, PartialConfig, RoughConfig,
     do_log => bool,
 
     pam_service => String,
+    autologin_pam_service => String,
     system_shell => String,
     initial_path => String,
 
     shell_login_flag => ShellLoginFlag,
 
     focus_behaviour => FocusBehaviour,
+
+    autologin => Autologin,
+    autologin_user => String,
+    autologin_environment => String,
 
     background => BackgroundConfig [PartialBackgroundConfig, RoughBackgroundConfig],
 
@@ -377,6 +382,14 @@ pub enum FocusBehaviour {
     Username,
     #[serde(rename = "password")]
     Password,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub enum Autologin {
+    #[serde(rename = "disabled")]
+    Disabled,
+    #[serde(rename = "enabled")]
+    Enabled,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -663,6 +676,7 @@ non_string_var_insert! {
     char ["character"],
     ShellLoginFlag ["shell login flag"],
     FocusBehaviour ["focus behavior"],
+    Autologin ["autologin"],
     SwitcherVisibility ["switcher visibility"],
 }
 
