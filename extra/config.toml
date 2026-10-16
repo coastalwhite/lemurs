@@ -191,6 +191,9 @@ toggle_hint_modifiers = ""
 # NOTE: it is always shown when no viable options are found.
 include_tty_shell = false
 
+# The title used for the TTY shell option in the switcher
+tty_shell_title = "TTYSHELL"
+
 # Remember the selected environment after logging in for the next time
 remember = true
 

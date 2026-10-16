@@ -274,6 +274,7 @@ toml_config_struct! { SwitcherConfig, PartialSwitcherConfig, RoughSwitcherConfig
     toggle_hint_modifiers => String,
 
     include_tty_shell => bool,
+    tty_shell_title => String,
 
     remember => bool,
 
