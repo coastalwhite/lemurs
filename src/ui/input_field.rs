@@ -100,6 +100,9 @@ impl InputFieldWidget {
         let width = usize::from(self.width);
 
         let replacement_width = replacement.width();
+        if replacement_width == 0 {
+            return String::new();
+        }
 
         let cell_width = self.content.chars().skip(scroll).count();
         let cell_width = usize::min(width, cell_width);
@@ -393,6 +396,20 @@ mod tests {
         assert_eq!(input_field.cursor, 1);
         input_field.backspace();
         assert_eq!(input_field.cursor, 0);
+    }
+
+    #[test]
+    fn empty_replacement() {
+        let mut input_field = InputFieldWidget::new(
+            Replace(String::new()),
+            Config::default().password_field.style,
+            String::default(),
+        );
+
+        assert_eq!(&input_field.show_string(), "");
+        input_field.insert('x');
+        input_field.insert('y');
+        assert_eq!(&input_field.show_string(), "");
     }
 
     #[test]

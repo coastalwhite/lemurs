@@ -340,7 +340,7 @@ toml_config_struct! { UsernameFieldConfig, PartialUsernameFieldConfig, RoughUser
 }
 
 toml_config_struct! { PasswordFieldConfig, PartialPasswordFieldConfig, RoughPasswordFieldConfig,
-    content_replacement_character => char,
+    content_replacement_character => String,
     style => InputFieldStyle [PartialInputFieldStyle, RoughInputFieldStyle],
 }
 

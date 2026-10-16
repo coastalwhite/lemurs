@@ -290,7 +290,6 @@ max_width = 48
 
 # The character used for replacement when typing a password. Leave empty for no
 # feedback.
-# Note: Only one character is accepted.
 content_replacement_character = "*"
 
 [password_field.style]

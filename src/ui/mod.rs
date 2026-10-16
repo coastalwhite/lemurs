@@ -304,10 +304,7 @@ impl LoginForm {
                 ))),
                 password: Arc::new(Mutex::new(InputFieldWidget::new(
                     InputFieldDisplayType::Replace(
-                        config
-                            .password_field
-                            .content_replacement_character
-                            .to_string(),
+                        config.password_field.content_replacement_character.clone(),
                     ),
                     config.password_field.style.clone(),
                     String::default(),
