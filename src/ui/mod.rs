@@ -5,7 +5,7 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use crate::config::{Config, FocusBehaviour, SwitcherVisibility};
+use crate::config::{Autologin, Config, FocusBehaviour, SwitcherVisibility};
 use crate::info_caching::{get_cached_information, set_cache};
 use crate::post_login::PostLoginEnvironment;
 use crate::{start_session, Hooks, StartSessionError};
@@ -304,10 +304,7 @@ impl LoginForm {
                 ))),
                 password: Arc::new(Mutex::new(InputFieldWidget::new(
                     InputFieldDisplayType::Replace(
-                        config
-                            .password_field
-                            .content_replacement_character
-                            .to_string(),
+                        config.password_field.content_replacement_character.clone(),
                     ),
                     config.password_field.style.clone(),
                     String::default(),
@@ -424,6 +421,60 @@ impl LoginForm {
                 pre_return: Some(&pre_return),
             };
 
+            let login = |username: &str, password: &str, pam_service: &str| {
+                let Some(post_login_env) =
+                    self.widgets.get_environment().map(|(_, content)| content)
+                else {
+                    status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
+                    send_ui_request(UIThreadRequest::Redraw);
+                    return;
+                };
+
+                match start_session(
+                    username,
+                    password,
+                    pam_service,
+                    &post_login_env,
+                    &hooks,
+                    &self.config,
+                ) {
+                    Ok(()) => {}
+                    Err(StartSessionError::AuthenticationError(err)) => {
+                        status_message.set(ErrorStatusMessage::AuthenticationError(err));
+                        send_ui_request(UIThreadRequest::Redraw);
+                    }
+                    Err(StartSessionError::ForkFailed) => {
+                        error!("Failed to fork session child process");
+                        send_ui_request(UIThreadRequest::EnableTui);
+
+                        status_message.set(ErrorStatusMessage::FailedGraphicalEnvironment);
+                        send_ui_request(UIThreadRequest::Redraw);
+                    }
+                }
+            };
+
+            if self.config.autologin == Autologin::Enabled && !self.preview {
+                let username = &self.config.autologin_user;
+                let environment = &self.config.autologin_environment;
+
+                if !environment.is_empty() {
+                    self.widgets.environment_try_select(environment);
+                }
+
+                if username.is_empty() {
+                    warn!("Autologin is enabled, but `autologin_user` is not set");
+                } else if !environment.is_empty()
+                    && self.widgets.get_environment().map(|(title, _)| title)
+                        != Some(environment.clone())
+                {
+                    warn!("Autologin is enabled, but environment '{environment}' does not exist");
+                } else {
+                    info!("Autologin for '{username}'");
+                    self.widgets.set_username(username);
+                    login(username, "", &self.config.autologin_pam_service);
+                }
+            }
+
             loop {
                 if let Ok(Event::Key(key)) = event::read() {
                     match (key.code, input_mode.get(), key.modifiers) {
@@ -441,40 +492,10 @@ impl LoginForm {
                                 status_message.clear();
                                 send_ui_request(UIThreadRequest::Redraw);
                             } else {
-                                let environment =
-                                    self.widgets.get_environment().map(|(_, content)| content);
                                 let username = self.widgets.get_username();
                                 let password = self.widgets.get_password();
-                                let config = self.config.clone();
 
-                                let Some(post_login_env) = environment else {
-                                    status_message.set(ErrorStatusMessage::NoGraphicalEnvironment);
-                                    send_ui_request(UIThreadRequest::Redraw);
-                                    continue;
-                                };
-
-                                match start_session(
-                                    &username,
-                                    &password,
-                                    &post_login_env,
-                                    &hooks,
-                                    &config,
-                                ) {
-                                    Ok(()) => {}
-                                    Err(StartSessionError::AuthenticationError(err)) => {
-                                        status_message
-                                            .set(ErrorStatusMessage::AuthenticationError(err));
-                                        send_ui_request(UIThreadRequest::Redraw);
-                                    }
-                                    Err(StartSessionError::ForkFailed) => {
-                                        error!("Failed to fork session child process");
-                                        send_ui_request(UIThreadRequest::EnableTui);
-
-                                        status_message
-                                            .set(ErrorStatusMessage::FailedGraphicalEnvironment);
-                                        send_ui_request(UIThreadRequest::Redraw);
-                                    }
-                                }
+                                login(&username, &password, &self.config.pam_service);
                             }
                         }
                         (KeyCode::Char('s'), InputMode::Normal, _) => self.set_cache(),

@@ -449,7 +449,10 @@ pub fn get_envs(config: &Config) -> Vec<(String, PostLoginEnvironment)> {
             info!("Added TTY SHELL because no other environments were found");
         }
 
-        envs.push(("TTYSHELL".to_string(), PostLoginEnvironment::Shell));
+        envs.push((
+            config.environment_switcher.tty_shell_title.clone(),
+            PostLoginEnvironment::Shell,
+        ));
     }
 
     envs

@@ -58,6 +58,10 @@ do_log = true
 # The PAM service that should be used to login
 pam_service = "lemurs"
 
+# The PAM service that is used for autologin. It must not ask for a password.
+# See `extra/lemurs-autologin.pam`.
+autologin_pam_service = "lemurs-autologin"
+
 # Path to system shell that gets used to execute linux commands. In almost all
 # cases, this should refer to a bash shell.
 system_shell = "/bin/sh"
@@ -81,6 +85,19 @@ shell_login_flag = "short"
 # - username: Initially focus on the username field
 # - password: Initially focus on the password field
 focus_behaviour = "default"
+
+# Automatically log in when Lemurs is started
+#
+# Possible values:
+# - disabled: Autologin disabled
+# - enabled: Autologin enabled
+autologin = "disabled"
+
+# The user to log in automatically (Autologin is skipped when this is empty).
+autologin_user = ""
+
+# The environment to start on autologin.
+autologin_environment = ""
 
 # General settings for background style
 [background]
@@ -191,6 +208,9 @@ toggle_hint_modifiers = ""
 # NOTE: it is always shown when no viable options are found.
 include_tty_shell = false
 
+# The title used for the TTY shell option in the switcher
+tty_shell_title = "TTYSHELL"
+
 # Remember the selected environment after logging in for the next time
 remember = true
 
@@ -290,7 +310,6 @@ max_width = 48
 
 # The character used for replacement when typing a password. Leave empty for no
 # feedback.
-# Note: Only one character is accepted.
 content_replacement_character = "*"
 
 [password_field.style]

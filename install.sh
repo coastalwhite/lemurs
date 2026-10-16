@@ -58,8 +58,9 @@ then
 fi
 
 # Cache the current user
-echo 'Copy over PAM service'
+echo 'Copy over PAM services'
 $ROOT_CMD cp -f "extra/lemurs.pam" "/etc/pam.d/lemurs"
+$ROOT_CMD cp -f "extra/lemurs-autologin.pam" "/etc/pam.d/lemurs-autologin"
 
 # Cache the current user
 echo 'Caching the current user'

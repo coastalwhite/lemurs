@@ -205,6 +205,7 @@ want to tweak details for their own installation.
 |  |- xsetup.sh: Script used to setup a Xorg session
 |  |- lemurs.service: The systemd service used to start at boot
 |  |- lemurs.pam: PAM service configuration
+|  |- lemurs-autologin.pam: PAM service configuration used for autologin
 ```
 
 ## Shell Keybindings
